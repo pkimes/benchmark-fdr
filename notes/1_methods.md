@@ -2,6 +2,9 @@
 
 ## Core Methods
 - :fire: **IHW (Independent Hypothesis Weighting)** :fire:
+  - Idea: Method uses a data-driven approach to calculate weights using independent covariates and then applies a group-weighted BH method
+  - Good: Improves power and controls FDR at alpha level
+  - Bad: 
   - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
   - `IWH` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
   - code from analysis [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
@@ -46,6 +49,9 @@
   - `FDRreg` R package [(GitHub link)](https://github.com/jgscott/FDRreg)
   - wrapped in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **local false discovery rate** (compared in ASH paper)
+  - Idea: local FDR is estimated separately within each group and then estimates are grouped together
+  - Good: 
+  - Bad: FDR isn't controlled at alpha level if alternative distributions across groups are different
   - [Efron B. (2008). "Microarrays, empirical Bayes and the two-groups model." Statistical Science, 23(1):1-22.](http://projecteuclid.org/download/pdfview_1/euclid.ss/1215441276)
   - `locfdr` R package [(CRAN link)](https://cran.r-project.org/web/packages/locfdr/index.html)
 - **mixture false discovery rate** (compared in ASH paper)
