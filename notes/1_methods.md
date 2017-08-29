@@ -18,9 +18,12 @@
 - **Benjamini and Hochberg**
   - Idea: Uses *p*-values. Assumes independence of tests (or assumes all hypotheses are exchangeable), but has been shown to be robust even with correlated tests. 
   - Good: Easy to use. More powerful than FWER-based methods
-  - Bad: Sub-optimal power (and can?t prioritize tests) when the individual tests differ in statistical properties such as sample size, true effect size, signal-to-noise ratio or prior probability of being false (see [Ignatiadis et al. 2016](https://www.ncbi.nlm.nih.gov/pubmed/27240256)) 
+  - Bad: Sub-optimal power (and can't prioritize tests) when the individual tests differ in statistical properties such as sample size, true effect size, signal-to-noise ratio or prior probability of being false (see [Ignatiadis et al. 2016](https://www.ncbi.nlm.nih.gov/pubmed/27240256)) 
+    - To increase power while controlling FDR, can use independent covariates to prioritize tests 
+  - [Benjamini and Hochberg. (1995) Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. Journal of the Royal Statistical Society. Series B (Methodological), 57(1): 289-300.](http://www.stat.purdue.edu/~doerge/BIOINFORM.D/FALL06/Benjamini%20and%20Y%20FDR.pdf)
+  - implemented in the `p.adjust()` function in `stats` R package
 - **Greedy Independent Filtering** (compared in IHW paper)
-  - Idea: Filter all p-values using an independent covariate ($X$) such that $X_i < x$. Greedy if researcher tests all possible thresholds and picks one that maximizes number of discoveries. However, greedy approaches do not control for FDR at alpha level. 
+  - Idea: Filter all p-values using an independent covariate ($X$) such that $X$ is less than some threshold $x$. Greedy if researcher tests all possible thresholds and picks one that maximizes number of discoveries. However, greedy approaches do not control for FDR at alpha level. 
   - Good: Controls FDR at alpha level IF researcher ONLY uses a pre-specified threshold
   - Bad: Not automated, very subjective, can lead to *p*-hacking
   - [Bourgon R, Gentleman R and Huber W. (2010) "Independent filtering increases detection power for high-throughput experiments." Proceedings of the National Academy of Sciences. 107:9546–9551.](http://www.pnas.org/content/107/21/9546.long)
@@ -32,7 +35,7 @@
   - Idea: Use a categorial (or binned continuous) covariate to stratify tests, apply BH within each strata, combine significant tests
   - Good: 
   - Bad: Loss of FDR control for the null tests because different strata are treated equally
-    - To increase power, diff strata should be prioritized differently
+    - To increase power, different strata should be prioritized differently
   - [Sun L, Craiu RV, Paterson AD, and Bull SB. (2006). "Stratified false discovery control for large‐scale hypothesis testing with application to genome‐wide association studies." Genetic Epidemiology, 30(6):519-530.](https://www.ncbi.nlm.nih.gov/pubmed/16800000)
   - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **Clfdr (Cai's local FDR)** (compared in IHW paper)
