@@ -16,7 +16,7 @@
 - ***Application 2: Differential protein abundance***
   - Raw Data: counts from 2666 proteins from quantitative mass-spectometry of yeast subjected to 2 separate treatments: (1) rapamycin and (2) dimethyl sulfoxide 
   - Input to IHW: 
-    - p-values: differential abundance evaluated by Welch's t-test (supplementary table from (Dephoure, N. & Gygi, S. P. Hyperplexing: a method for higher-order multiplexed quantitative proteomics provides a map of the dynamic response to rapamycin in yeast. Science Signaling 5, rs2–rs2 (2012).))
+    - p-values: differential abundance evaluated by Welch's t-test (supplementary table from [Dephoure, N. et al](https://www.ncbi.nlm.nih.gov/pubmed/22457332))
     - covariate: number of peptides quantified across all samples for each protein (4 equal sized bins)
     - IHW settings: nfolds=nfolds, cv =ncplits,cv=5, regularization parameter selected from a grid of 20 equidistant values
   - Evaluation metric: number of discoveries
