@@ -3,6 +3,9 @@
 ## Core Methods
 - :fire: **IHW (Independent Hypothesis Weighting)** :fire:
   - :bulb:**Idea:** Method uses a data-driven approach to calculate weights using independent covariates and then applies a group-weighted BH method
+  - **Assumptions:**
+      -- covariate must be independent of p-value under null
+      -- tests are independent under null 
   - :+1:**Good:** Improves power and controls FDR at alpha level
   - :-1:**Bad:** 
   - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
@@ -24,13 +27,19 @@
   - code from analysis [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
 
 ## Relevant Methods
-- **Benjamini and Hochberg**
+- **Benjamini and Hochberg (BH)**
   - :bulb:**Idea:** Uses *p*-values. Assumes independence of tests (or assumes all hypotheses are exchangeable), but has been shown to be robust even with correlated tests. 
   - :+1:**Good:** Easy to use. More powerful than FWER-based methods
   - :-1:**Bad:** Sub-optimal power (and can't prioritize tests) when the individual tests differ in statistical properties such as sample size, true effect size, signal-to-noise ratio or prior probability of being false (see [Ignatiadis et al. 2016](https://www.ncbi.nlm.nih.gov/pubmed/27240256)) 
     - To increase power while controlling FDR, can use independent covariates to prioritize tests 
   - [Benjamini and Hochberg. (1995) Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. Journal of the Royal Statistical Society. Series B (Methodological), 57(1): 289-300.](http://www.stat.purdue.edu/~doerge/BIOINFORM.D/FALL06/Benjamini%20and%20Y%20FDR.pdf)
   - implemented in the `p.adjust()` function in `stats` R package
+- **Weighted BH** (basis of IHW)
+  - :bulb:**Idea:** Associate each test with a non-negative weight such that weights averahe to 1. Hypotheses with higher weights are prioritized. 
+  - :+1:**Good:** Controls FDR 
+  - :-1:**Bad:** Weights must be prespecified, are independent of data
+  - [Roeder K, Devlin B, Wasserman L. Improving power in genome-wide association studies: weights tip the scale. Genet Epidemiol. 2007 Nov;31(7):741-7.](http://www.stat.cmu.edu/~roeder/publications/rdw2007.pdf)
+  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **Greedy Independent Filtering** (compared in IHW paper)
   - :bulb:**Idea:** Filter all p-values using an independent covariate ($X$) such that $X$ is less than some threshold $x$. Greedy if researcher tests all possible thresholds and picks one that maximizes number of discoveries. However, greedy approaches do not control for FDR at alpha level. 
   - :+1:**Good:** Controls FDR at alpha level IF researcher ONLY uses a pre-specified threshold
