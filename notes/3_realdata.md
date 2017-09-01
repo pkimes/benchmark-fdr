@@ -25,7 +25,7 @@
   - ***Application 3: Association between SNPs and histone modifications***
   - Raw Data: SNPs and histone modifications on Chromosome 21 from [Grubert, F. et al](https://www.ncbi.nlm.nih.gov/pubmed/26300125)
   - Input to IHW: 
-    - p-values: [Matrox eQTL](https://www.ncbi.nlm.nih.gov/pubmed/22492648)
+    - p-values: [Matrix eQTL](https://www.ncbi.nlm.nih.gov/pubmed/22492648)
     - covariate: genomic distance between SNP and ChIP-seq signal (10kb bins upto 300kb, 100kb bins upto 1Mb, 10Mb bins for the rest)
     - IHW settings: nfolds=5, \lambda= \inf, cv =ncplits,cv=5, repeated for nominal levels \alpha \subset [0.05,0.1] (grid of 5 equidistant values)
   - Evaluation metric: number of discoveries
