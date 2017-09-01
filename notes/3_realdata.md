@@ -13,7 +13,7 @@
   - Compared with: BH
 
 - ***Application 2: Differential protein abundance***
-  - Raw Data: counts from 2666 proteins from quantitative mass-spectometry of yeast subjected to 2 separate treatments: (1) rapamycin and (2) dimethyl   sulfoxide
+  - Raw Data: counts from 2666 proteins from quantitative mass-spectometry of yeast subjected to 2 separate treatments: (1) rapamycin and (2) dimethyl sulfoxide
   - Input to IHW: 
     - p-values: differential abundance evaluated by Welch's t-test
     - covariate: number of peptides quantified across all samples for each protein
