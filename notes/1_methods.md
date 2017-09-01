@@ -7,7 +7,7 @@
     - covariate must be independent of p-value under null
     - tests are independent under null 
   - :+1:**Good:** Improves power and controls FDR at alpha level
-  - :-1:**Bad:** 
+  - :-1:**Bad:** does not maintain FDR when (1) insufficient power to detect false hypotheses (2) all hypotheses are true
   - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
   - `IWH` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
   - code from analysis [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
