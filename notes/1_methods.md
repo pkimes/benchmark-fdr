@@ -3,6 +3,7 @@
 ## Core Methods
 - :fire: **IHW (Independent Hypothesis Weighting)** :fire:
   - :bulb:**Idea:** Method uses a data-driven approach to calculate weights using independent covariates and then applies a group-weighted BH method
+  - **Features** [Size investing](https://projecteuclid.org/euclid.aos/1297779856)
   - **Assumptions:**
     - covariate must be independent of p-value under null
     - tests are independent under null 
