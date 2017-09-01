@@ -4,8 +4,8 @@
 - :fire: **IHW (Independent Hypothesis Weighting)** :fire:
   - :bulb:**Idea:** Method uses a data-driven approach to calculate weights using independent covariates and then applies a group-weighted BH method
   - **Assumptions:**
-      -- covariate must be independent of p-value under null
-      -- tests are independent under null 
+    - covariate must be independent of p-value under null
+    - tests are independent under null 
   - :+1:**Good:** Improves power and controls FDR at alpha level
   - :-1:**Bad:** 
   - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
