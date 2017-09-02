@@ -22,7 +22,7 @@
   - Evaluation metric: number of discoveries
   - Compared with: BH
   
-  - ***Application 3: Association between SNPs and histone modifications***
+- ***Application 3: Association between SNPs and histone modifications***
   - Raw Data: SNPs and histone modifications on Chromosome 21 from [Grubert, F. et al](https://www.ncbi.nlm.nih.gov/pubmed/26300125)
   - Input to IHW: 
     - p-values: [Matrix eQTL](https://www.ncbi.nlm.nih.gov/pubmed/22492648)
@@ -33,8 +33,7 @@
 
 
 ### ASH Real Data Analysis
-*summary to be added - e.g. data types, evaluation metrics, code/data availability*
-
+- none presented
 
 ### Boca-Leek Real Data Analysis
 *summary to be added - e.g. data types, evaluation metrics, code/data availability*
