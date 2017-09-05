@@ -19,13 +19,21 @@
   - [Stephens M. (2017). "False discovery rates: a new deal." Biostatistics, 18(2):275-294.](https://www.ncbi.nlm.nih.gov/pubmed/27756721)
   - `ashr` R package [(GitHub link)](https://github.com/stephens999/ashr), [CRAN link](https://cran.r-project.org/web/packages/ashr/index.html)
   - code from analysis [(GitHub link)](https://github.com/stephenslab/ash)
-- :fire: **swfdr (Science-Wise False Discovery Rate)** :fire:
+- :fire: **Boca-Leek** :fire:
   - :bulb:**Idea:** 
+    - Estimates FDR conditional on covariates in a multiple testing framework by (1) estimating the null proportion of hypotheses with logistic regression and (2) multiplying the BH-adjusted p-values by the estimated null proportion.
+    - Assumes that the p-values are independent of the covariates conditional on the null or alternative. In other words, the probability that a test statistic or p-value is drawn from the null or non-null distribution depends on the covariates (but not the realized value of the test statistic or p-value itself).
   - :+1:**Good:**
+    - FDR control can be maintained even when tests are moderately correlated
+    - If hypotheses are independent, can use bootstrapping to obtain CIs for the null proportion of hypotheses
+    - Increasing the number of tests can lead to improvement in FDR control
   - :-1:**Bad:**
+    - Improvement over Storey (2002) is minor
+    - Scott (2015) is superior when test statistics are normally distributed
+    - Does not control FDR when hypotheses are highly correlated
   - [Boca S, and Leek J. (2017). "A direct approach to estimating false discovery rates conditional on covariates." bioRxiv preprint.](http://www.biorxiv.org/content/early/2017/07/25/035675)
-  - `swfdr` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/swfdr.html)
-  - code from analysis [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
+  - `swfdr` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/swfdr.html) applies the Boca-Leek regression framework to estimate the Science-Wise False Discovery Rate from [Jager & Leek (2013)](https://arxiv.org/abs/1301.3718)
+  - code from analysis of simulated and real data in the Boca-Leek paper: [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
 
 ## Relevant Methods
 - **Benjamini and Hochberg (BH)**
