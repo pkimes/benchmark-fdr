@@ -36,5 +36,10 @@
 - none presented
 
 ### Boca-Leek Real Data Analysis
-*summary to be added - e.g. data types, evaluation metrics, code/data availability*
+- **Summary:** 
+- **Dataset:** 
+  - GWAS for BMI from the Genetic Investigation of ANthropometric Traits (GIANT) consortium [(Locke et al., 2015)](https://www.ncbi.nlm.nih.gov/pubmed/25673413)
+- **Availability:**
+  - Code for analysis using real data is available here [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
+
 

@@ -9,16 +9,20 @@
     - tests are independent under null 
   - :+1:**Good:** Improves power and controls FDR at alpha level
   - :-1:**Bad:** does not maintain FDR when (1) insufficient power to detect false hypotheses (2) all hypotheses are true
-  - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
-  - `IWH` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
-  - code from analysis [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
+  - :computer:**Code:**
+    - `IWH` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
+    - code from analysis [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - :fire: **ASH (Adaptive SHrinkage)** :fire:
   - :bulb:**Idea:** 
   - :+1:**Good:**
   - :-1:**Bad:**
-  - [Stephens M. (2017). "False discovery rates: a new deal." Biostatistics, 18(2):275-294.](https://www.ncbi.nlm.nih.gov/pubmed/27756721)
-  - `ashr` R package [(GitHub link)](https://github.com/stephens999/ashr), [CRAN link](https://cran.r-project.org/web/packages/ashr/index.html)
-  - code from analysis [(GitHub link)](https://github.com/stephenslab/ash)
+  - :books:**Reference:**
+    - [Stephens M. (2017). "False discovery rates: a new deal." Biostatistics, 18(2):275-294.](https://www.ncbi.nlm.nih.gov/pubmed/27756721)
+  - :computer:**Code:**
+    - `ashr` R package [(GitHub link)](https://github.com/stephens999/ashr), [CRAN link](https://cran.r-project.org/web/packages/ashr/index.html)
+    - code from analysis [(GitHub link)](https://github.com/stephenslab/ash)
 - :fire: **Boca-Leek** :fire:
   - :bulb:**Idea:** 
     - Estimates FDR conditional on covariates in a multiple testing framework by (1) estimating the null proportion of hypotheses with logistic regression and (2) multiplying the BH-adjusted p-values by the estimated null proportion.
@@ -31,9 +35,11 @@
     - Improvement over Storey (2002) is minor
     - Scott (2015) is superior when test statistics are normally distributed
     - Does not control FDR when hypotheses are highly correlated
-  - [Boca S, and Leek J. (2017). "A direct approach to estimating false discovery rates conditional on covariates." bioRxiv preprint.](http://www.biorxiv.org/content/early/2017/07/25/035675)
-  - `swfdr` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/swfdr.html) applies the Boca-Leek regression framework to estimate the Science-Wise False Discovery Rate from [Jager & Leek (2013)](https://arxiv.org/abs/1301.3718)
-  - code from analysis of simulated and real data in the Boca-Leek paper: [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
+  - :books:**Reference:**
+    - [Boca S, and Leek J. (2017). "A direct approach to estimating false discovery rates conditional on covariates." bioRxiv preprint.](http://www.biorxiv.org/content/early/2017/07/25/035675)
+  - :computer:**Code:**
+    - `swfdr` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/swfdr.html) applies the Boca-Leek regression framework to estimate the Science-Wise False Discovery Rate from [Jager & Leek (2013)](https://arxiv.org/abs/1301.3718)
+    - code from analysis of simulated and real data in the Boca-Leek paper: [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
 
 ## Relevant Methods
 - **Benjamini and Hochberg (BH)**
@@ -41,55 +47,73 @@
   - :+1:**Good:** Easy to use. More powerful than FWER-based methods
   - :-1:**Bad:** Sub-optimal power (and can't prioritize tests) when the individual tests differ in statistical properties such as sample size, true effect size, signal-to-noise ratio or prior probability of being false (see [Ignatiadis et al. 2016](https://www.ncbi.nlm.nih.gov/pubmed/27240256)) 
     - To increase power while controlling FDR, can use independent covariates to prioritize tests 
-  - [Benjamini and Hochberg. (1995) Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. Journal of the Royal Statistical Society. Series B (Methodological), 57(1): 289-300.](http://www.stat.purdue.edu/~doerge/BIOINFORM.D/FALL06/Benjamini%20and%20Y%20FDR.pdf)
-  - implemented in the `p.adjust()` function in `stats` R package
+  - :books:**Reference:**
+    - [Benjamini and Hochberg. (1995) Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. Journal of the Royal Statistical Society. Series B (Methodological), 57(1): 289-300.](http://www.stat.purdue.edu/~doerge/BIOINFORM.D/FALL06/Benjamini%20and%20Y%20FDR.pdf)
+  - :computer:**Code:**
+    - implemented in the `p.adjust()` function in `stats` R package
 - **Weighted BH** (basis of IHW)
   - :bulb:**Idea:** Associate each test with a non-negative weight such that weights averahe to 1. Hypotheses with higher weights are prioritized. 
   - :+1:**Good:** Controls FDR 
   - :-1:**Bad:** Weights must be prespecified, are independent of data
-  - [Roeder K, Devlin B, Wasserman L. Improving power in genome-wide association studies: weights tip the scale. Genet Epidemiol. 2007 Nov;31(7):741-7.](http://www.stat.cmu.edu/~roeder/publications/rdw2007.pdf)
-  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Roeder K, Devlin B, Wasserman L. Improving power in genome-wide association studies: weights tip the scale. Genet Epidemiol. 2007 Nov;31(7):741-7.](http://www.stat.cmu.edu/~roeder/publications/rdw2007.pdf)
+  - :computer:**Code:**
+    - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **Greedy Independent Filtering** (compared in IHW paper)
   - :bulb:**Idea:** Filter all p-values using an independent covariate ($X$) such that $X$ is less than some threshold $x$. Greedy if researcher tests all possible thresholds and picks one that maximizes number of discoveries. However, greedy approaches do not control for FDR at alpha level. 
   - :+1:**Good:** Controls FDR at alpha level IF researcher ONLY uses a pre-specified threshold
   - :-1:**Bad:** Not automated, very subjective, can lead to *p*-hacking
-  - [Bourgon R, Gentleman R and Huber W. (2010) "Independent filtering increases detection power for high-throughput experiments." Proceedings of the National Academy of Sciences. 107:9546–9551.](http://www.pnas.org/content/107/21/9546.long)
-  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Bourgon R, Gentleman R and Huber W. (2010) "Independent filtering increases detection power for high-throughput experiments." Proceedings of the National Academy of Sciences. 107:9546–9551.](http://www.pnas.org/content/107/21/9546.long)
+  - :computer:**Code:**
+    - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **LSL-GBH, TST-GBH** (compared in IHW paper)
-  - [Hu JX, Zhao H, and Zhou HH. (2010). "False discovery rate control with groups." Journal of the American Statistical Association, 105(491):1215-1227.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3175141/)
-  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Hu JX, Zhao H, and Zhou HH. (2010). "False discovery rate control with groups." Journal of the American Statistical Association, 105(491):1215-1227.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3175141/)
+  - :computer:**Code:**
+    - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **SBH** (compared in IHW paper)
   - :bulb:**Idea:** Use a categorial (or binned continuous) covariate to stratify tests, apply BH within each strata, combine significant tests
   - :+1:**Good:** 
   - :-1:**Bad:** Loss of FDR control for the null tests because different strata are treated equally
     - To increase power, different strata should be prioritized differently
-  - [Sun L, Craiu RV, Paterson AD, and Bull SB. (2006). "Stratified false discovery control for large‐scale hypothesis testing with application to genome‐wide association studies." Genetic Epidemiology, 30(6):519-530.](https://www.ncbi.nlm.nih.gov/pubmed/16800000)
-  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Sun L, Craiu RV, Paterson AD, and Bull SB. (2006). "Stratified false discovery control for large‐scale hypothesis testing with application to genome‐wide association studies." Genetic Epidemiology, 30(6):519-530.](https://www.ncbi.nlm.nih.gov/pubmed/16800000)
+  - :computer:**Code:**
+    - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **Clfdr (Cai's local FDR)** (compared in IHW paper)
   - :bulb:**Idea:** 
   - :+1:**Good:**
   - :-1:**Bad:**
-  - [Cai TT, and Sun W. (2009). "Simultaneous testing of grouped hypotheses: Finding needles in multiple haystacks." Journal of the American Statistical Association, 104(488):1467-1481.](https://pdfs.semanticscholar.org/b757/c6ca12e6db25a258d1078994e3ad96e18f06.pdf)
-  - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Cai TT, and Sun W. (2009). "Simultaneous testing of grouped hypotheses: Finding needles in multiple haystacks." Journal of the American Statistical Association, 104(488):1467-1481.](https://pdfs.semanticscholar.org/b757/c6ca12e6db25a258d1078994e3ad96e18f06.pdf)
+  - :computer:**Code:**
+    - implemented in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **FDRreg** (compared in IHW paper, swfdr paper)
   - :bulb:**Idea:** 
   - :+1:**Good:**
   - :-1:**Bad:**
-  - [Scott JG, Kelly RC, Smith MA, Zhou P, and Kass RE. (2015). "False discovery rate regression: an application to neural synchrony detection in primary visual cortex." Journal of the American Statistical Association, 110(510):459-471.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4743052/)
-  - `FDRreg` R package [(GitHub link)](https://github.com/jgscott/FDRreg)
-  - wrapped in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
+  - :books:**Reference:**
+    - [Scott JG, Kelly RC, Smith MA, Zhou P, and Kass RE. (2015). "False discovery rate regression: an application to neural synchrony detection in primary visual cortex." Journal of the American Statistical Association, 110(510):459-471.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4743052/)
+  - :computer:**Code:**
+    - `FDRreg` R package [(GitHub link)](https://github.com/jgscott/FDRreg)
+    - wrapped in `IHWpaper` [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - **local false discovery rate** (compared in ASH paper)
   - :bulb:**Idea:** local FDR is estimated separately within each group and then estimates are grouped together
   - :+1:**Good:** 
   - :-1:**Bad:** FDR isn't controlled at alpha level if alternative distributions across groups are different
-  - [Efron B. (2008). "Microarrays, empirical Bayes and the two-groups model." Statistical Science, 23(1):1-22.](http://projecteuclid.org/download/pdfview_1/euclid.ss/1215441276)
-  - `locfdr` R package [(CRAN link)](https://cran.r-project.org/web/packages/locfdr/index.html)
+  - :books:**Reference:**
+    - [Efron B. (2008). "Microarrays, empirical Bayes and the two-groups model." Statistical Science, 23(1):1-22.](http://projecteuclid.org/download/pdfview_1/euclid.ss/1215441276)
+  - :computer:**Code:**
+    - `locfdr` R package [(CRAN link)](https://cran.r-project.org/web/packages/locfdr/index.html)
 - **mixture false discovery rate** (compared in ASH paper)
   - :bulb:**Idea:** 
   - :+1:**Good:**
   - :-1:**Bad:**
-  - [Muralidharan O. (2010). "An empirical Bayes mixture method for effect size and false discovery rate estimation." The Annals of Applied Statistics, 4(1):422-438.](http://projecteuclid.org/download/pdfview_1/euclid.aoas/1273584461)
-  - `mixfdr` R package [(CRAN link, archived)](https://cran.r-project.org/web/packages/mixfdr/index.html)
+  - :books:**Reference:**
+    - [Muralidharan O. (2010). "An empirical Bayes mixture method for effect size and false discovery rate estimation." The Annals of Applied Statistics, 4(1):422-438.](http://projecteuclid.org/download/pdfview_1/euclid.aoas/1273584461)
+  - :computer:**Code:**
+    - `mixfdr` R package [(CRAN link, archived)](https://cran.r-project.org/web/packages/mixfdr/index.html)
 
 
 
