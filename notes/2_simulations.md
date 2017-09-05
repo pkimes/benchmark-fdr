@@ -46,5 +46,24 @@
 
 
 ### Boca-Leek Simulations
-*summary to be added - e.g. settings, evaluation metrics, availability*
-
+- **Summary:**
+  - The goal of the simulations is to demonstrate that their plug-in estimator $\hat{FDR}(x_i)$ controls true FDR while having good power. They compare against other methods that incorporate covariates in FDR estimations (it does not compare against IHW though). 
+- **Simulation setting (scenarios)**: They consider 4 scenarios of $\pi_{0}(x_i)$, 
+    - (I) A flat function $\pi_{0}(x_i)=0.9$ (no dependence on covariates), 
+    - (II) a smooth function in one variable, 
+    - (III) a smooth function in one variable within cathegories of a second variable and 
+    - (IV) same as in 3, but multiplied by 0.6 to simulate the case where there are less true null hypothesis (or more alternatives). 
+- **Simulation setting (Number of tests)**: They consider simulations with $m = 1000$ and $m = 10000$ independent test statistics and added on each 1,000 dependent statistics. For each feature, they sample whether it belongs to the null or alternative distribution based a binomial distribution with probability $\pi_{0}(x_i)$.
+- **Simulation setting (Distribution under the alternative)**: Nulls are always assumed to be uniformly distributed between 0 and 1. They considered different distributions for the test statistics under the alternative distribution:
+    - $\beta(1, 20)$, 
+    - $Norm(\mu, 1)$
+    - $T$, 
+    - $\chi^{2}$ with 1 df, 
+    - $\chi^{2}$ with 4 df, 
+    - multivariate normal with either 10 or 20 blocks of correlated tests (with $\rho$'s either .2, .5 or .9) and 
+    - T with either 10 or 20 blocks of correlated tests (same $\rho$'s as for the multivariate normal).
+- **Simulation**: Given a **scenario**, a **number of tests** and a **distribution for the alternative**, they do 200 runs and estimate the average TPR and FDR. 
+- **Methods**: Scott theoretical null, Scott empirical null, Storey and BH.
+- **Metrics**: TPR and FDR
+- **Availability**: [swdr](https://bioconductor.org/packages/release/bioc/html/swfdr.html) Bioconductor package and several [vignettes](https://github.com/SiminaB/Fdr-regression)
+  
