@@ -42,7 +42,7 @@
   - Meta-analysis with 339,224 total samples with BMI and 2,555,510 SNPs measured (not every SNP was measured in each sample)
   - Covariates of interest are (1) the sample size for each SNP, and (2) the minor allele frequency (MAF)
 - **Input:**
-  - p-values (for BL, BH, and Storey), sample size, MAF, and Z-scores (for Scott) from [http://portals.broadinstitute.org/collaboration/giant/ index.php/GIANT_consortium_data_files]( http://portals.broadinstitute.org/collaboration/giant/ index.php/GIANT_consortium_data_files)
+  - p-values (for BL, BH, and Storey), sample size, MAF, and Z-scores (for Scott) from [http://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files]( http://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files)
 - **Model Matrix:**
   - SNP-specific sample size included as a natural cubic spline with 5 df (to >allow for sufficient flexibility)
   - MAF categorized into three bins (tertiles)
