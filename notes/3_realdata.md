@@ -36,9 +36,28 @@
 - none presented
 
 ### Boca-Leek Real Data Analysis
-- **Summary:** 
+- **Summary:** A meta-analysis GWAS of BMI was used to estimate FDR conditional on sample size and MAF of each SNP. The idea is that increased sample size or MAF closer to 0.5 increases the power to detect associations of SNPs with BMI
 - **Dataset:** 
   - GWAS for BMI from the Genetic Investigation of ANthropometric Traits (GIANT) consortium [(Locke et al., 2015)](https://www.ncbi.nlm.nih.gov/pubmed/25673413)
+  - Meta-analysis with 339,224 total samples with BMI and 2,555,510 SNPs measured (not every SNP was measured in each sample)
+  - Covariates of interest are (1) the sample size for each SNP, and (2) the minor allele frequency (MAF)
+- **Input:**
+  - p-values (for BL, BH, and Storey), sample size, MAF, and Z-scores (for Scott) from [http://portals.broadinstitute.org/collaboration/giant/ index.php/GIANT_consortium_data_files]( http://portals.broadinstitute.org/collaboration/giant/ index.php/GIANT_consortium_data_files)
+- **Model Matrix:**
+  - SNP-specific sample size included as a natural cubic spline with 5 df (to >allow for sufficient flexibility)
+  - MAF categorized into three bins (tertiles)
+- **Compared with:** 
+  - Including covariates: Scott (2015) with theoretical null (denoted T) and Scott (2015) with empirical null (denoted E)
+  - Not including covariates: Storey (2002) and Benjamini-Hochberg (1995)
+- **Settings:**
+  - FDR level 0.05
+  - BL: `smooth.df=3`, `smooth.df=3` (this means lambda is taken as the smoothed value at 0.95 using a cubic spline with 3 df)
+  - Scott: `lambda=1`, `nulltype = 'theoretical'` (T) and `nulltype = 'empirical'` (E)
+- **Results:**
+  - p-values decrease as sample size increases
+  - Scott (2015) with theoretical null found substantially more discoveries than BL
+  - Scott (2015) with empirical null found substantially fewer discoveries than BL
+  - BH and Storey found slightly fewer discoveries than BL
 - **Availability:**
   - Code for analysis using real data is available here [(GitHub link)](https://github.com/SiminaB/Fdr-regression)
 
