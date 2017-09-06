@@ -35,6 +35,7 @@
     - Improvement over Storey (2002) is minor
     - Scott (2015) is superior when test statistics are normally distributed
     - Does not control FDR when hypotheses are highly correlated
+    - Requires tuning of $\lambda$ parameter and careful specification of covariates (smoothing splines? categorization?)
   - :books:**Reference:**
     - [Boca S, and Leek J. (2017). "A direct approach to estimating false discovery rates conditional on covariates." bioRxiv preprint.](http://www.biorxiv.org/content/early/2017/07/25/035675)
   - :computer:**Code:**
