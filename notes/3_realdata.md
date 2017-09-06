@@ -47,7 +47,7 @@
   - SNP-specific sample size included as a natural cubic spline with 5 df (to >allow for sufficient flexibility)
   - MAF categorized into three bins (tertiles)
 - **Compared with:** 
-  - Including covariates: Scott (2015) with theoretical null (denoted T) and Scott (2015) with empirical null (denoted E)
+  - Including covariates (via the Model Matrix above): Scott (2015) with theoretical null (denoted T) and Scott (2015) with empirical null (denoted E)
   - Not including covariates: Storey (2002) and Benjamini-Hochberg (1995)
 - **Settings:**
   - FDR level 0.05
