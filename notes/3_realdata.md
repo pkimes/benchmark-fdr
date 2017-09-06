@@ -51,7 +51,7 @@
   - Not including covariates: Storey (2002) and Benjamini-Hochberg (1995)
 - **Settings:**
   - FDR level 0.05
-  - BL: `smooth.df=3`, `smooth.df=3` (this means lambda is taken as the smoothed value at 0.95 using a cubic spline with 3 df)
+  - BL: `smooth.df=3` (this means lambda is taken as the smoothed value at 0.95 using a cubic spline with 3 df)
   - Scott: `lambda=1`, `nulltype = 'theoretical'` (T) and `nulltype = 'empirical'` (E)
 - **Results:**
   - p-values decrease as sample size increases
