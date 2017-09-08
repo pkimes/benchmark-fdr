@@ -12,7 +12,7 @@
   - :books:**Reference:**
     - [Ignatiadis N, Klaus B, Zaugg JB, and Huber W. (2016). "Data-driven hypothesis weighting increases detection power in genome-scale multiple testing." Nature Methods, 13(7):577-580.](https://www.ncbi.nlm.nih.gov/pubmed/27240256)
   - :computer:**Code:**
-    - `IWH` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
+    - `IHW` R package [(Bioconductor link)](https://bioconductor.org/packages/release/bioc/html/IHW.html)
     - code from analysis [(GitHub link)](https://github.com/nignatiadis/IHWpaper/) [(Bioconductor link)](http://bioconductor.org/packages/release/data/experiment/html/IHWpaper.html)
 - :fire: **ASH (Adaptive SHrinkage)** :fire:
   - :bulb:**Idea:** 
