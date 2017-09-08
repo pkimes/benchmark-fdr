@@ -4,6 +4,7 @@
 For details on tasks and timelines, take a look at the [Roadmap](ROADMAP.md).
 
 ## Notes
+- [References](notes/0_references.md)
 - [Methods](notes/1_methods.md)
 - [Simulations Settings](notes/2_simulations.md)
 - [Real Data Sets](notes/3_realdata.md) 
