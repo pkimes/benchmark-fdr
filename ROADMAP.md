@@ -8,10 +8,10 @@ This "Roadmap" is a rough outline of how we can complete this project **as a gro
 **If you have any suggestions/thoughts on the Roadmap**, add them to issue [#1](https://github.com/pkimes/benchmark-fdr/issues/1)!
 
 ## Milestone 1: decide initial benchmarking setup
-*Tracking in issue(s) [#2](https://github.com/pkimes/benchmark-fdr/issues/2).*
+*Tracking in issue(s) [#2](https://github.com/pkimes/benchmark-fdr/issues/2), [#4](https://github.com/pkimes/benchmark-fdr/issues/4).* 
 
-- [ ] survey previous simulations and data sets [(**sign-up!**)](https://github.com/pkimes/benchmark-fdr/issues/2) - try to include a summary in a couple of sentences: What is the big picture of the simulation scenarios and real data characteristics? Under what global characteristics is each method designed to excel? 
-- [ ] agree on initial set of simulations and data sets
+- [x] survey previous simulations and data sets [(**#2**)](https://github.com/pkimes/benchmark-fdr/issues/2) 
+- [ ] agree on initial set of simulations and data sets [(**#4**)](https://github.com/pkimes/benchmark-fdr/issues/4)
 
 ## Milestone 2: perform benchmarking analyses
 *Tracking in issue(s) (not yet assigned).*
