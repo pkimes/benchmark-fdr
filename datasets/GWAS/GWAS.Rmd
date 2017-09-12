@@ -1,0 +1,68 @@
+---
+title: "GWAS datasets for FDR benchmarking"
+author: "Keegan Korthauer"
+date: "9/12/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Summary
+
+Here are the GWAS datasets we will use to benchmark the FDR methods. For each one
+we provide the script to download the data and read into R. We'd like to verify 
+that each dataset contains the desired inputs:
+
+*p-value
+*effect size
+*standard error
+*additional covariates (optional)
+
+Note that while knitting this document will download the data, I'm not committing 
+the data itself to this repo. See the knitted `.html` document if you do not 
+wish to download the datasets but still wish to see the output.
+
+### GWAS meta-analysis for BMI (included in Boca-Leek)
+
+Here we download the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+
+```{bash, GWAS1-download}
+curl -O "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+```
+
+Next we unzip the file, and delete the files we won't use (they provide results
+subsetted by ancestry and sex), keeping only the file with all ancestries and
+both sexes `BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt`. Note that it seems that
+the Boca-Leek paper actually used the 'EuropeanOnly' subset, but it's not clear
+why (to me), and there's no reason we need to do the same.
+
+```{bash, GWAS1-unzip}
+unzip BMI.SNPadjSMK.zip
+rm BMI.SNPadjSMK.zip
+rm BMI.SNPadjSMK.Women.EuropeanOnly.txt
+rm BMI.SNPadjSMK.Women.AllAncestry.txt
+rm BMI.SNPadjSMK.Men.EuropeanOnly.txt
+rm BMI.SNPadjSMK.Men.AllAncestry.txt
+rm BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt
+```
+
+Next, we'll read in the unzipped `.txt` file into R and verify that it contains
+the necessary inputs to run the FDR benchmark comparisons.
+
+```{r, GWAS1-verify-contents}
+library(data.table)
+bmi <- fread("BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt", header=TRUE)
+head(bmi)
+```
+
+It looks like we have:
+
+- [x] p-value
+- [x] effect size
+- [x] standard error
+- [x] additional covariates: 
+  *`N`: Number of samples with this SNP - BMI association measured
+  *`Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
+  
