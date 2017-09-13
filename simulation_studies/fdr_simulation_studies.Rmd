@@ -34,8 +34,8 @@ In all cases, we define
 * 
 
 ```{r}
-m = 2000 # number of tests
-M = 10 # number of MC reps
+m = 20000 # number of tests
+M = 1000 # number of MC reps
 ```
 
 
@@ -75,28 +75,46 @@ Independent covariate: Uniform between 0, 1. Apply different methods.
 
 ## Control for FDR and FWER at $\alpha$ 
 
-Evaluate methods control for false discovery rate (FDR) and 
-family-wise error rate (FWER) at nominal $\alpha$ level ranging from [0.01, 0.1].
+In this section, we will plot the number of discoveries 
+as a function of $\alpha$ (should be 0). We will also evaluate
+methods control for false discovery rate (FDR) and family-wise 
+error rate (FWER) at nominal $\alpha$ level ranging from [0.01, 0.1].
 
 ```{r, load-libraries, message=FALSE}
+# library(genefilter)
 library(dplyr)
 library(ggplot2)
 library(doParallel)
 
-library(IHW)
-library(ashr)
-library(qvalue)
-library(swfdr)
+# library(IHW)
+# library(ashr)
+# library(qvalue)
+# library(swfdr)
+  ## to use IHWpaper::scott_fdrreg wrapper, we need to install FDRreg v2.0 (only available github):   
+  ## devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/') 
+  ## however, I couldn't get this to install. So I did the v1.0 via install.packages("FDRreg") on CRAN
+# library(FDRreg)    
 
 # notes: convert this into R code
-# - BL: p-values from t-test, multiple covariates (with and without cov structure)
-#   - lambda: 0.75, 0.85, 0.95
 # - Scott: t-test statistic, independent covariate
 #   - assumption of test statistic follow a standard normal. this is good here. 
 # - locfdr: zz = t-test statistic, nulltype (try both). 
 # - mixfdr: ? do we want to include? 
 ```
 
+Additional packages that you should install are: 
+```{r, eval=FALSE}
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+  ## to use IHWpaper::scott_fdrreg wrapper, we need to install FDRreg v2.0 (only available github):   
+  ## devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/') 
+  ## however, I couldn't get this to install. So I did the v1.0 via install.packages("FDRreg") on CRAN
+library(FDRreg)
+```
+
+Load some helper functions: 
 ```{r simulate-null-data-helper-functions}
 du_ttest_sim <- function(m, pi0, effect_size, n_samples=20, n_groups = 2, seed=NULL){
   if (!is.null(seed)) set.seed(seed)
@@ -130,25 +148,35 @@ calculate_test_stats <- function(sim, adj_p, alpha){
 	return(df)
  }
 
+# adapted from IHWpaper::scott_fdrreg()
+scott_fdrreg_hickswrapper <- function(unadj_p, filterstat, df=3)
+  {
+	   # no automated way to choose function space over which we optimize
+	   # so we just use bs(df=3) as done in their analysis
+     b <- splines::bs(filterstat, df=df)
+	   
+     Xs <- model.matrix( ~  b - 1)
+     fdrreg_res <- FDRreg::FDRreg(z=qnorm(unadj_p), covars=Xs) # assumption of test statistic follow a standard normal
+     adj_p <- fdrreg_res$FDR
+     return(adj_p)
+  }
+
 ```
 
-Simulate an example "null" dataset. `t_stat` is the t-test statistic, `t_dm` is the difference in means, 
-`t_pval` is the p-value, and `sd` is the pooled standard deviation. 
+Simulate an example "null" dataset. `H` is an indicator representing the true null (0) or alternative status (1). `t_stat` is the t-test statistic, `t_dm` is the difference in means, 
+`t_pval` is the $p$-value, `sd` is the pooled standard deviation ($\sigma$), which reduces to the unpooled sd in this case, 
+and `SE` is the standard error ($\frac{\sigma}{\sqrt{n}}$)
 ```{r example-simulate-null-data}
-# set these to a smaller number temporarily 
-m = 5000 # number of tests
-M = 500 # number of MC reps
-
 n_samples = 20
 n_groups = 2
 
-sim_df <- du_ttest_sim(m=m, pi0=1, effect_size=0, n_samples=n_samples, 
-                       n_groups = 2)
+sim_df <- du_ttest_sim(m=m, pi0=1, effect_size=0, 
+                       n_samples=n_samples, n_groups = 2)
 head(sim_df)
 ```
 
-
-```{r evaluate-methods-null-data}
+Run following on odyssey and save output as RDS: 
+```{r evaluate-methods-null-data, eval=FALSE}
 alphas = seq(0.01, 0.1, length.out = 10)
 
 nCores <- 4
@@ -176,48 +204,59 @@ df.out <- foreach(i = 1:M) %dopar%
                       calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
         
         # IHW (Wolfgang)
-        ihw_fdr <- ihw(pvalues = sim_df$t_pval, covariates = sim_df$sd, alpha =  0.1)
-        adj_p <- adj_pvalues(ihw_fdr)
+        ihw_fdr <- IHW::ihw(pvalues = sim_df$t_pval, covariates = sim_df$sd, alpha =  0.1)
+        adj_p <- IHW::adj_pvalues(ihw_fdr)
         df.ihw <- plyr::ldply(alphas, function(a){
                       calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
 
         # ash (Stephens)
-        beta.ash = ash(betahat = sim_df$t_dm, sebetahat = sim_df$SE)
-        adj_p <- get_svalue(beta.ash)
+        beta.ash = ashr::ash(betahat = sim_df$t_dm, sebetahat = sim_df$SE)
+        adj_p <- ashr::get_svalue(beta.ash)
         df.ash <- plyr::ldply(alphas, function(a){
                       calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
         
-        # swfdr (Boca-Leek)
+        # swfdr::lm_pi0 (Boca-Leek) **think about multiple covariates** or **correlation structure**
+        pi0x <- swfdr::lm_pi0(pValues = sim_df$t_pval, X = sim_df$sd, smooth.df =3)
+        adj_p <- p.adjust(sim_df$t_pval, method="BH")*pi0x$pi0
+        df.BL <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
         
+        # Scott et al. (2015) (FDRreg)
+        adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim_df$t_pval, filterstat = sim_df$sd, df=3)
+        df.scott <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+     
         # locfdr (Cai)
-        
-        # Scott
 
         # Summary table of FDP for each method at each alpha
         rbind(data.frame(df.bonf, "method" = "bonferroni"), 
               data.frame(df.bh, "method" = "bh"), 
               data.frame(df.qvalue, "method" = "qvalue"), 
               data.frame(df.ihw, "method" = "ihw"), 
-              data.frame(df.ash, "method" = "ash"))
+              data.frame(df.ash, "method" = "ash"), 
+              data.frame(df.BL, "method" = "boca-leek"), 
+              data.frame(df.scott, "method" = "scott"))
   }
 
 df.out <- dplyr::bind_rows(df.out)
+saveRDS(df.out, file=file.path(workingPath, "nullSims-Results.RDS"))
 ```
 
-Number of discoveries as a function of $\alpha$
-```{r}
+Load and plot results from RDS file: 
+```{r, eval=FALSE}
+workingPath <- "/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/shicks/projects/benchmark-fdr"
+readRDS(file=file.path(workingPath, "nullSims-Results.RDS"))
+
+# Number of discoveries as a function of $\alpha$
 df.out %>% dplyr::group_by(method, alpha) %>% 
       dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
-                       FWER = mean(FWER), FPR = mean(FPR)) %>%  
+                       FWER = mean(FWER), FPR = mean(FPR)) %>% 
     ggplot(aes(x = alpha, y = n_rejects, color = method)) + 
          geom_line() + geom_abline(linetype="dashed") + 
-         xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("Num of Discoveries") +
+         xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("Number of Discoveries") +
          theme(axis.title = element_text(face="bold") )
 
-```
-
-False discovery rate as a function of $\alpha$
-```{r}
+# False discovery rate as a function of $\alpha$
 df.out %>% dplyr::group_by(method, alpha) %>% 
       dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
                        FWER = mean(FWER), FPR = mean(FPR)) %>% 
@@ -226,11 +265,7 @@ df.out %>% dplyr::group_by(method, alpha) %>%
          xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("FDR") +
          theme(axis.title = element_text(face="bold") )
 
-
-```
-
-Family wise error rate as a function of $\alpha$
-```{r}
+# Family wise error rate as a function of $\alpha$
 df.out %>% dplyr::group_by(method, alpha) %>% 
       dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
                        FWER = mean(FWER), FPR = mean(FPR)) %>% 
