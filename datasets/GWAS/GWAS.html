@@ -126,8 +126,13 @@ $(document).ready(function () {
 <div id="summary" class="section level3">
 <h3>Summary</h3>
 <p>Here are the GWAS datasets we will use to benchmark the FDR methods. For each one we provide the script to download the data and read into R. We’d like to verify that each dataset contains the desired inputs:</p>
-<p><em>p-value </em>effect size <em>standard error </em>additional covariates (optional)</p>
-<p>Note that while knitting this document will download the data, I’m not committing the data itself to this repo. See the knitted <code>.html</code> document if you do not wish to download the datasets but still wish to see the output.</p>
+<ul>
+<li>p-value</li>
+<li>effect size</li>
+<li>standard error</li>
+<li>additional covariates (optional)</li>
+</ul>
+<p>Note that while running all the bash code in this document will download the data, some of it doesn’t seem to work properly with knitting (e.g. the ftp download in the second dataset), and I’m not committing the data itself to this repo. Run the bash code in the terminal separately to download the data yourself, and see the knitted <code>.html</code> document if you do not wish to download the datasets but still wish to see the output.</p>
 </div>
 <div id="gwas-meta-analysis-for-bmi-included-in-boca-leek" class="section level3">
 <h3>GWAS meta-analysis for BMI (included in Boca-Leek)</h3>
@@ -147,15 +152,17 @@ bmi &lt;- fread(&quot;BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt&quot;, header=
 <pre><code>## 
 Read 8.5% of 2458133 rows
 Read 18.7% of 2458133 rows
-Read 28.9% of 2458133 rows
-Read 38.6% of 2458133 rows
-Read 43.5% of 2458133 rows
+Read 25.6% of 2458133 rows
+Read 33.4% of 2458133 rows
+Read 43.1% of 2458133 rows
 Read 54.9% of 2458133 rows
 Read 68.8% of 2458133 rows
-Read 83.8% of 2458133 rows
+Read 84.6% of 2458133 rows
 Read 85.0% of 2458133 rows
-Read 89.5% of 2458133 rows
-Read 2458133 rows and 10 (of 10) columns from 0.154 GB file in 00:00:14</code></pre>
+Read 92.3% of 2458133 rows
+Read 2458133 rows and 10 (of 10) columns from 0.154 GB file in 00:00:17</code></pre>
+<pre class="r"><code>dim(bmi)</code></pre>
+<pre><code>## [1] 2458133      10</code></pre>
 <pre class="r"><code>head(bmi)</code></pre>
 <pre><code>##    chromosome     rs_id     markername allele_1 allele_2
 ## 1:          1 rs1000050 chr1:161003087        T        C
@@ -173,11 +180,146 @@ Read 2458133 rows and 10 (of 10) columns from 0.154 GB file in 00:00:14</code></
 ## 6:                 0.2982  0.0155 0.0040 0.0001114 173844</code></pre>
 <p>It looks like we have:</p>
 <ul>
-<li>[x] p-value</li>
-<li>[x] effect size</li>
-<li>[x] standard error</li>
-<li>[x] additional covariates: <em><code>N</code>: Number of samples with this SNP - BMI association measured </em><code>Freq_Allele1_HapMapCEU</code>: Allele Frequency of Allele1, as measured in HapMapCEU</li>
+<li><code>p_value</code>:p-value</li>
+<li><code>effect</code>:effect size</li>
+<li><code>stderr</code>:standard error</li>
+<li>additional covariates:
+<ul>
+<li><code>N</code>: Number of samples with this SNP - BMI association measured</li>
+<li><code>Freq_Allele1_HapMapCEU</code>: Allele Frequency of Allele1, as measured in HapMapCEU</li>
+</ul></li>
 </ul>
+<p>for 2,458,133 SNPs.</p>
+<pre class="r"><code>rm(bmi)</code></pre>
+</div>
+<div id="gwas-for-asthma" class="section level3">
+<h3>GWAS for Asthma</h3>
+<p><a href="http://www.nejm.org/doi/full/10.1056/NEJMoa0906312?query=TOC">This study by Moffatt et al. (2010, NEJM)</a> performed a large GWAS on 10,365 people with asthma and 16,110 controls 23 individual studies.</p>
+<p>Let’s download the data from the Gabriel site. The second file contains metadata for the columns in the main data file.</p>
+<pre class="bash"><code>curl -O &quot;https://beaune.cng.fr/gabriel/gabriel_results.zip&quot;
+curl -O &quot;https://beaune.cng.fr/gabriel/gabriel_results_description.xls&quot;</code></pre>
+<p>Next we unzip the file and remove the zipped copy.</p>
+<pre class="bash"><code>unzip gabriel_results.zip
+rm gabriel_results.zip</code></pre>
+<p>Next, we’ll read in the unzipped <code>.txt</code> file and the results desription <code>.xls</code> file into R and verify that it contains the necessary inputs to run the FDR benchmark comparisons.</p>
+<pre class="r"><code># read in meta-data
+library(readxl)
+meta &lt;- read_xls(&quot;gabriel_results_description.xls&quot;)
+head(meta)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   num_col      variables
+##     &lt;dbl&gt;          &lt;chr&gt;
+## 1       1            Chr
+## 2       2             rs
+## 3       3       position
+## 4       4       Allele_1
+## 5       5       Allele_2
+## 6       6 freq_all_1_min
+## # ... with 2 more variables: description &lt;chr&gt;, X__1 &lt;chr&gt;</code></pre>
+<pre class="r"><code>dim(meta)</code></pre>
+<pre><code>## [1] 276   4</code></pre>
+<pre class="r"><code># read in data
+asthma &lt;- fread(&quot;gabriel_asthma_meta-analysis_36studies_format_repository_NEJM.txt&quot;, header=TRUE)</code></pre>
+<pre><code>## 
+Read 0.0% of 567589 rows
+Read 5.3% of 567589 rows
+Read 10.6% of 567589 rows
+Read 15.9% of 567589 rows
+Read 21.1% of 567589 rows
+Read 26.4% of 567589 rows
+Read 31.7% of 567589 rows
+Read 37.0% of 567589 rows
+Read 42.3% of 567589 rows
+Read 47.6% of 567589 rows
+Read 52.9% of 567589 rows
+Read 58.1% of 567589 rows
+Read 63.4% of 567589 rows
+Read 68.7% of 567589 rows
+Read 74.0% of 567589 rows
+Read 79.3% of 567589 rows
+Read 84.6% of 567589 rows
+Read 89.9% of 567589 rows
+Read 95.1% of 567589 rows
+Read 567589 rows and 276 (of 276) columns from 0.734 GB file in 00:00:30</code></pre>
+<pre class="r"><code>dim(asthma)</code></pre>
+<pre><code>## [1] 567589    276</code></pre>
+<pre class="r"><code># verify meta-data rows = data cols
+nrow(meta) == ncol(asthma)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># remove study-specific columns
+library(dplyr)</code></pre>
+<pre><code>## 
+## Attaching package: 'dplyr'</code></pre>
+<pre><code>## The following objects are masked from 'package:data.table':
+## 
+##     between, first, last</code></pre>
+<pre><code>## The following objects are masked from 'package:stats':
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>empty &lt;- which(!is.na(meta$description))
+asthma &lt;- asthma %&gt;%
+            select(empty)
+meta &lt;- meta %&gt;% 
+            slice(empty)
+head(asthma)</code></pre>
+<pre><code>##    Chr         rs position Allele_1 Allele_2 freq_all_1_min freq_all_1_max
+## 1:   1 rs12354060    10004        A        G      0.0000000      0.0000000
+## 2:   1 rs12184279   707348        A        C      0.0000000      0.0000000
+## 3:   1 rs12564807   724325        A        G      0.9938272      1.0000000
+## 4:   1  rs3094315   742429        A        G      0.7142857      0.8607306
+## 5:   1  rs3115860   743268        A        C      0.7083333      0.8986667
+## 6:   1  rs3115850   751010        C        T      0.7083333      0.8824363
+##    OR_fix ORl_fix ORu_fix   P_fix OR_ran ORl_ran ORu_ran   P_ran
+## 1:     NA      NA      NA      NA     NA      NA      NA      NA
+## 2:     NA      NA      NA      NA     NA      NA      NA      NA
+## 3:     NA      NA      NA      NA     NA      NA      NA      NA
+## 4:  1.040   0.982    1.10 0.18414  1.040   0.982    1.10 0.18414
+## 5:  0.992   0.920    1.07 0.84115  0.992   0.920    1.07 0.84115
+## 6:  0.750   0.408    1.38 0.35383  0.750   0.408    1.38 0.35383
+##    no_studies_meta Chi2_hetero df_hetero P_hetero Tau2  H I2 I2_L95 I2_U95
+## 1:              NA          NA        NA       NA    0 NA  0     NA     NA
+## 2:              NA          NA        NA       NA    0 NA  0     NA     NA
+## 3:              NA          NA        NA       NA    0 NA  0     NA     NA
+## 4:              35      26.200        34   0.8291    0  1  0      0   38.3
+## 5:              23      16.100        22   0.8108    0  1  0      0   45.4
+## 6:               2       0.569         1   0.4508    0  1  0      0     NA
+##     theta_fix se_theta_fix  theta_ran se_theta_ran egeach_theta
+## 1:         NA           NA         NA           NA           NA
+## 2:         NA           NA         NA           NA           NA
+## 3:         NA           NA         NA           NA           NA
+## 4:  0.0390818    0.0294266  0.0390818    0.0294266        0.102
+## 5: -0.0077500    0.0386687 -0.0077500    0.0386687        0.118
+## 6: -0.2882380    0.3108712 -0.2882380    0.3108712           NA
+##    egeach_setheta egeach_ctl_maf egeach_ctl_hwe_p egeach_call_rate
+## 1:             NA             NA               NA               NA
+## 2:             NA             NA               NA               NA
+## 3:             NA             NA               NA               NA
+## 4:          0.120      0.1560403         0.211866         99.72222
+## 5:          0.128      0.1188455         0.552594         98.42593
+## 6:             NA      0.1318182         0.852088         92.59259
+##    egeach_select5 egeach_select1
+## 1:              0              0
+## 2:              0              0
+## 3:              0              0
+## 4:              1              1
+## 5:              1              1
+## 6:              0              0</code></pre>
+<p>It looks like we have:</p>
+<ul>
+<li><code>P_fix</code> and <code>P_ran</code>:p-values for fixed and random effect models</li>
+<li><code>theta_fix</code> and <code>theta_fix</code>:effect size for fixed and random effect models</li>
+<li><code>se_theta_fix</code> and <code>se_theta_fix</code>:standard error for fixed and random effect models</li>
+<li>additional covariates:
+<ul>
+<li><code>no_studies_meta</code>: Number of studies included in the meta-analysis with this SNP</li>
+<li><code>freq_all_1_max</code> and <code>freq_all_1_min</code>: Maximum and Minimum Allele Frequency of Allele 1 across samples</li>
+</ul></li>
+</ul>
+<p>for 567,589 SNPs.</p>
+<pre class="r"><code>rm(asthma)</code></pre>
 </div>
 
 

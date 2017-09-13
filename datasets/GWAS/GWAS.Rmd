@@ -67,8 +67,8 @@ It looks like we have:
 - `effect`:effect size
 - `stderr`:standard error
 - additional covariates: 
-  - `N`: Number of samples with this SNP - BMI association measured
-  - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
+    - `N`: Number of samples with this SNP - BMI association measured
+    - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
  
 for 2,458,133 SNPs.
 
@@ -76,49 +76,66 @@ for 2,458,133 SNPs.
 rm(bmi)
 ```
 
-### GWAS for Self-reported Chronotype
+### GWAS for Asthma
 
-A [study by Hu et al. (Nature Comm, 2016)](https://www.ncbi.nlm.nih.gov/pubmed/?term=26835600) presented a GWAS of 89,283 individuals that identified genetic variants associated with self-reporting of being a morning person. 
+[This study by Moffatt et al. (2010, NEJM)](http://www.nejm.org/doi/full/10.1056/NEJMoa0906312?query=TOC) performed a large
+GWAS on  10,365 people with asthma and 16,110 controls 23 individual studies. 
 
-Let's download the data from the `ebi.ac.uk` ftp site:
+Let's download the data from the Gabriel site. The second file contains metadata
+for the columns in the main data file.
 
 ```{bash, GWAS2-download, eval=FALSE}
-ftp ftp://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
-cd KhorCC_27064256_GCST003467
-get "Khor-27064256.txt"
-exit
+curl -O "https://beaune.cng.fr/gabriel/gabriel_results.zip"
+curl -O "https://beaune.cng.fr/gabriel/gabriel_results_description.xls"
 ```
-Next, we'll read the `.txt` file into R and verify that it contains
+
+Next we unzip the file and remove the zipped copy.
+
+```{bash, GWAS2-unzip, eval=FALSE}
+unzip gabriel_results.zip
+rm gabriel_results.zip
+```
+
+Next, we'll read in the unzipped `.txt` file and the results desription `.xls` 
+file into R and verify that it contains
 the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS2-verify-contents}
-glauc <- fread("Khor-27064256.txt", header=TRUE)
-dim(glauc)
-head(glauc)
+# read in meta-data
+library(readxl)
+meta <- read_xls("gabriel_results_description.xls")
+head(meta)
+dim(meta)
+
+# read in data
+asthma <- fread("gabriel_asthma_meta-analysis_36studies_format_repository_NEJM.txt", header=TRUE)
+dim(asthma)
+
+# verify meta-data rows = data cols
+nrow(meta) == ncol(asthma)
+
+# remove study-specific columns
+library(dplyr)
+empty <- which(!is.na(meta$description))
+asthma <- asthma %>%
+            select(empty)
+meta <- meta %>% 
+            slice(empty)
+head(asthma)
 ```
 
 It looks like we have:
 
-- `pvalue`:p-value
-- `effect`:effect size
-- `stderr`:standard error
+- `P_fix` and `P_ran`:p-values for fixed and random effect models
+- `theta_fix` and `theta_fix`:effect size for fixed and random effect models
+- `se_theta_fix` and `se_theta_fix`:standard error for fixed and random effect models
 - additional covariates: 
-  - `gt.rate`: ?
-  - `freq.b`: ?
-  - `dose.b`: ?
-
-for 10,000 SNPs - unfortunately, looks like they only give us the *top* 
-10K SNPs, so this is not useful for our purposes. 
+    - `no_studies_meta`: Number of studies included in the meta-analysis with this SNP
+    - `freq_all_1_max` and `freq_all_1_min`: Maximum and Minimum Allele Frequency of Allele 1 across samples
+ 
+for 567,589 SNPs.
 
 ```{r, GWAS2-cleanup}
-rm(chrono)
-```
-
-### GWAS for Asthma
-
-Let's download the data from the Gabriel site
-
-```{bash, GWAS2-download, eval=FALSE}
-curl -O "https://beaune.cng.fr/gabriel/gabriel_results.zip"
+rm(asthma)
 ```
 
