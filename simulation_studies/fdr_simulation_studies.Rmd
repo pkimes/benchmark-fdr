@@ -34,8 +34,8 @@ In all cases, we define
 * 
 
 ```{r}
-m = 20000 # number of tests
-M = 1000 # number of MC reps
+m = 2000 # number of tests
+M = 10 # number of MC reps
 ```
 
 
@@ -43,6 +43,8 @@ M = 1000 # number of MC reps
 
 ## Methods to evaluate
 
+- Bonferroni 
+- BH
 - IHW
 - ASH
 - BL
@@ -71,23 +73,172 @@ M = 1000 # number of MC reps
 Simulate two standard normals with mean 0, sd = 1. Calculate t-statistic. 
 Independent covariate: Uniform between 0, 1. Apply different methods. 
 
-## Control for FDR at $\alpha$ 
+## Control for FDR and FWER at $\alpha$ 
 
-Evaluate methods control for FDR at nominal $\alpha$ level ranging from [0.01, 0.1].
+Evaluate methods control for false discovery rate (FDR) and 
+family-wise error rate (FWER) at nominal $\alpha$ level ranging from [0.01, 0.1].
 
+```{r, load-libraries, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(doParallel)
 
-```{r}
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+
 # notes: convert this into R code
-# - IHW: p-values from t-test, independent covariate
-# - ASH: difference in means, independent covariate
 # - BL: p-values from t-test, multiple covariates (with and without cov structure)
 #   - lambda: 0.75, 0.85, 0.95
 # - Scott: t-test statistic, independent covariate
 #   - assumption of test statistic follow a standard normal. this is good here. 
-# - BH: p-values only. 
 # - locfdr: zz = t-test statistic, nulltype (try both). 
 # - mixfdr: ? do we want to include? 
+```
+
+```{r simulate-null-data-helper-functions}
+du_ttest_sim <- function(m, pi0, effect_size, n_samples=20, n_groups = 2, seed=NULL){
+  if (!is.null(seed)) set.seed(seed)
+    m0 <- ceiling(m*pi0)
+    false_nulls <- sample(1:m, m-m0)
+    z_table <- matrix(rnorm(n_samples*m), ncol=n_samples)
+    z_table[false_nulls,(n_samples/2+1):n_samples] <- matrix(rnorm(n_samples/2*(m-m0), effect_size), ncol=n_samples/2)
+    H <- rep(0,m)
+    H[false_nulls] <- 1
+    gF <- factor(rep(1:n_groups, each=n_samples/n_groups))
+    t_test <- genefilter::rowttests(z_table, gF)
+    sds <- genefilter::rowSds(z_table) # pooled var reduces to unpooled var b/c same sample sizes across groups 
+    SE <- sds / sqrt(n_samples)
+    simDf <- data.frame(H = H, t_stat = t_test$statistic, t_dm = t_test$dm, 
+                      t_pval = t_test$p.value, sd = sds, SE = SE)
+    return(simDf)
+}
+
+calculate_test_stats <- function(sim, adj_p, alpha){
+  rejected <- adj_p <= alpha
+  rjs <- sum(rejected) # number of rejected nulls
+  false_rjs <- sum(sim$H == 0 & rejected) # number of false rejected nulls
+  rj_ratio <- rjs/nrow(sim)
+  FDP <- ifelse(rjs == 0, 0, false_rjs / rjs) # False Discovery Proportion
+  power <- ifelse(sum(sim$H) == 0, NA, 
+                  sum(sim$H == 1 & rejected) / sum(sim$H == 1)) # power
+  FPR <- sum(sim$H == 0 & rejected) / sum(sim$H == 0)
+ 	FWER <- as.numeric(false_rjs > 0)
+	df <- data.frame(n_rejects = rjs, FWER=FWER, FPR=FPR, 
+	                 FDP=FDP, alpha = alpha) #  power=power, 
+	return(df)
+ }
 
 ```
+
+Simulate an example "null" dataset. `t_stat` is the t-test statistic, `t_dm` is the difference in means, 
+`t_pval` is the p-value, and `sd` is the pooled standard deviation. 
+```{r example-simulate-null-data}
+# set these to a smaller number temporarily 
+m = 5000 # number of tests
+M = 500 # number of MC reps
+
+n_samples = 20
+n_groups = 2
+
+sim_df <- du_ttest_sim(m=m, pi0=1, effect_size=0, n_samples=n_samples, 
+                       n_groups = 2)
+head(sim_df)
+```
+
+
+```{r evaluate-methods-null-data}
+alphas = seq(0.01, 0.1, length.out = 10)
+
+nCores <- 4
+registerDoParallel(cores = nCores)
+workers <- getDoParWorkers()
+backend <- getDoParName()
+version <- getDoParVersion()
+
+df.out <- foreach(i = 1:M) %dopar% 
+    {        
+        sim_df <- du_ttest_sim(m=m, pi0=1, effect_size=0, n_samples=n_samples, n_groups=2)
+        
+        # Bonferroni 
+        adj_p <- p.adjust(sim_df$t_pval, method="bonferroni")
+        df.bonf <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+        # BH
+        adj_p <- p.adjust(sim_df$t_pval, method="BH")
+        df.bh <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+        
+        # qvalue (Storey)
+        adj_p <- qvalue::qvalue(p=sim_df$t_pval)$qvalues
+        df.qvalue <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+        
+        # IHW (Wolfgang)
+        ihw_fdr <- ihw(pvalues = sim_df$t_pval, covariates = sim_df$sd, alpha =  0.1)
+        adj_p <- adj_pvalues(ihw_fdr)
+        df.ihw <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+
+        # ash (Stephens)
+        beta.ash = ash(betahat = sim_df$t_dm, sebetahat = sim_df$SE)
+        adj_p <- get_svalue(beta.ash)
+        df.ash <- plyr::ldply(alphas, function(a){
+                      calculate_test_stats(sim=sim_df, adj_p = adj_p, alpha = a) })
+        
+        # swfdr (Boca-Leek)
+        
+        # locfdr (Cai)
+        
+        # Scott
+
+        # Summary table of FDP for each method at each alpha
+        rbind(data.frame(df.bonf, "method" = "bonferroni"), 
+              data.frame(df.bh, "method" = "bh"), 
+              data.frame(df.qvalue, "method" = "qvalue"), 
+              data.frame(df.ihw, "method" = "ihw"), 
+              data.frame(df.ash, "method" = "ash"))
+  }
+
+df.out <- dplyr::bind_rows(df.out)
+```
+
+Number of discoveries as a function of $\alpha$
+```{r}
+df.out %>% dplyr::group_by(method, alpha) %>% 
+      dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
+                       FWER = mean(FWER), FPR = mean(FPR)) %>%  
+    ggplot(aes(x = alpha, y = n_rejects, color = method)) + 
+         geom_line() + geom_abline(linetype="dashed") + 
+         xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("Num of Discoveries") +
+         theme(axis.title = element_text(face="bold") )
+
+```
+
+False discovery rate as a function of $\alpha$
+```{r}
+df.out %>% dplyr::group_by(method, alpha) %>% 
+      dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
+                       FWER = mean(FWER), FPR = mean(FPR)) %>% 
+      ggplot(aes(x = alpha, y = FDR, color = method)) + 
+         geom_line() + geom_abline(linetype="dashed") + 
+         xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("FDR") +
+         theme(axis.title = element_text(face="bold") )
+
+
+```
+
+Family wise error rate as a function of $\alpha$
+```{r}
+df.out %>% dplyr::group_by(method, alpha) %>% 
+      dplyr::summarize(n_rejects = mean(n_rejects), FDR = mean(FDP), 
+                       FWER = mean(FWER), FPR = mean(FPR)) %>% 
+      ggplot(aes(x = alpha, y = FWER, color = method)) + 
+         geom_line() + geom_abline(linetype="dashed") + 
+         xlab(expression(bold(paste("Nominal ",alpha)))) + ylab("FWER") +
+         theme(axis.title = element_text(face="bold") )
+```
+
 
 ## add here...  
