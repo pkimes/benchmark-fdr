@@ -15,20 +15,23 @@ Here are the GWAS datasets we will use to benchmark the FDR methods. For each on
 we provide the script to download the data and read into R. We'd like to verify 
 that each dataset contains the desired inputs:
 
-*p-value
-*effect size
-*standard error
-*additional covariates (optional)
+- p-value
+- effect size
+- standard error
+- additional covariates (optional)
 
-Note that while knitting this document will download the data, I'm not committing 
-the data itself to this repo. See the knitted `.html` document if you do not 
+Note that while running all the bash code in this document will download the data, 
+some of it doesn't seem to work properly with knitting (e.g. the ftp download 
+in the second dataset), and I'm not committing 
+the data itself to this repo. Run the bash code in the terminal separately to 
+download the data yourself, and see the knitted `.html` document if you do not 
 wish to download the datasets but still wish to see the output.
 
 ### GWAS meta-analysis for BMI (included in Boca-Leek)
 
 Here we download the GWAS BMI dataset analyzed in the Boca-Leek paper. 
 
-```{bash, GWAS1-download}
+```{bash, GWAS1-download, eval=FALSE}
 curl -O "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
 ```
 
@@ -38,7 +41,7 @@ both sexes `BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt`. Note that it seems tha
 the Boca-Leek paper actually used the 'EuropeanOnly' subset, but it's not clear
 why (to me), and there's no reason we need to do the same.
 
-```{bash, GWAS1-unzip}
+```{bash, GWAS1-unzip, eval=FALSE}
 unzip BMI.SNPadjSMK.zip
 rm BMI.SNPadjSMK.zip
 rm BMI.SNPadjSMK.Women.EuropeanOnly.txt
@@ -54,15 +57,68 @@ the necessary inputs to run the FDR benchmark comparisons.
 ```{r, GWAS1-verify-contents}
 library(data.table)
 bmi <- fread("BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt", header=TRUE)
+dim(bmi)
 head(bmi)
 ```
 
 It looks like we have:
 
-- [x] p-value
-- [x] effect size
-- [x] standard error
-- [x] additional covariates: 
-  *`N`: Number of samples with this SNP - BMI association measured
-  *`Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
-  
+- `p_value`:p-value
+- `effect`:effect size
+- `stderr`:standard error
+- additional covariates: 
+  - `N`: Number of samples with this SNP - BMI association measured
+  - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
+ 
+for 2,458,133 SNPs.
+
+```{r, GWAS1-cleanup}
+rm(bmi)
+```
+
+### GWAS for Self-reported Chronotype
+
+A [study by Hu et al. (Nature Comm, 2016)](https://www.ncbi.nlm.nih.gov/pubmed/?term=26835600) presented a GWAS of 89,283 individuals that identified genetic variants associated with self-reporting of being a morning person. 
+
+Let's download the data from the `ebi.ac.uk` ftp site:
+
+```{bash, GWAS2-download, eval=FALSE}
+ftp ftp://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+cd KhorCC_27064256_GCST003467
+get "Khor-27064256.txt"
+exit
+```
+Next, we'll read the `.txt` file into R and verify that it contains
+the necessary inputs to run the FDR benchmark comparisons.
+
+```{r, GWAS2-verify-contents}
+glauc <- fread("Khor-27064256.txt", header=TRUE)
+dim(glauc)
+head(glauc)
+```
+
+It looks like we have:
+
+- `pvalue`:p-value
+- `effect`:effect size
+- `stderr`:standard error
+- additional covariates: 
+  - `gt.rate`: ?
+  - `freq.b`: ?
+  - `dose.b`: ?
+
+for 10,000 SNPs - unfortunately, looks like they only give us the *top* 
+10K SNPs, so this is not useful for our purposes. 
+
+```{r, GWAS2-cleanup}
+rm(chrono)
+```
+
+### GWAS for Asthma
+
+Let's download the data from the Gabriel site
+
+```{bash, GWAS2-download, eval=FALSE}
+curl -O "https://beaune.cng.fr/gabriel/gabriel_results.zip"
+```
+
