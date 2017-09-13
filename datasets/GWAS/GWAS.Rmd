@@ -139,3 +139,64 @@ for 567,589 SNPs.
 rm(asthma)
 ```
 
+### GWAS for Lipid Levels
+
+[This study by Willer et al. (2013, Nature Genetics)](http://www.nature.com/ng/journal/v45/n11/full/ng.2797.html) performed a large
+GWAS on 188,577 and measured blood lipid levels (as well as several cardiovascular traits).
+
+Let's download the data from the University of Michigan site. The download page 
+has a handy [metadata table](http://csg.sph.umich.edu//abecasis/public/lipids2013/)
+that describes the contents of the columns in the results files. 
+
+There are several types of results files to download (in terms of which phenotype to analyze):
+
+- LDL Cholesterol
+- HDL Cholesterol
+- Triglycerides
+- Total Cholesterol
+
+As well as two types of analyses: 
+
+- Joint analyses of GWAS and Metabochip
+- analysis of Metabochip
+
+We would like to look at the joint analysis of GWAS + Metabochip since we'd like 
+to look at all available SNPs (not just those that have previously shown a possible
+association with CVD). We could choose any or all of the traits, but I'll go ahead
+and proceed with Triglycerides since I'm curious about the role of genetic variation 
+on Triglyceride levels.
+
+```{bash, GWAS3-download, eval=FALSE}
+curl -O "http://csg.sph.umich.edu/abecasis/public/lipids2013/jointGwasMc_TG.txt.gz"
+```
+
+Next we uncompress the file.
+
+```{bash, GWAS3-unzip, eval=FALSE}
+gunzip jointGwasMc_TG.txt.gz 
+```
+
+Next, we'll read in the uncompressed `.txt` file into R and verify that it contains
+the necessary inputs to run the FDR benchmark comparisons.
+
+```{r, GWAS3-verify-contents}
+# read in data
+trig <- fread("jointGwasMc_TG.txt", header=TRUE)
+dim(trig)
+head(trig)
+```
+
+It looks like we have:
+
+- `P_value`:p-value
+- `beta`:effect size
+- `SE`:standard error
+- additional covariates: 
+    - `N`: The number of individuals analyzed for this marker.
+    - `Freq.A1.1000G.EUR`: Frequency of allele A1 from 1000G EUR sample.
+ 
+for 2,439,432 SNPs.
+
+```{r, GWAS3-cleanup}
+rm(trig)
+```

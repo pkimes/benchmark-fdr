@@ -150,17 +150,17 @@ rm BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt</code></pre>
 <pre class="r"><code>library(data.table)
 bmi &lt;- fread(&quot;BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt&quot;, header=TRUE)</code></pre>
 <pre><code>## 
-Read 8.5% of 2458133 rows
-Read 18.7% of 2458133 rows
-Read 25.6% of 2458133 rows
-Read 33.4% of 2458133 rows
+Read 7.7% of 2458133 rows
+Read 13.4% of 2458133 rows
+Read 21.6% of 2458133 rows
+Read 28.1% of 2458133 rows
+Read 33.8% of 2458133 rows
 Read 43.1% of 2458133 rows
 Read 54.9% of 2458133 rows
 Read 68.8% of 2458133 rows
-Read 84.6% of 2458133 rows
 Read 85.0% of 2458133 rows
-Read 92.3% of 2458133 rows
-Read 2458133 rows and 10 (of 10) columns from 0.154 GB file in 00:00:17</code></pre>
+Read 91.9% of 2458133 rows
+Read 2458133 rows and 10 (of 10) columns from 0.154 GB file in 00:00:16</code></pre>
 <pre class="r"><code>dim(bmi)</code></pre>
 <pre><code>## [1] 2458133      10</code></pre>
 <pre class="r"><code>head(bmi)</code></pre>
@@ -240,7 +240,7 @@ Read 79.3% of 567589 rows
 Read 84.6% of 567589 rows
 Read 89.9% of 567589 rows
 Read 95.1% of 567589 rows
-Read 567589 rows and 276 (of 276) columns from 0.734 GB file in 00:00:30</code></pre>
+Read 567589 rows and 276 (of 276) columns from 0.734 GB file in 00:00:29</code></pre>
 <pre class="r"><code>dim(asthma)</code></pre>
 <pre><code>## [1] 567589    276</code></pre>
 <pre class="r"><code># verify meta-data rows = data cols
@@ -320,6 +320,71 @@ head(asthma)</code></pre>
 </ul>
 <p>for 567,589 SNPs.</p>
 <pre class="r"><code>rm(asthma)</code></pre>
+</div>
+<div id="gwas-for-lipid-levels" class="section level3">
+<h3>GWAS for Lipid Levels</h3>
+<p><a href="http://www.nature.com/ng/journal/v45/n11/full/ng.2797.html">This study by Willer et al. (2013, Nature Genetics)</a> performed a large GWAS on 188,577 and measured blood lipid levels (as well as several cardiovascular traits).</p>
+<p>Let’s download the data from the University of Michigan site. The download page has a handy <a href="http://csg.sph.umich.edu//abecasis/public/lipids2013/">metadata table</a> that describes the contents of the columns in the results files.</p>
+<p>There are several types of results files to download (in terms of which phenotype to analyze):</p>
+<ul>
+<li>LDL Cholesterol</li>
+<li>HDL Cholesterol</li>
+<li>Triglycerides</li>
+<li>Total Cholesterol</li>
+</ul>
+<p>As well as two types of analyses:</p>
+<ul>
+<li>Joint analyses of GWAS and Metabochip</li>
+<li>analysis of Metabochip</li>
+</ul>
+<p>We would like to look at the joint analysis of GWAS + Metabochip since we’d like to look at all available SNPs (not just those that have previously shown a possible association with CVD). We could choose any or all of the traits, but I’ll go ahead and proceed with Triglycerides since I’m curious about the role of genetic variation on Triglyceride levels.</p>
+<pre class="bash"><code>curl -O &quot;http://csg.sph.umich.edu/abecasis/public/lipids2013/jointGwasMc_TG.txt.gz&quot;</code></pre>
+<p>Next we uncompress the file.</p>
+<pre class="bash"><code>gunzip jointGwasMc_TG.txt.gz </code></pre>
+<p>Next, we’ll read in the uncompressed <code>.txt</code> file into R and verify that it contains the necessary inputs to run the FDR benchmark comparisons.</p>
+<pre class="r"><code># read in data
+trig &lt;- fread(&quot;jointGwasMc_TG.txt&quot;, header=TRUE)</code></pre>
+<pre><code>## 
+Read 1.2% of 2439432 rows
+Read 17.6% of 2439432 rows
+Read 23.0% of 2439432 rows
+Read 29.9% of 2439432 rows
+Read 38.1% of 2439432 rows
+Read 47.6% of 2439432 rows
+Read 59.4% of 2439432 rows
+Read 73.4% of 2439432 rows
+Read 90.2% of 2439432 rows
+Read 2439432 rows and 10 (of 10) columns from 0.182 GB file in 00:00:21</code></pre>
+<pre class="r"><code>dim(trig)</code></pre>
+<pre><code>## [1] 2439432      10</code></pre>
+<pre class="r"><code>head(trig)</code></pre>
+<pre><code>##           SNP_hg18        SNP_hg19      rsid A1 A2   beta     se     N
+## 1:  chr10:10000135   chr10:9960129 rs4747841  a  g 0.0020 0.0047 90263
+## 2:  chr10:10000265   chr10:9960259 rs4749917  c  t 0.0020 0.0047 90263
+## 3: chr10:100002729 chr10:100012739  rs737656  a  g 0.0094 0.0048 91013
+## 4: chr10:100002880 chr10:100012890  rs737657  a  g 0.0094 0.0048 91013
+## 5: chr10:100003553 chr10:100013563 rs7086391  c  t 0.0094 0.0061 91013
+## 6: chr10:100003805 chr10:100013815  rs878177  c  t 0.0026 0.0049 91013
+##    P-value Freq.A1.1000G.EUR
+## 1: 0.75670            0.4908
+## 2: 0.76120            0.4908
+## 3: 0.06856            0.3206
+## 4: 0.07994            0.3206
+## 5: 0.11250            0.7810
+## 6: 0.73140            0.6517</code></pre>
+<p>It looks like we have:</p>
+<ul>
+<li><code>P_value</code>:p-value</li>
+<li><code>beta</code>:effect size</li>
+<li><code>SE</code>:standard error</li>
+<li>additional covariates:
+<ul>
+<li><code>N</code>: The number of individuals analyzed for this marker.</li>
+<li><code>Freq.A1.1000G.EUR</code>: Frequency of allele A1 from 1000G EUR sample.</li>
+</ul></li>
+</ul>
+<p>for 2,439,432 SNPs.</p>
+<pre class="r"><code>rm(trig)</code></pre>
 </div>
 
 
