@@ -8,7 +8,7 @@
 #' @param pi0 proportion of true null hypotheses
 #' @param effect_size expected mean difference
 #' @param n_samples number of total samples, should be multiple of `n_groups` (default = 20)
-#' @param n_groups number of groups in comparison (default = 2)
+#' @param n_groups number of groups in comparison [NOT SUPPORTED] (default = 2)
 #' @param seed integer seed for random number generator, ignored if NULL (default = NULL) 
 #'
 #' @return
@@ -111,20 +111,22 @@ calculate_test_stats <- function(sim, adj_p, alpha) {
 #' @param sim data.frame output from `du_ttest_sim` containing details of 
 #'        simulated hypothesis tests
 #' @param alphas vector of FDR cutoffs between 0, 1
-#' @param summarize logical whether to just return summary metrics or table of
-#'        'adjusted p-values'
+#' @param pvals logical whether to return table of 'adjusted p-values' along with
+#'        summary metrics (default = FALSE)
 #' 
 #' @return
-#' If `summarize = TRUE`, a data.frame with evaluation metrics for each method at the specified alpha
+#' If `pvals = FALSE`, a data.frame with evaluation metrics for each method at the specified alpha
 #' thresholds. Should have number of rows equal to `length(alphas) * (n_methods)`,
 #' where `n_methods` is the number of different methods (or methods and parameters)
 #' in the benchmark study.
-#' If `summarize = FALSE`, a data.frame of the adjusted p-values calculated by
-#' each method, with number of rows equal to `nrows(sim)`.
+#' If `pvals = TRUE`, a list with two elements:
+#' * `stats`: data.frame containing evaluation metrics
+#' * `pvals`: data.frame of the adjusted p-values calculated by
+#'    each method, with number of rows equal to `nrows(sim)`.
 #'
 #' @md
 #' @author Stephanie Hicks
-sim_runner <- function(sim, alphas, summarize = TRUE) { 
+sim_runner <- function(sim, alphas, pvals = FALSE) { 
 
     ## keep adjusted p-values
     adj_pset <- list()
@@ -183,19 +185,21 @@ sim_runner <- function(sim, alphas, summarize = TRUE) {
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
     adj_pset$scott <- adj_p
     
-    if (!summarize) {
-        adj_pset <- as.data.frame(adj_pset)
-        return(adj_pset)
-    } else {
-        ## Summary table of FDP for each method at each alpha
-        return(rbind(data.frame(df.bonf, "method" = "bonferroni"), 
+    ## Summary table of FDP for each method at each alpha
+    stat_df <- rbind(data.frame(df.bonf, "method" = "bonferroni"), 
                      data.frame(df.bh, "method" = "bh"), 
                      data.frame(df.qvalue, "method" = "qvalue"), 
                      data.frame(df.ihw, "method" = "ihw"), 
                      data.frame(df.ash, "method" = "ash"), 
                      data.frame(df.BL, "method" = "boca-leek"),
                      data.frame(df.locfdr, "method" = "locfdr"), 
-                     data.frame(df.scott, "method" = "scott")))
+                     data.frame(df.scott, "method" = "scott"))
+
+    if (pvals) {
+        return(list(stats = stat_df,
+                    pvals = as.data.frame(adj_pset)))
+    } else {
+        return(stat_df)
     }
 }
 
