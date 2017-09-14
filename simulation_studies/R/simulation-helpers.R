@@ -20,6 +20,11 @@
 #' * `ind_covariate`: in this case, it's standard deviation (sd) across all samples 
 #' * `SE`: standard error across all samples (sd / sqrt(n))
 #'
+#' @details
+#' This function builds on `IHWpaper::du_ttest_sim` originally written by Nikos Ignatiadis
+#' and released under the Artistic-2.0 license. The original function is available at:
+#' https://github.com/nignatiadis/IHWpaper
+#'
 #' @md
 #' @importFrom genefilter rowtests
 #' @importFrom genefilter rowSds
