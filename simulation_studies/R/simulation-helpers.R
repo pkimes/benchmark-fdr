@@ -150,65 +150,65 @@ sim_runner <- function(sim, alphas) {
     df.BL <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
     
-    # locfdr (Cai)
+    ## locfdr (Cai)
     groupID <- IHW::groups_by_filter(sim$ind_covariate, 20) # stratifies tests based increasing value of an independent covariate
     adj_p <- clfdr_hickswrapper(unadj_p = sim$pval, groups = groupID)
     df.locfdr <- plyr::ldply(alphas, function(a){
-      calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+        calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
     
-    # Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
+    ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
     adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim$pval, filterstat = sim$ind_covariate, 
                                        df=3, lambda=0.1, nulltype='theoretical')
     df.scott <- plyr::ldply(alphas, function(a){
-      calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+        calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
     
-    # Summary table of FDP for each method at each alpha
+    ## Summary table of FDP for each method at each alpha
     return(rbind(data.frame(df.bonf, "method" = "bonferroni"), 
-          data.frame(df.bh, "method" = "bh"), 
-          data.frame(df.qvalue, "method" = "qvalue"), 
-          data.frame(df.ihw, "method" = "ihw"), 
-          data.frame(df.ash, "method" = "ash"), 
-          data.frame(df.BL, "method" = "boca-leek"),
-          data.frame(df.locfdr, "method" = "locfdr"), 
-          data.frame(df.scott, "method" = "scott")))
+                 data.frame(df.bh, "method" = "bh"), 
+                 data.frame(df.qvalue, "method" = "qvalue"), 
+                 data.frame(df.ihw, "method" = "ihw"), 
+                 data.frame(df.ash, "method" = "ash"), 
+                 data.frame(df.BL, "method" = "boca-leek"),
+                 data.frame(df.locfdr, "method" = "locfdr"), 
+                 data.frame(df.scott, "method" = "scott")))
 }
 
-# adapted from IHWpaper::scott_fdrreg()
-scott_fdrreg_hickswrapper <- function(unadj_p, filterstat, df=3, lambda=0.01, nulltype = 'theoretical')
-{
-  if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
-    stop(paste("Benchmarks were run against version 0.2 of FDRreg",
-               "available on github via:",
-               "devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/')"
-    ))
-  }
-  
-  # no automated way to choose function space over which we optimize
-  # so we just use bs(df=3) as done in their analysis
-  b <- splines::bs(filterstat, df=df)
-  
-  Xs <- model.matrix( ~  b - 1)
-  fdrreg_res <- FDRreg::FDRreg(z=qnorm(unadj_p), features=Xs, nulltype = nulltype,
-                               control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
-  adj_p <- fdrreg_res$FDR
-  return(adj_p)
+
+## adapted from IHWpaper::scott_fdrreg()
+scott_fdrreg_hickswrapper <- function(unadj_p, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
+    if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
+        stop(paste("Benchmarks were run against version 0.2 of FDRreg",
+                   "available on github via:",
+                   "devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/')"
+                   ))
+    }
+    
+    ## no automated way to choose function space over which we optimize
+    ## so we just use bs(df=3) as done in their analysis
+    b <- splines::bs(filterstat, df=df)
+    
+    Xs <- model.matrix( ~  b - 1)
+    fdrreg_res <- FDRreg::FDRreg(z=qnorm(unadj_p), features=Xs, nulltype = nulltype,
+                                 control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
+    adj_p <- fdrreg_res$FDR
+    return(adj_p)
 }
 
-# adapted from IHWpaper::clfdr()
-clfdr_hickswrapper <- function(unadj_p, groups, lfdr_estimation="fdrtool")
-{
+
+## adapted from IHWpaper::clfdr()
+clfdr_hickswrapper <- function(unadj_p, groups, lfdr_estimation="fdrtool") {
   
-  # estimate local fdr within each stratum first
+  ## estimate local fdr within each stratum first
   lfdr_res <- lfdr_fit(unadj_p, groups, lfdr_estimation=lfdr_estimation)
   lfdrs <- lfdr_res$lfdr
   
-  # now use the rejection rule described in Cai's paper
+  ## now use the rejection rule described in Cai's paper
   
-  # Remark:
-  # When sorting lfdrs, we break ties by pvalues so that in the end within each stratum
-  # we get monotonic adjusted p-values as a function of the p-values
-  # This is mainly needed for grenander based lfdrs, with most other
-  # lfdr estimation methods lfdr ties are not a problem usually
+  ## Remark:
+  ## When sorting lfdrs, we break ties by pvalues so that in the end within each stratum
+  ## we get monotonic adjusted p-values as a function of the p-values
+  ## This is mainly needed for grenander based lfdrs, with most other
+  ## lfdr estimation methods lfdr ties are not a problem usually
   
   o <- order(lfdrs, unadj_p)
   lfdrs_sorted <- lfdrs[o]
@@ -218,28 +218,29 @@ clfdr_hickswrapper <- function(unadj_p, groups, lfdr_estimation="fdrtool")
   return(adj_p)
 }
 
-# helper function for cai
+
+## helper function for cai
 #' @importFrom fdrtool fdrtool
 lfdr_fit <- function(unadj_p, group, lfdr_estimation="fdrtool"){
-  
-  pvals_list <- split(unadj_p, group)
-  
-  if (lfdr_estimation == "fdrtool"){
-    lfdr_fun <- function(pv) fdrtool::fdrtool(pv, statistic="pvalue",plot=FALSE,verbose=FALSE)$lfdr
     
-  } else if (lfdr_estimation == "locfdr"){
-    if (!requireNamespace("locfdr", quietly=TRUE)){
-      stop("locfdr package required for this function to work.")
+    pvals_list <- split(unadj_p, group)
+    
+    if (lfdr_estimation == "fdrtool"){
+        lfdr_fun <- function(pv) fdrtool::fdrtool(pv, statistic="pvalue",plot=FALSE,verbose=FALSE)$lfdr
+        
+    } else if (lfdr_estimation == "locfdr"){
+        if (!requireNamespace("locfdr", quietly=TRUE)){
+            stop("locfdr package required for this function to work.")
+        }
+        lfdr_fun <- function(pv) locfdr::locfdr(qnorm(pv), nulltype=0, plot=0)$fdr
+    } else {
+        stop("This lfdr estimation method is not available.")
     }
-    lfdr_fun <- function(pv) locfdr::locfdr(qnorm(pv), nulltype=0, plot=0)$fdr
-  } else {
-    stop("This lfdr estimation method is not available.")
-  }
-  
-  lfdr_list <- lapply(pvals_list, lfdr_fun)
-  lfdrs <- unsplit(lfdr_list, group)
-  
-  fit_obj <- data.frame(pvalue=unadj_p, lfdr=lfdrs, group=group)
-  fit_obj
+    
+    lfdr_list <- lapply(pvals_list, lfdr_fun)
+    lfdrs <- unsplit(lfdr_list, group)
+    
+    fit_obj <- data.frame(pvalue=unadj_p, lfdr=lfdrs, group=group)
+    fit_obj
 }
 
