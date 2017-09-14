@@ -11,7 +11,7 @@
 
 <meta name="author" content="Rafalab Journal Club Members" />
 
-<meta name="date" content="2017-09-13" />
+<meta name="date" content="2017-09-14" />
 
 <title>Benchmarking FDR Methods</title>
 
@@ -265,7 +265,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Benchmarking FDR Methods</h1>
 <h4 class="author"><em>Rafalab Journal Club Members</em></h4>
-<h4 class="date"><em>2017-09-13</em></h4>
+<h4 class="date"><em>2017-09-14</em></h4>
 
 </div>
 
@@ -286,8 +286,12 @@ div.tocify {
 <li><span class="math inline">\(M\)</span> = Monte Carlo replications</li>
 <li></li>
 </ul>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">m =<span class="st"> </span><span class="dv">20000</span> <span class="co"># number of tests</span>
-M =<span class="st"> </span><span class="dv">1000</span> <span class="co"># number of MC reps</span></code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">m =<span class="st"> </span><span class="dv">5000</span> <span class="co"># number of tests</span>
+M =<span class="st"> </span><span class="dv">4</span> <span class="co"># number of MC reps</span>
+
+ <span class="co"># load helper functions</span>
+RPROJ &lt;-<span class="st"> </span><span class="kw">list</span>(<span class="dt">PROJHOME =</span> <span class="kw">normalizePath</span>(<span class="kw">getwd</span>()))
+<span class="kw">source</span>(<span class="kw">file.path</span>(RPROJ$PROJHOME, <span class="st">&quot;R/simulation-helpers.R&quot;</span>))</code></pre></div>
 <p><strong>Things to do</strong>: add a summary of all the simulation studies we plan to do.</p>
 <div id="methods-to-evaluate" class="section level2">
 <h2><span class="header-section-number">1.1</span> Methods to evaluate</h2>
@@ -321,163 +325,73 @@ M =<span class="st"> </span><span class="dv">1000</span> <span class="co"># numb
 <div id="control-for-fdr-and-fwer-at-alpha" class="section level2">
 <h2><span class="header-section-number">2.1</span> Control for FDR and FWER at <span class="math inline">\(\alpha\)</span></h2>
 <p>In this section, we will plot the number of discoveries as a function of <span class="math inline">\(\alpha\)</span> (should be 0). We will also evaluate methods control for false discovery rate (FDR) and family-wise error rate (FWER) at nominal <span class="math inline">\(\alpha\)</span> level ranging from [0.01, 0.1].</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># library(genefilter)</span>
-<span class="kw">library</span>(dplyr)
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(dplyr)
 <span class="kw">library</span>(ggplot2)
-<span class="kw">library</span>(doParallel)
-
-<span class="co"># library(IHW)</span>
-<span class="co"># library(ashr)</span>
-<span class="co"># library(qvalue)</span>
-<span class="co"># library(swfdr)</span>
-  ## to use IHWpaper::scott_fdrreg wrapper, we need to install FDRreg v2.0 (only available github):   
-  ## devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/') 
-  ## however, I couldn't get this to install. So I did the v1.0 via install.packages(&quot;FDRreg&quot;) on CRAN
-<span class="co"># library(FDRreg)    </span>
-
-<span class="co"># notes: convert this into R code</span>
-<span class="co"># - Scott: t-test statistic, independent covariate</span>
-<span class="co">#   - assumption of test statistic follow a standard normal. this is good here. </span>
-<span class="co"># - locfdr: zz = t-test statistic, nulltype (try both). </span>
-<span class="co"># - mixfdr: ? do we want to include? </span></code></pre></div>
+<span class="kw">library</span>(doParallel)</code></pre></div>
 <p>Additional packages that you should install are:</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(IHW)
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(genefilter)
+
+<span class="kw">library</span>(IHW)
 <span class="kw">library</span>(ashr)
 <span class="kw">library</span>(qvalue)
 <span class="kw">library</span>(swfdr)
-  ## to use IHWpaper::scott_fdrreg wrapper, we need to install FDRreg v2.0 (only available github):   
+<span class="kw">library</span>(fdrtool)
+  ## to use IHWpaper::scott_fdrreg wrapper, need to install FDRreg v2.0 (only available github):   
   ## devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/') 
-  ## however, I couldn't get this to install. So I did the v1.0 via install.packages(&quot;FDRreg&quot;) on CRAN
 <span class="kw">library</span>(FDRreg)</code></pre></div>
-<p>Load some helper functions:</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">du_ttest_sim &lt;-<span class="st"> </span>function(m, pi0, effect_size, <span class="dt">n_samples=</span><span class="dv">20</span>, <span class="dt">n_groups =</span> <span class="dv">2</span>, <span class="dt">seed=</span><span class="ot">NULL</span>){
-  if (!<span class="kw">is.null</span>(seed)) <span class="kw">set.seed</span>(seed)
-    m0 &lt;-<span class="st"> </span><span class="kw">ceiling</span>(m*pi0)
-    false_nulls &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span>:m, m-m0)
-    z_table &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">rnorm</span>(n_samples*m), <span class="dt">ncol=</span>n_samples)
-    z_table[false_nulls,(n_samples/<span class="dv">2+1</span>):n_samples] &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">rnorm</span>(n_samples/<span class="dv">2</span>*(m-m0), effect_size), <span class="dt">ncol=</span>n_samples/<span class="dv">2</span>)
-    H &lt;-<span class="st"> </span><span class="kw">rep</span>(<span class="dv">0</span>,m)
-    H[false_nulls] &lt;-<span class="st"> </span><span class="dv">1</span>
-    gF &lt;-<span class="st"> </span><span class="kw">factor</span>(<span class="kw">rep</span>(<span class="dv">1</span>:n_groups, <span class="dt">each=</span>n_samples/n_groups))
-    t_test &lt;-<span class="st"> </span>genefilter::<span class="kw">rowttests</span>(z_table, gF)
-    sds &lt;-<span class="st"> </span>genefilter::<span class="kw">rowSds</span>(z_table) <span class="co"># pooled var reduces to unpooled var b/c same sample sizes across groups </span>
-    SE &lt;-<span class="st"> </span>sds /<span class="st"> </span><span class="kw">sqrt</span>(n_samples)
-    simDf &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">H =</span> H, <span class="dt">t_stat =</span> t_test$statistic, <span class="dt">t_dm =</span> t_test$dm, 
-                      <span class="dt">t_pval =</span> t_test$p.value, <span class="dt">sd =</span> sds, <span class="dt">SE =</span> SE)
-    <span class="kw">return</span>(simDf)
-}
-
-calculate_test_stats &lt;-<span class="st"> </span>function(sim, adj_p, alpha){
-  rejected &lt;-<span class="st"> </span>adj_p &lt;=<span class="st"> </span>alpha
-  rjs &lt;-<span class="st"> </span><span class="kw">sum</span>(rejected) <span class="co"># number of rejected nulls</span>
-  false_rjs &lt;-<span class="st"> </span><span class="kw">sum</span>(sim$H ==<span class="st"> </span><span class="dv">0</span> &amp;<span class="st"> </span>rejected) <span class="co"># number of false rejected nulls</span>
-  rj_ratio &lt;-<span class="st"> </span>rjs/<span class="kw">nrow</span>(sim)
-  FDP &lt;-<span class="st"> </span><span class="kw">ifelse</span>(rjs ==<span class="st"> </span><span class="dv">0</span>, <span class="dv">0</span>, false_rjs /<span class="st"> </span>rjs) <span class="co"># False Discovery Proportion</span>
-  power &lt;-<span class="st"> </span><span class="kw">ifelse</span>(<span class="kw">sum</span>(sim$H) ==<span class="st"> </span><span class="dv">0</span>, <span class="ot">NA</span>, 
-                  <span class="kw">sum</span>(sim$H ==<span class="st"> </span><span class="dv">1</span> &amp;<span class="st"> </span>rejected) /<span class="st"> </span><span class="kw">sum</span>(sim$H ==<span class="st"> </span><span class="dv">1</span>)) <span class="co"># power</span>
-  FPR &lt;-<span class="st"> </span><span class="kw">sum</span>(sim$H ==<span class="st"> </span><span class="dv">0</span> &amp;<span class="st"> </span>rejected) /<span class="st"> </span><span class="kw">sum</span>(sim$H ==<span class="st"> </span><span class="dv">0</span>)
-    FWER &lt;-<span class="st"> </span><span class="kw">as.numeric</span>(false_rjs &gt;<span class="st"> </span><span class="dv">0</span>)
-    df &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">n_rejects =</span> rjs, <span class="dt">FWER=</span>FWER, <span class="dt">FPR=</span>FPR, 
-                     <span class="dt">FDP=</span>FDP, <span class="dt">alpha =</span> alpha) <span class="co">#  power=power, </span>
-    <span class="kw">return</span>(df)
- }
-
-<span class="co"># adapted from IHWpaper::scott_fdrreg()</span>
-scott_fdrreg_hickswrapper &lt;-<span class="st"> </span>function(unadj_p, filterstat, <span class="dt">df=</span><span class="dv">3</span>)
-  {
-       <span class="co"># no automated way to choose function space over which we optimize</span>
-       <span class="co"># so we just use bs(df=3) as done in their analysis</span>
-     b &lt;-<span class="st"> </span>splines::<span class="kw">bs</span>(filterstat, <span class="dt">df=</span>df)
-       
-     Xs &lt;-<span class="st"> </span><span class="kw">model.matrix</span>( ~<span class="st">  </span>b -<span class="st"> </span><span class="dv">1</span>)
-     fdrreg_res &lt;-<span class="st"> </span>FDRreg::<span class="kw">FDRreg</span>(<span class="dt">z=</span><span class="kw">qnorm</span>(unadj_p), <span class="dt">covars=</span>Xs) <span class="co"># assumption of test statistic follow a standard normal</span>
-     adj_p &lt;-<span class="st"> </span>fdrreg_res$FDR
-     <span class="kw">return</span>(adj_p)
-  }</code></pre></div>
-<p>Simulate an example “null” dataset. <code>H</code> is an indicator representing the true null (0) or alternative status (1). <code>t_stat</code> is the t-test statistic, <code>t_dm</code> is the difference in means, <code>t_pval</code> is the <span class="math inline">\(p\)</span>-value, <code>sd</code> is the pooled standard deviation (<span class="math inline">\(\sigma\)</span>), which reduces to the unpooled sd in this case, and <code>SE</code> is the standard error (<span class="math inline">\(\frac{\sigma}{\sqrt{n}}\)</span>)</p>
+<p>Simulate an example “null” dataset. <code>H</code> is an indicator representing the true null (0) or alternative status (1). <code>test_statistic</code> is the t-test statistic, <code>effect_size</code> is the difference in means, <code>pval</code> is the <span class="math inline">\(p\)</span>-value from the t-test, <code>ind_covariate</code> (in this case) is the pooled standard deviation (<span class="math inline">\(\sigma\)</span>), which reduces to the unpooled sd in this case, and <code>SE</code> is the standard error (<span class="math inline">\(\frac{\sigma}{\sqrt{n}}\)</span>)</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">n_samples =<span class="st"> </span><span class="dv">20</span>
 n_groups =<span class="st"> </span><span class="dv">2</span>
 
 sim_df &lt;-<span class="st"> </span><span class="kw">du_ttest_sim</span>(<span class="dt">m=</span>m, <span class="dt">pi0=</span><span class="dv">1</span>, <span class="dt">effect_size=</span><span class="dv">0</span>, 
                        <span class="dt">n_samples=</span>n_samples, <span class="dt">n_groups =</span> <span class="dv">2</span>)
 <span class="kw">head</span>(sim_df)</code></pre></div>
-<pre><code>##   H     t_stat       t_dm    t_pval        sd        SE
-## 1 0 -0.2463620 -0.1453126 0.8081896 1.2858934 0.2875345
-## 2 0 -0.2140390 -0.1155491 0.8329226 1.1764413 0.2630603
-## 3 0 -0.4143371 -0.1674947 0.6835230 0.8840013 0.1976687
-## 4 0  0.8757447  0.3788802 0.3927057 0.9614556 0.2149880
-## 5 0  1.6152199  0.8019372 0.1236551 1.1562312 0.2585411
-## 6 0  0.6874107  0.2447373 0.5005861 0.7849742 0.1755256</code></pre>
+<pre><code>##   H test_statistic effect_size      pval ind_covariate        SE
+## 1 0     -0.6218288  -0.3118811 0.5418511     1.1032604 0.2466965
+## 2 0     -1.2945512  -0.6242296 0.2118366     1.0972364 0.2453495
+## 3 0     -1.1488039  -0.6138914 0.2656744     1.2049100 0.2694261
+## 4 0     -0.8731627  -0.3149640 0.3940741     0.8015272 0.1792269
+## 5 0      1.0493484   0.3784000 0.3079035     0.8084798 0.1807816
+## 6 0     -0.7575443  -0.3788525 0.4585270     1.1056598 0.2472330</code></pre>
 <p>Run following on odyssey and save output as RDS:</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">alphas =<span class="st"> </span><span class="kw">seq</span>(<span class="fl">0.01</span>, <span class="fl">0.1</span>, <span class="dt">length.out =</span> <span class="dv">10</span>)
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(dplyr)
+<span class="kw">library</span>(ggplot2)
+<span class="kw">library</span>(doParallel)
 
-nCores &lt;-<span class="st"> </span><span class="dv">4</span>
+workingPath &lt;-<span class="st"> &quot;/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/shicks/projects/benchmark-fdr&quot;</span>
+<span class="kw">source</span>(<span class="kw">file.path</span>(workingPath, <span class="st">&quot;simulation-helpers.R&quot;</span>))
+
+<span class="co"># set these to a smaller number temporarily </span>
+m =<span class="st"> </span><span class="dv">5000</span> <span class="co"># number of tests</span>
+M =<span class="st"> </span><span class="dv">500</span> <span class="co"># number of MC reps</span>
+
+n_samples =<span class="st"> </span><span class="dv">20</span>
+n_groups =<span class="st"> </span><span class="dv">2</span>
+
+alphas =<span class="st"> </span><span class="kw">seq</span>(<span class="fl">0.01</span>, <span class="fl">0.1</span>, <span class="dt">length.out =</span> <span class="dv">10</span>)
+
+nCores &lt;-<span class="st"> </span><span class="dv">10</span>
 <span class="kw">registerDoParallel</span>(<span class="dt">cores =</span> nCores)
 workers &lt;-<span class="st"> </span><span class="kw">getDoParWorkers</span>()
 backend &lt;-<span class="st"> </span><span class="kw">getDoParName</span>()
 version &lt;-<span class="st"> </span><span class="kw">getDoParVersion</span>()
 
-df.out &lt;-<span class="st"> </span><span class="kw">foreach</span>(<span class="dt">i =</span> <span class="dv">1</span>:M) %dopar%<span class="st"> </span>
-<span class="st">    </span>{        
-        sim_df &lt;-<span class="st"> </span><span class="kw">du_ttest_sim</span>(<span class="dt">m=</span>m, <span class="dt">pi0=</span><span class="dv">1</span>, <span class="dt">effect_size=</span><span class="dv">0</span>, <span class="dt">n_samples=</span>n_samples, <span class="dt">n_groups=</span><span class="dv">2</span>)
-        
-        <span class="co"># Bonferroni </span>
-        adj_p &lt;-<span class="st"> </span><span class="kw">p.adjust</span>(sim_df$t_pval, <span class="dt">method=</span><span class="st">&quot;bonferroni&quot;</span>)
-        df.bonf &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-        <span class="co"># BH</span>
-        adj_p &lt;-<span class="st"> </span><span class="kw">p.adjust</span>(sim_df$t_pval, <span class="dt">method=</span><span class="st">&quot;BH&quot;</span>)
-        df.bh &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-        
-        <span class="co"># qvalue (Storey)</span>
-        adj_p &lt;-<span class="st"> </span>qvalue::<span class="kw">qvalue</span>(<span class="dt">p=</span>sim_df$t_pval)$qvalues
-        df.qvalue &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-        
-        <span class="co"># IHW (Wolfgang)</span>
-        ihw_fdr &lt;-<span class="st"> </span>IHW::<span class="kw">ihw</span>(<span class="dt">pvalues =</span> sim_df$t_pval, <span class="dt">covariates =</span> sim_df$sd, <span class="dt">alpha =</span>  <span class="fl">0.1</span>)
-        adj_p &lt;-<span class="st"> </span>IHW::<span class="kw">adj_pvalues</span>(ihw_fdr)
-        df.ihw &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-
-        <span class="co"># ash (Stephens)</span>
-        beta.ash =<span class="st"> </span>ashr::<span class="kw">ash</span>(<span class="dt">betahat =</span> sim_df$t_dm, <span class="dt">sebetahat =</span> sim_df$SE)
-        adj_p &lt;-<span class="st"> </span>ashr::<span class="kw">get_svalue</span>(beta.ash)
-        df.ash &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-        
-        <span class="co"># swfdr::lm_pi0 (Boca-Leek) **think about multiple covariates** or **correlation structure**</span>
-        pi0x &lt;-<span class="st"> </span>swfdr::<span class="kw">lm_pi0</span>(<span class="dt">pValues =</span> sim_df$t_pval, <span class="dt">X =</span> sim_df$sd, <span class="dt">smooth.df =</span><span class="dv">3</span>)
-        adj_p &lt;-<span class="st"> </span><span class="kw">p.adjust</span>(sim_df$t_pval, <span class="dt">method=</span><span class="st">&quot;BH&quot;</span>)*pi0x$pi0
-        df.BL &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-        
-        <span class="co"># Scott et al. (2015) (FDRreg)</span>
-        adj_p &lt;-<span class="st"> </span><span class="kw">scott_fdrreg_hickswrapper</span>(<span class="dt">unadj_p =</span> sim_df$t_pval, <span class="dt">filterstat =</span> sim_df$sd, <span class="dt">df=</span><span class="dv">3</span>)
-        df.scott &lt;-<span class="st"> </span>plyr::<span class="kw">ldply</span>(alphas, function(a){
-                      <span class="kw">calculate_test_stats</span>(<span class="dt">sim=</span>sim_df, <span class="dt">adj_p =</span> adj_p, <span class="dt">alpha =</span> a) })
-     
-        <span class="co"># locfdr (Cai)</span>
-
-        <span class="co"># Summary table of FDP for each method at each alpha</span>
-        <span class="kw">rbind</span>(<span class="kw">data.frame</span>(df.bonf, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;bonferroni&quot;</span>), 
-              <span class="kw">data.frame</span>(df.bh, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;bh&quot;</span>), 
-              <span class="kw">data.frame</span>(df.qvalue, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;qvalue&quot;</span>), 
-              <span class="kw">data.frame</span>(df.ihw, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;ihw&quot;</span>), 
-              <span class="kw">data.frame</span>(df.ash, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;ash&quot;</span>), 
-              <span class="kw">data.frame</span>(df.BL, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;boca-leek&quot;</span>), 
-              <span class="kw">data.frame</span>(df.scott, <span class="st">&quot;method&quot;</span> =<span class="st"> &quot;scott&quot;</span>))
-  }
+df.out &lt;-<span class="st"> </span><span class="kw">foreach</span>(<span class="dt">i =</span> <span class="dv">1</span>:M, <span class="dt">.verbose=</span>T) %dopar%<span class="st"> </span>{
+  sim_df &lt;-<span class="st"> </span><span class="kw">du_ttest_sim</span>(<span class="dt">m=</span>m, <span class="dt">pi0=</span><span class="dv">1</span>, <span class="dt">effect_size=</span><span class="dv">0</span>, <span class="dt">n_samples=</span>n_samples, <span class="dt">n_groups=</span><span class="dv">2</span>)
+  <span class="kw">sim_runner</span>(<span class="dt">sim =</span> sim_df, <span class="dt">alphas =</span> alphas)
+}
 
 df.out &lt;-<span class="st"> </span>dplyr::<span class="kw">bind_rows</span>(df.out)
+
 <span class="kw">saveRDS</span>(df.out, <span class="dt">file=</span><span class="kw">file.path</span>(workingPath, <span class="st">&quot;nullSims-Results.RDS&quot;</span>))</code></pre></div>
 <p>Load and plot results from RDS file:</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">workingPath &lt;-<span class="st"> &quot;/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/shicks/projects/benchmark-fdr&quot;</span>
-<span class="kw">readRDS</span>(<span class="dt">file=</span><span class="kw">file.path</span>(workingPath, <span class="st">&quot;nullSims-Results.RDS&quot;</span>))
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># workingPath &lt;- &quot;/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/shicks/projects/benchmark-fdr&quot;</span>
+<span class="co"># df.out &lt;- readRDS(file=file.path(workingPath, &quot;nullSims-Results.RDS&quot;))</span>
+df.out &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="dt">file=</span><span class="kw">file.path</span>(RPROJ$PROJHOME, <span class="st">&quot;R/nullSims-Results.RDS&quot;</span>))
 
 <span class="co"># Number of discoveries as a function of $\alpha$</span>
 df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(method, alpha) %&gt;%<span class="st"> </span>
+<span class="st">      </span>dplyr::<span class="kw">filter</span>(!(method %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;ash&quot;</span>, <span class="st">&quot;scott&quot;</span>, <span class="st">&quot;locfdr&quot;</span>))) %&gt;%
 <span class="st">      </span>dplyr::<span class="kw">summarize</span>(<span class="dt">n_rejects =</span> <span class="kw">mean</span>(n_rejects), <span class="dt">FDR =</span> <span class="kw">mean</span>(FDP), 
                        <span class="dt">FWER =</span> <span class="kw">mean</span>(FWER), <span class="dt">FPR =</span> <span class="kw">mean</span>(FPR)) %&gt;%<span class="st"> </span>
 <span class="st">    </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="dt">x =</span> alpha, <span class="dt">y =</span> n_rejects, <span class="dt">color =</span> method)) +<span class="st"> </span>
@@ -486,7 +400,8 @@ df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(me
 <span class="st">         </span><span class="kw">theme</span>(<span class="dt">axis.title =</span> <span class="kw">element_text</span>(<span class="dt">face=</span><span class="st">&quot;bold&quot;</span>) )
 
 <span class="co"># False discovery rate as a function of $\alpha$</span>
-df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(method, alpha) %&gt;%<span class="st"> </span>
+df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(method, alpha) %&gt;%
+<span class="st">        </span><span class="co"># dplyr::filter(!(method %in% c(&quot;ash&quot;, &quot;scott&quot;, &quot;locfdr&quot;))) %&gt;%</span>
 <span class="st">      </span>dplyr::<span class="kw">summarize</span>(<span class="dt">n_rejects =</span> <span class="kw">mean</span>(n_rejects), <span class="dt">FDR =</span> <span class="kw">mean</span>(FDP), 
                        <span class="dt">FWER =</span> <span class="kw">mean</span>(FWER), <span class="dt">FPR =</span> <span class="kw">mean</span>(FPR)) %&gt;%<span class="st"> </span>
 <span class="st">      </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="dt">x =</span> alpha, <span class="dt">y =</span> FDR, <span class="dt">color =</span> method)) +<span class="st"> </span>
@@ -496,6 +411,7 @@ df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(me
 
 <span class="co"># Family wise error rate as a function of $\alpha$</span>
 df.out %&gt;%<span class="st"> </span>dplyr::<span class="kw">group_by</span>(method, alpha) %&gt;%<span class="st"> </span>
+<span class="st">         </span><span class="co">#  dplyr::filter(!(method %in% c(&quot;ash&quot;, &quot;scott&quot;))) %&gt;%</span>
 <span class="st">      </span>dplyr::<span class="kw">summarize</span>(<span class="dt">n_rejects =</span> <span class="kw">mean</span>(n_rejects), <span class="dt">FDR =</span> <span class="kw">mean</span>(FDP), 
                        <span class="dt">FWER =</span> <span class="kw">mean</span>(FWER), <span class="dt">FPR =</span> <span class="kw">mean</span>(FPR)) %&gt;%<span class="st"> </span>
 <span class="st">      </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="dt">x =</span> alpha, <span class="dt">y =</span> FWER, <span class="dt">color =</span> method)) +<span class="st"> </span>
