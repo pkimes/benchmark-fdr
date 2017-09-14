@@ -111,71 +111,92 @@ calculate_test_stats <- function(sim, adj_p, alpha) {
 #' @param sim data.frame output from `du_ttest_sim` containing details of 
 #'        simulated hypothesis tests
 #' @param alphas vector of FDR cutoffs between 0, 1
-#'
+#' @param summarize logical whether to just return summary metrics or table of
+#'        'adjusted p-values'
+#' 
 #' @return
-#' data.frame with evaluation metrics for each method at the specified alpha
+#' If `summarize = TRUE`, a data.frame with evaluation metrics for each method at the specified alpha
 #' thresholds. Should have number of rows equal to `length(alphas) * (n_methods)`,
 #' where `n_methods` is the number of different methods (or methods and parameters)
 #' in the benchmark study.
+#' If `summarize = FALSE`, a data.frame of the adjusted p-values calculated by
+#' each method, with number of rows equal to `nrows(sim)`.
 #'
 #' @md
 #' @author Stephanie Hicks
-sim_runner <- function(sim, alphas) { 
+sim_runner <- function(sim, alphas, summarize = TRUE) { 
+
+    ## keep adjusted p-values
+    adj_pset <- list()
 
     ## Bonferroni 
     adj_p <- p.adjust(sim$pval, method="bonferroni")
     df.bonf <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
-
+    adj_pset$bonf <- adj_p
+    
     ## BH
     adj_p <- p.adjust(sim$pval, method="BH")
     df.bh <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$bh <- adj_p
     
     ## qvalue (Storey)
     adj_p <- qvalue::qvalue(p=sim$pval)$qvalues
     df.qvalue <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$qvalue <- adj_p
     
     ## IHW (Wolfgang)
     ihw_fdr <- IHW::ihw(pvalues = sim$pval, covariates = sim$ind_covariate, alpha =  0.1)
     adj_p <- IHW::adj_pvalues(ihw_fdr)
     df.ihw <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$ihw <- adj_p
 
     ## ash (Stephens)
     beta.ash = ashr::ash(betahat = sim$effect_size, sebetahat = sim$SE)
     adj_p <- ashr::get_svalue(beta.ash)
     df.ash <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$ashs <- adj_p
+    adj_pset$ashq <- ashr::get_qvalue(beta.ash)
     
     ## swfdr::lm_pi0 (Boca-Leek) **think about multiple covariates** or **correlation structure**
     pi0x <- swfdr::lm_pi0(pValues = sim$pval, X = sim$ind_covariate, smooth.df =3)
     adj_p <- p.adjust(sim$pval, method="BH")*pi0x$pi0
     df.BL <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$bl <- adj_p
     
     ## locfdr (Cai)
     groupID <- IHW::groups_by_filter(sim$ind_covariate, 20) # stratifies tests based increasing value of an independent covariate
     adj_p <- clfdr_hickswrapper(unadj_p = sim$pval, groups = groupID)
     df.locfdr <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$lfdr <- adj_p
     
     ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
     adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim$pval, filterstat = sim$ind_covariate, 
                                        df=3, lambda=0.1, nulltype='theoretical')
     df.scott <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
+    adj_pset$scott <- adj_p
     
-    ## Summary table of FDP for each method at each alpha
-    return(rbind(data.frame(df.bonf, "method" = "bonferroni"), 
-                 data.frame(df.bh, "method" = "bh"), 
-                 data.frame(df.qvalue, "method" = "qvalue"), 
-                 data.frame(df.ihw, "method" = "ihw"), 
-                 data.frame(df.ash, "method" = "ash"), 
-                 data.frame(df.BL, "method" = "boca-leek"),
-                 data.frame(df.locfdr, "method" = "locfdr"), 
-                 data.frame(df.scott, "method" = "scott")))
+    if (!summarize) {
+        adj_pset <- as.data.frame(adj_pset)
+        return(adj_pset)
+    } else {
+        ## Summary table of FDP for each method at each alpha
+        return(rbind(data.frame(df.bonf, "method" = "bonferroni"), 
+                     data.frame(df.bh, "method" = "bh"), 
+                     data.frame(df.qvalue, "method" = "qvalue"), 
+                     data.frame(df.ihw, "method" = "ihw"), 
+                     data.frame(df.ash, "method" = "ash"), 
+                     data.frame(df.BL, "method" = "boca-leek"),
+                     data.frame(df.locfdr, "method" = "locfdr"), 
+                     data.frame(df.scott, "method" = "scott")))
+    }
 }
 
 
