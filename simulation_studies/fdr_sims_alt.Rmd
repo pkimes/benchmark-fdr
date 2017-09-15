@@ -35,14 +35,14 @@ devtools::install_github("nignatiadis/IHWpaper")
 
 
 <!-- ######################################################################## -->
-# Workspace Setup
+## Workspace Setup
 <!-- ######################################################################## -->
 
 ```{r, load-libraries, message=FALSE}
 library("genefilter")
 library("dplyr")
+library("data.table")
 library("ggplot2")
-library("doParallel")
 
 library("IHW")
 library("ashr")
@@ -62,144 +62,242 @@ projdir <- "/n/irizarryfs01_backed_up/pkimes/project/project-02-benchmark-fdr"
 
 
 <!-- ######################################################################## -->
-# Overview
+## Overview
 <!-- ######################################################################## -->
 
-- Alternative Setttings
-- Single Monte Carlo Simulations
+We first investigate a broad range of settings with only a **single Monte Carlo replication** under each condition. In each simulation, a large set of univariate two-sample $t$-tests are carried out based on raw data sampled from two mean-shifted Gaussian distributions. Each method for controlling FDR is applied to the results of the $t$-tests, and performance is compared using metrics include: FPR and power.
 
-In the alternative simulations, we consider:
-
-- different magnitudes of effect sizes / difference in means
-- different shapes of effect sizes / difference in means 
-  - independent tests: (Boca-Leek): beta, normal, t, chi2; (ASH): spiky, near-normal, flat-top, skew, bimodal
-  - correlated tests: (Boca-Leek): mutivar-normal, multivar-t (blocked covariance design)
-- different sample sizes (e.g. impact on SE estimates)
-  - same sample size for all tests
-  - different sample sizes for some tests (i.e. for tests w/ different precision levels)
-- different in relationship between pi_0 and independent covariate
-- different correlation structure of multiple covariates
-- different global $\pi_0$ values (between 0, 1) - setting 1 in Boca-Leek
-
+A range of simulations are considered by varying the following baseline parameters.
 
 ```{r, define-base}
 ## setting 0: (base) null simulation setting
-setting_base <- list(m = 2000, pi0 = 1, effect_size = 0, n_samples = 20, n_groups = 2)
+setting_base <- list(m = 20000,         # number of hypothesis tests
+                     pi0 = 1,           # proportion of null hypotheses
+                     effect_size = 0,   # expected mean diff of non-null tests
+                     n_samples = 20,    # total number of samples
+                     n_groups = 2)      # number of groups in contrast
+```
+
+At a high level, we consider the following set of simulation settings:
+
+- **no informative covariate**
+  - *varying null proportion*
+  - *varying sample size*
+  - *varying effect size* (constant 'effect size')
+  - *varying effect size* (random 'effect size')
+    - independent tests: Beta, Normal, t, chi2, spiky, near-normal, flat-top, bimodal, skewed 
+    - dependent tests: multivariate-Normal, multivariate-t
+- **informative covariate**
+  - *varying null proportion*
+  - *varying sample size*
+  - *varying effect size* (constant 'effect size')
+  - *varying effect size* (random 'effect size')
+    - independent tests: Beta, Normal, t, chi2, spiky, near-normal, flat-top, bimodal, skewed 
+    - dependent tests: multivariate-Normal, multivariate-t
+  - *varying covariate, pi0 relation*
+    - single informative covariate
+    - multiple informative covariates
+
+
+In this analysis, we compare the following methods. For methods which accept user-specified covariates, under the "no informative covariate" settings, the pooled standard deviation was used specified to the methods as a dummy covariate. 
+
+```{r, define-plot-variables}
+## string abb for each method (should match output of `sim_runner`)
+methods_str <- c("pval", "bh", "qvalue", "ihw",
+                 "ashs", "bl", "lfdr", "scott")
+
+## description of each method
+methods_desc <- list(pval = "unadjusted p-values",
+                     bh = "BH adjusted p-values",
+                     qvalue = "Storey's q-value",
+                     ihw = "IHW adjusted p-values",
+                     ashs = "ASH s-values",
+                     bl = "Boca-Leek adjusted p-values",
+                     lfdr = "local FDR",
+                     scott = "FDRreg adjusted p-values")
 ```
 
 
 <!-- ######################################################################## -->
-# Alternative Setting 1: Varying Null Proportion ($\pi_0$)
+## Setting 1.1: No Informative Covariate, Varying Null Proportion ($\pi_0$)
 <!-- ######################################################################## -->
 
-First we define the set of simulation settings to be tested.
+First we define the set of simulation settings to be tested. A range of $\pi_0$ values are considered between 0 and 1. For each setting, a fixed effect size (group mean differences) of `1.5` was used in the simulation of all non-null (alternative) tests.
 
 ```{r, define-setting-1}
 ## create settings w/ varying pi0 (null proportions)
 setting_alts <- lapply(seq(0, 1, by=.1),
                        function(p) { replace(setting_base,
                                              c("pi0", "effect_size"),
-                                             c(p, 1.0))
+                                             c(p, 1.5))
                        })
 names(setting_alts) <- paste0("altp0_", 0:10)
 
 ## verify settings are as expected
-do.call(rbind, setting_alts)
+ptab <- do.call(rbind.data.frame, setting_alts)
+ptab$setting <- rownames(ptab)
+setnames(ptab, "effect_size", "alt_effsize") 
+ptab[] <- lapply(ptab, as.character)
+ptab
 ```
+
+Next, we perform one iteration of simulation for each setting and keep both the adjusted p-values (`pvals`) and the evaluation metrics (`stats`) computed for each method.
 
 ```{r, run-setting-1}
-## simulate single datasets for each setting
+## simulate single datasets, calculate adj p-values
 sim_dfl <- lapply(setting_alts, do.call, what=du_ttest_sim)
-
-## calculate adjusted p-values and return pvals along w/ mets
 adj_dfl <- lapply(sim_dfl, sim_runner, alphas=seq(0.01, 0.10, by=.01), pvals=TRUE)
 
-## create 
-sim_res <- cbind(sim_dfl$alteff_20, bb$alteff_20)
+## combine results, settings for analysis
+sim_pv <- mapply(function(x, y) { cbind(x, y$pvals) }, sim_dfl, adj_dfl, SIMPLIFY=FALSE)
+sim_pv <- data.table::rbindlist(sim_pv, idcol="setting")
+sim_pv <- merge(sim_pv, ptab, by="setting", all.x=TRUE)
+
+sim_st <- lapply(adj_dfl, `[[`, "stats")
+sim_st <- data.table::rbindlist(sim_st, fill=TRUE, idcol="setting")
+sim_st <- merge(sim_st, ptab, by="setting", all.x=TRUE)
 ```
 
 <!-- ------------------------------------------------------------------------ -->
-## Visual Inspection of Single Monte Carlo Simulation
+### Visual Inspection of Single Monte Carlo Simulation
 <!-- ------------------------------------------------------------------------ -->
 
-```{r, ASH-svals-vs-qvals}
-## plot ASH s-values against ASH q-values
-gp <- ggplot(sim_res) +
-    geom_point(aes(ashs, ashq), alpha=1/4) +
-    expand_limits(x=c(0, 1), y=c(0, 1)) +
-    theme_bw()
-ggsave("plots/sims-01-null-ash_s_vs_q.png", gp, width=5, height=5)
+All figures generated in this section will be saved with the following prefix.
+
+```{r, define-plot-prefix-1}
+plt_pfix <- "plots/sims-01_01-"
 ```
 
-```{r, effect-vs-adjp}
-## base of plot for: 'effect size' vs. 'adjusted pval (method X)'
-gp_base <- ggplot(sim_res, aes(x=effect_size, 
-                               color=cut_width(SE, width=.05, boundary=0))) +
-    expand_limits(y=c(0, 1)) + 
+First, we take a look at the distribution of adjusted p-values as a function of the observed effect sizes over the `r setting_base$m` hypothesis tests. Each test is also colored by the corresponding standard error across the `r setting_base$n_samples` samples in the simulation. We plot this distribution across the values of pi0. 
+
+```{r, plot-effect-vs-adjp, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("effect_size", "SE", "pi0")
+pi0set <- c("0", "0.1", "0.3", "0.7", "0.9", "1")
+
+## generate plot for subset of pi0 values
+gp_all <- ggplot(sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(pi0 %in% pi0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        pi0 = paste("pi0 =", pi0))) + 
+    geom_point(aes(x=effect_size, y=adjp,
+                   color=cut_width(SE, width=.05, boundary=0)),
+               alpha=1/2) +
     scale_color_brewer("Binned StdErr", palette="Set1") + 
+    expand_limits(y=c(0, 1)) +
+    ylab("adjusted p-value") + 
+    facet_grid(pi0 ~ method) + 
     theme_bw()
+gp_all
 
-## 'effect size' vs. t-test p-values
-gp0 <- gp_base + 
-    geom_point(aes(y=pval), alpha=1/2) +
-    ggtitle("dist. of unadjusted p-values (20k null tests)")
-
-## 'effect size' vs. ASH adjusted p-values
-gp1 <- gp_base + 
-    geom_point(aes(y=ashs), alpha=1/2) +
-    ggtitle("dist. of ASH s-values (20k null tests)")
-
-## 'effect size' vs. IHW adjusted p-values
-gp3 <- gp_base +
-    geom_point(aes(y=ihw), alpha=1/2) + 
-    ggtitle("dist. of IHW adjusted p-values (20k null tests)")
-
-## 'effect size' vs. Boca-Leek adjusted p-values
-gp4 <- gp_base +
-    geom_point(aes(y=bl), alpha=1/2) +
-    ggtitle("dist. of Boca-Leek adjusted p-values (20% alt tests; e.size=2)")
-
-## plot together
-png("plots/sims-01-null-ash.png", units="in", width=6, height=7, res=200)
-pkimes::ggmulti(gp1, gp2, gp3, gp4, cols=2)
-dev.off()
+## save to file
+ggsave(paste0(plt_pfix, "effectsize_vs_adjustedp.png"), gp_all, width=14, height=10)
 ```
 
-```{r}
-gp <- ggplot(sim_res) +
-    geom_point(aes(x=pval, y=ashs), alpha=1/10) +
-    theme_bw() +
-    xlab("unadjusted p-value") +
-    ylab("ASH s-value")
-ggsave("plots/sims-01-null-pval_vs_ash.png", gp, width=5, height=5)
+Next, we generate a similar plot, but look at the distribution of significant p-values as a function of the z-score, as was done in the original ASH paper. This was originally motivated by an interest in illustrating the effect of the unimodal assumption proposed with the ASH method.
+
+```{r, plot-zscale-vs-adjp, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("effect_size", "SE", "pi0", "pval", "test_statistic")
+pi0set <- c("0", "0.1", "0.3", "0.7", "0.9", "1")
+
+## helper; bin adjusted p-vals, flip order of bins
+.p2disc <- function(x) {
+    cut(x, breaks=c(0, .01, .05, .10, .20, 1), include.lowest=TRUE) %>%
+        factor(., levels=rev(levels(.)))
+}
+
+## similar plot to Figure 1 of ASH paper
+gp_all <- ggplot(sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(pi0 %in% pi0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        pi0 = paste("pi0 =", pi0))) + 
+    geom_histogram(aes(fill=.p2disc(adjp),
+                       x=qnorm(pval)*sign(test_statistic)),
+                   color='black', size=1/4, binwidth=.2, boundary=0,
+                   position="stack") +
+    xlab("z-score") + 
+    viridis::scale_fill_viridis("Binned\nadj p-val", discrete=TRUE,
+                                option="plasma", direction=-1,
+                                begin=.1, end=.9, drop=FALSE) +
+    facet_grid(pi0 ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "zscore_vs_adjustedp.png"), gp_all, width=14, height=10)
 ```
 
-```{r}
-## distribution of rejected/non-rejected; sort reverse 
-ggplot(sim_res) +
-    geom_histogram(aes(x=qnorm(pval)*sign(test_statistic),
-                       fill=cut_width(ashs, width=.05, boundary=0) %>%
-                           factor(., levels=rev(levels(.)))),
-                   color='black', binwidth=.1, boundary=0,
-             position="stack") +
-    scale_fill_brewer("ASH (s-values)", palette="Blues", direction=-1) +
+A similar plot, is simply to look at the pairwise plots of original p-values against the adjusted p-values generated by each method
+
+```{r, plot-p-vs-adjp, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("SE", "H", "pi0", "pval")
+pi0set <- c("0", "0.1", "0.3", "0.7", "0.9", "1")
+
+## color by SE
+gp_all <- ggplot(bb <- sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(pi0 %in% pi0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        pi0 = paste("pi0 =", pi0))) + 
+    geom_point(aes(x=pval, y=adjp,
+                   color=cut_width(SE, width=.05, boundary=0)),
+               alpha=1/10) +
+    scale_color_brewer("Binned StdErr", palette="Set1") + 
+    expand_limits(x=c(0, 1), y=c(0, 1)) +
+    xlab("unadjusted p-value") + 
+    ylab("adjusted p-value") + 
+    facet_grid(pi0 ~ method) + 
     theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_bySE.png"), gp_all, width=14, height=10)
+
+
+## color by H: 0/1
+gp_all <- ggplot(bb <- sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(pi0 %in% pi0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        pi0 = paste("pi0 =", pi0))) + 
+    geom_point(aes(x=pval, y=adjp, color=factor(H)), alpha=1/10) +
+    scale_color_brewer("null|alt", palette="Set1") + 
+    expand_limits(x=c(0, 1), y=c(0, 1)) +
+    xlab("unadjusted p-value") + 
+    ylab("adjusted p-value") + 
+    facet_grid(pi0 ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_byH.png"), gp_all, width=14, height=10)
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_byH_zoom.png"),
+       gp_all + coord_cartesian(x=c(0, .1), y=c(0, .1)),
+       width=14, height=10)
 ```
 
 <!-- ------------------------------------------------------------------------ -->
-## Numerically Evaluate of Single Monte Carlo Simulation
+### Numeric Evaluate of Single Monte Carlo Simulation
 <!-- ------------------------------------------------------------------------ -->
 
-Analysis of metrics calculated for various FDR cutoffs.
+To be completed.
 
 
 <!-- ######################################################################## -->
-# Alternative Setting 2: Varying Effect Size
+## Setting 1.2: No Informative Covariate, Varying Effect Size (constant)
 <!-- ######################################################################## -->
 
-First we define the set of simulation settings to be tested.
+First we define the set of simulation settings to be tested. A range of (constant) effect sizes are considered between 0 and 2. For each setting, a fixed null proportion of `pi0 = 0.2` was used. More complex settings with non-null effect sizes sampled from various distirbutions are considered in a later section.
 
-```{r}
+```{r, define-setting-2}
 ## create settings w/ varying effect_size (mean difference)
 setting_alts <- lapply(seq(0, 2, by=.2),
                        function(x) { replace(setting_base,
@@ -209,19 +307,159 @@ setting_alts <- lapply(seq(0, 2, by=.2),
 names(setting_alts) <- paste0("alteff_", seq(0, 20, by=2))
 
 ## verify settings are as expected
-do.call(rbind, setting_alts)
+ptab <- do.call(rbind.data.frame, setting_alts)
+ptab$setting <- rownames(ptab)
+setnames(ptab, "effect_size", "alt_effsize") 
+ptab[] <- lapply(ptab, as.character)
+ptab
+```
+
+Next, we perform one iteration of simulation for each setting and keep both the adjusted p-values (`pvals`) and the evaluation metrics (`stats`) computed for each method.
+
+```{r, run-setting-2}
+## simulate single datasets, calculate adj p-values
+sim_dfl <- lapply(setting_alts, do.call, what=du_ttest_sim)
+adj_dfl <- lapply(sim_dfl, sim_runner, alphas=seq(0.01, 0.10, by=.01), pvals=TRUE)
+
+## combine results, settings for analysis
+sim_pv <- mapply(function(x, y) { cbind(x, y$pvals) }, sim_dfl, adj_dfl, SIMPLIFY=FALSE)
+sim_pv <- data.table::rbindlist(sim_pv, idcol="setting")
+sim_pv <- merge(sim_pv, ptab, by="setting", all.x=TRUE)
+
+sim_st <- lapply(adj_dfl, `[[`, "stats")
+sim_st <- data.table::rbindlist(sim_st, fill=TRUE, idcol="setting")
+sim_st <- merge(sim_st, ptab, by="setting", all.x=TRUE)
 ```
 
 <!-- ------------------------------------------------------------------------ -->
-## Visual Inspection of Single Monte Carlo Simulation
+### Visual Inspection of Single Monte Carlo Simulation
 <!-- ------------------------------------------------------------------------ -->
 
+All figures generated in this section will be saved with the following prefix.
+
+```{r, define-plot-prefix-2}
+plt_pfix <- "plots/sims-01_02-"
+```
+
+First, we take a look at the distribution of adjusted p-values as a function of the observed effect sizes over the `r setting_base$m` hypothesis tests. Each test is also colored by the corresponding standard error across the `r setting_base$n_samples` samples in the simulation. We plot this distribution across the values of `effect_size`. 
+
+```{r, plot-effect-vs-adjp-2, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("effect_size", "H", "alt_effsize")
+es0set <- c("0.2", "0.4", "0.8", "1.2", "1.6", "2")
+
+## generate plot for subset of pi0 values
+gp_all <- ggplot(sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(alt_effsize %in% es0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        alt_effsize = paste("eff size =", alt_effsize))) + 
+    geom_point(aes(x=effect_size, y=adjp, color=factor(H)), alpha=1/10) +
+    scale_color_brewer("null|alt", palette="Set1") + 
+    expand_limits(y=c(0, 1)) +
+    ylab("p/q/s-value") + 
+    facet_grid(alt_effsize ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "effectsize_vs_adjustedp.png"), gp_all, width=14, height=10)
+```
+
+Next, we generate a similar plot, but look at the distribution of significant p-values as a function of the z-score, as was done in the original ASH paper. This was originally motivated by an interest in illustrating the effect of the unimodal assumption proposed with the ASH method.
+
+```{r, plot-zscale-vs-adjp-2, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("H", "alt_effsize", "pval", "test_statistic")
+es0set <- c("0.2", "0.4", "0.8", "1.2", "1.6", "2")
+
+## helper; bin adjusted p-vals, flip order of bins
+.p2disc <- function(x) {
+    cut(x, breaks=c(0, .01, .05, .10, .20, 1), include.lowest=TRUE) %>%
+        factor(., levels=rev(levels(.)))
+}
+
+## similar plot to Figure 1 of ASH paper
+gp_all <- ggplot(sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(alt_effsize %in% es0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        alt_effsize = paste("eff size =", alt_effsize))) + 
+    geom_histogram(aes(fill=.p2disc(adjp),
+                       x=qnorm(pval)*sign(test_statistic)),
+                   color='black', size=1/4, binwidth=.2, boundary=0,
+                   position="stack") +
+    xlab("z-score") + 
+    viridis::scale_fill_viridis("Binned\nadj p-val", discrete=TRUE,
+                                option="plasma", direction=-1,
+                                begin=.1, end=.9, drop=FALSE) +
+    facet_grid(alt_effsize ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "zscore_vs_adjustedp.png"), gp_all, width=14, height=10)
+```
+
+A similar plot, is simply to look at the pairwise plots of original p-values against the adjusted p-values generated by each method
+
+```{r, plot-p-vs-adjp-1, fig.width=14, fig.height=10}
+## set ID columns to keep when melting table for plot 
+plotvars <- c("SE", "H", "alt_effsize", "pval")
+es0set <- c("0.2", "0.4", "0.8", "1.2", "1.6", "2")
+
+## color by SE
+gp_all <- ggplot(bb <- sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(alt_effsize %in% es0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        alt_effsize = paste("eff size =", alt_effsize))) + 
+    geom_point(aes(x=pval, y=adjp,
+                   color=cut_width(SE, width=.05, boundary=0)),
+               alpha=1/10) +
+    scale_color_brewer("Binned StdErr", palette="Set1") + 
+    expand_limits(x=c(0, 1), y=c(0, 1)) +
+    xlab("unadjusted p-value") + 
+    ylab("adjusted p-value") + 
+    facet_grid(alt_effsize ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_bySE.png"), gp_all, width=14, height=10)
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_bySE_zoom.png"),
+       gp_all + coord_cartesian(x=c(0, .1), y=c(0, .1)),
+       width=14, height=10)
+
+
+## color by H: 0/1
+gp_all <- ggplot(bb <- sim_pv %>%
+                 melt(id.vars=plotvars, measure.vars=methods_str,
+                      variable.name='method', value.name='adjp') %>%
+                 filter(alt_effsize %in% es0set) %>%
+                 mutate(method = plyr::revalue(method, unlist(methods_desc)),
+                        alt_effsize = paste("eff size =", alt_effsize))) + 
+    geom_point(aes(x=pval, y=adjp, color=factor(H)), alpha=1/10) +
+    scale_color_brewer("null|alt", palette="Set1") + 
+    expand_limits(x=c(0, 1), y=c(0, 1)) +
+    xlab("unadjusted p-value") + 
+    ylab("adjusted p-value") + 
+    facet_grid(alt_effsize ~ method) + 
+    theme_bw()
+gp_all
+
+## save to file
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_byH.png"), gp_all, width=14, height=10)
+ggsave(paste0(plt_pfix, "pvalue_vs_adjustedp_byH_zoom.png"),
+       gp_all + coord_cartesian(x=c(0, .1), y=c(0, .1)),
+       width=14, height=10)
+```
+
 <!-- ------------------------------------------------------------------------ -->
-## Numerically Evaluate of Single Monte Carlo Simulation
+### Numeric Evaluation of Single Monte Carlo Simulation
 <!-- ------------------------------------------------------------------------ -->
 
-
-<!-- ######################################################################## -->
-# Alternative Setting 3:
-<!-- ######################################################################## -->
-
+To be completed.
