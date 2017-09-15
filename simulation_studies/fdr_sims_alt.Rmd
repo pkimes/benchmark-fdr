@@ -1,0 +1,227 @@
+---
+title: "Benchmarking FDR Methods - Alternative Settings"
+author: "Rafalab Journal Club Members"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: tango
+    number_sections: true
+    code_folding: hide
+---
+
+<!-- ######################################################################## -->
+<!-- preliminaries                                                            --> 
+<!-- ######################################################################## -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, install-benchmarked-methods, eval=FALSE}
+## from CRAN
+install.packages("ashr")
+
+## from Bioconductor
+BiocInstaller::biocLite("IHW")
+BiocInstaller::biocLite("qvalue")
+BiocInstaller::biocLite("swfdr")
+
+## from GitHub
+devtools::install_github('jgscott/FDRreg', subdir="R_pkg/")
+devtools::install_github("nignatiadis/IHWpaper")
+```
+
+
+<!-- ######################################################################## -->
+# Workspace Setup
+<!-- ######################################################################## -->
+
+```{r, load-libraries, message=FALSE}
+library("genefilter")
+library("dplyr")
+library("ggplot2")
+library("doParallel")
+
+library("IHW")
+library("ashr")
+library("qvalue")
+library("swfdr")
+library("FDRreg")
+library("IHWpaper")
+```
+
+```{r, load-helper-functions}
+source("R/simulation-helpers.R")
+```
+
+```{r, set-location}
+projdir <- "/n/irizarryfs01_backed_up/pkimes/project/project-02-benchmark-fdr"
+```
+
+
+<!-- ######################################################################## -->
+# Overview
+<!-- ######################################################################## -->
+
+- Alternative Setttings
+- Single Monte Carlo Simulations
+
+In the alternative simulations, we consider:
+
+- different magnitudes of effect sizes / difference in means
+- different shapes of effect sizes / difference in means 
+  - independent tests: (Boca-Leek): beta, normal, t, chi2; (ASH): spiky, near-normal, flat-top, skew, bimodal
+  - correlated tests: (Boca-Leek): mutivar-normal, multivar-t (blocked covariance design)
+- different sample sizes (e.g. impact on SE estimates)
+  - same sample size for all tests
+  - different sample sizes for some tests (i.e. for tests w/ different precision levels)
+- different in relationship between pi_0 and independent covariate
+- different correlation structure of multiple covariates
+- different global $\pi_0$ values (between 0, 1) - setting 1 in Boca-Leek
+
+
+```{r, define-base}
+## setting 0: (base) null simulation setting
+setting_base <- list(m = 2000, pi0 = 1, effect_size = 0, n_samples = 20, n_groups = 2)
+```
+
+
+<!-- ######################################################################## -->
+# Alternative Setting 1: Varying Null Proportion ($\pi_0$)
+<!-- ######################################################################## -->
+
+First we define the set of simulation settings to be tested.
+
+```{r, define-setting-1}
+## create settings w/ varying pi0 (null proportions)
+setting_alts <- lapply(seq(0, 1, by=.1),
+                       function(p) { replace(setting_base,
+                                             c("pi0", "effect_size"),
+                                             c(p, 1.0))
+                       })
+names(setting_alts) <- paste0("altp0_", 0:10)
+
+## verify settings are as expected
+do.call(rbind, setting_alts)
+```
+
+```{r, run-setting-1}
+## simulate single datasets for each setting
+sim_dfl <- lapply(setting_alts, do.call, what=du_ttest_sim)
+
+## calculate adjusted p-values and return pvals along w/ mets
+adj_dfl <- lapply(sim_dfl, sim_runner, alphas=seq(0.01, 0.10, by=.01), pvals=TRUE)
+
+## create 
+sim_res <- cbind(sim_dfl$alteff_20, bb$alteff_20)
+```
+
+<!-- ------------------------------------------------------------------------ -->
+## Visual Inspection of Single Monte Carlo Simulation
+<!-- ------------------------------------------------------------------------ -->
+
+```{r, ASH-svals-vs-qvals}
+## plot ASH s-values against ASH q-values
+gp <- ggplot(sim_res) +
+    geom_point(aes(ashs, ashq), alpha=1/4) +
+    expand_limits(x=c(0, 1), y=c(0, 1)) +
+    theme_bw()
+ggsave("plots/sims-01-null-ash_s_vs_q.png", gp, width=5, height=5)
+```
+
+```{r, effect-vs-adjp}
+## base of plot for: 'effect size' vs. 'adjusted pval (method X)'
+gp_base <- ggplot(sim_res, aes(x=effect_size, 
+                               color=cut_width(SE, width=.05, boundary=0))) +
+    expand_limits(y=c(0, 1)) + 
+    scale_color_brewer("Binned StdErr", palette="Set1") + 
+    theme_bw()
+
+## 'effect size' vs. t-test p-values
+gp0 <- gp_base + 
+    geom_point(aes(y=pval), alpha=1/2) +
+    ggtitle("dist. of unadjusted p-values (20k null tests)")
+
+## 'effect size' vs. ASH adjusted p-values
+gp1 <- gp_base + 
+    geom_point(aes(y=ashs), alpha=1/2) +
+    ggtitle("dist. of ASH s-values (20k null tests)")
+
+## 'effect size' vs. IHW adjusted p-values
+gp3 <- gp_base +
+    geom_point(aes(y=ihw), alpha=1/2) + 
+    ggtitle("dist. of IHW adjusted p-values (20k null tests)")
+
+## 'effect size' vs. Boca-Leek adjusted p-values
+gp4 <- gp_base +
+    geom_point(aes(y=bl), alpha=1/2) +
+    ggtitle("dist. of Boca-Leek adjusted p-values (20% alt tests; e.size=2)")
+
+## plot together
+png("plots/sims-01-null-ash.png", units="in", width=6, height=7, res=200)
+pkimes::ggmulti(gp1, gp2, gp3, gp4, cols=2)
+dev.off()
+```
+
+```{r}
+gp <- ggplot(sim_res) +
+    geom_point(aes(x=pval, y=ashs), alpha=1/10) +
+    theme_bw() +
+    xlab("unadjusted p-value") +
+    ylab("ASH s-value")
+ggsave("plots/sims-01-null-pval_vs_ash.png", gp, width=5, height=5)
+```
+
+```{r}
+## distribution of rejected/non-rejected; sort reverse 
+ggplot(sim_res) +
+    geom_histogram(aes(x=qnorm(pval)*sign(test_statistic),
+                       fill=cut_width(ashs, width=.05, boundary=0) %>%
+                           factor(., levels=rev(levels(.)))),
+                   color='black', binwidth=.1, boundary=0,
+             position="stack") +
+    scale_fill_brewer("ASH (s-values)", palette="Blues", direction=-1) +
+    theme_bw()
+```
+
+<!-- ------------------------------------------------------------------------ -->
+## Numerically Evaluate of Single Monte Carlo Simulation
+<!-- ------------------------------------------------------------------------ -->
+
+Analysis of metrics calculated for various FDR cutoffs.
+
+
+<!-- ######################################################################## -->
+# Alternative Setting 2: Varying Effect Size
+<!-- ######################################################################## -->
+
+First we define the set of simulation settings to be tested.
+
+```{r}
+## create settings w/ varying effect_size (mean difference)
+setting_alts <- lapply(seq(0, 2, by=.2),
+                       function(x) { replace(setting_base,
+                                             c("pi0", "effect_size"),
+                                             c(0.8, x))
+                       })
+names(setting_alts) <- paste0("alteff_", seq(0, 20, by=2))
+
+## verify settings are as expected
+do.call(rbind, setting_alts)
+```
+
+<!-- ------------------------------------------------------------------------ -->
+## Visual Inspection of Single Monte Carlo Simulation
+<!-- ------------------------------------------------------------------------ -->
+
+<!-- ------------------------------------------------------------------------ -->
+## Numerically Evaluate of Single Monte Carlo Simulation
+<!-- ------------------------------------------------------------------------ -->
+
+
+<!-- ######################################################################## -->
+# Alternative Setting 3:
+<!-- ######################################################################## -->
+
