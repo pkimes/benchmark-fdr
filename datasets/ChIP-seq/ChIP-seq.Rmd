@@ -1,0 +1,58 @@
+---
+title: "ChIP-seq datasets for FDR benchmarking"
+author: "Mingxiang Teng"
+date: "9/14/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Summary
+
+For FDR benchmark using ChIP-seq datasets, we may focus on peak calling and
+differential peaks. Peak calling is the most common way that people analyze 
+ChIP-seq since this technique was invented, though some groups started to care
+about differential peaks in some complex experiment designs. For peak calling,
+peak callers always report effect size (they call "enrichment signal") 
+and p-value, but standard error. I think it is too complicate if we dig into
+their code for generating standard error. For differential peaks, classical
+pipeline would call peaks first, then recruit existing algorithms (*e.g.* DESeq2)
+to test the covariant of interest, in a way that all effect size, p-value and 
+standard error can be generated. However, this pipeline probably gives 
+very similar patterns (distributions) of effect size / p-value to those
+based on differential gene expression analysis. Thus, differential peak 
+analysis might not be useful in our FDR benchmark.
+
+
+### Oestrogen receptor binding case
+
+This dataset have plenty of replicates so that we can focus on both peak
+calling and differential peaks. And it is the first dataset people used to 
+illustrate differential peak detection, where the tools DiffBind was 
+introduced.
+
+We can download the processed data from GEO.
+
+```{bash, chipseq-download, eval=FALSE}
+curl -O "https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE32222&format=file"
+tar -xvf "?acc=GSE32222&format=file"
+rm "?acc=GSE32222&format=file"
+```
+
+For one sample, extract the peak calling results.
+
+```{bash, chipseq-unzip1, eval=FALSE}
+gunzip "GSM798383_SLX-1201.250.s_4_SLX-1202.250.s_1_peaks.txt.gz"
+rm *peaks.txt.gz
+```
+
+And load in to R.
+```{r, chipseq-read1}
+peaks <- read.table("~/GSM798383_SLX-1201.250.s_4_SLX-1202.250.s_1_peaks.txt", header=TRUE, sep='\t')
+dim(peaks)
+head(peaks)
+```
+
+Here, "X.10.log10.pvalue." is the -log10P, and fold_enrichment is the effect size.
