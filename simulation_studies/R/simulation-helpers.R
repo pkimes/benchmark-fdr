@@ -45,7 +45,7 @@ du_ttest_sim <- function(m, pi0, effect_size, n_samples = 20, n_groups = 2, seed
     gF <- factor(rep(1:n_groups, each=n_samples/n_groups))
     t_test <- genefilter::rowttests(z_table, gF)
     sds <- genefilter::rowSds(z_table) # pooled var reduces to unpooled var b/c same sample sizes across groups 
-    SE <- sds / sqrt(n_samples)
+    SE <- t_test$dm / t_test$statistic
     simDf <- data.frame(H = H, test_statistic = t_test$statistic, effect_size = t_test$dm, 
                         pval = t_test$p.value, ind_covariate = sds, SE = SE)
     return(simDf)
