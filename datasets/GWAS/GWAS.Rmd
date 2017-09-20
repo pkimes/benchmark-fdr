@@ -27,9 +27,41 @@ the data itself to this repo. Run the bash code in the terminal separately to
 download the data yourself, and see the knitted `.html` document if you do not 
 wish to download the datasets but still wish to see the output.
 
+We'll also run the benchmark methods on each dataset and report the number of 
+discoveries for each one. 
+
+### Workspace setup
+
+To run the benchmark methods on the GWAS datasets, we'll use some of the helper 
+and wrapper functions from the simulated data analysis. We also create and source an analgous version of the `sim_runner` function to apply to the real data.
+
+```{r, wkspace-setup}
+# Note that swfdr package depends on R version 3.4 or higher
+setwd("/n/irizarryfs01_backed_up/kkorthauer/benchmark-fdr/")
+source("simulation_studies/R/simulation-helpers.R")
+source("datasets/R/evaluation-helpers.R")
+setwd("./datasets/GWAS")
+
+# wrangling & plotting tools
+library(data.table)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+```
+
+
 ### GWAS meta-analysis for BMI (included in Boca-Leek)
 
-Here we download the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+
+#### Data download
 
 ```{bash, GWAS1-download, eval=FALSE}
 curl -O "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
@@ -55,7 +87,6 @@ Next, we'll read in the unzipped `.txt` file into R and verify that it contains
 the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS1-verify-contents}
-library(data.table)
 bmi <- fread("BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt", header=TRUE)
 dim(bmi)
 head(bmi)
@@ -72,14 +103,56 @@ It looks like we have:
  
 for 2,458,133 SNPs.
 
+#### Running benchmark methods
+
+First, we'll standardize the data frame to use the wrapper function. For now, we'll
+assume that there is only a single 'independent covariate' for those methods that 
+utilize this, and we'll use the sample size (number of subjects with that SNP
+measured). **Still to-do: consider multiple covariates for methods that allow this.**
+
+```{r, GWAS1-dat}
+bmi <- bmi %>% 
+        rename(pval = p_value,
+               SE = stderr,
+               effect_size = effect,
+               ind_covariate = N)
+```
+
+Now, we'll run the `run_benchmarks` helper function on the `bmi` data frame for
+several alpha values and plot the results. This is fairly computationally intensive 
+for some of the benchmark methods (since there are more than 2.5 million tests)
+and best run on a machine with lots of memory.
+
+```{r, GWAS1-run}
+cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
+if (!file.exists("bmi_results.RData")){
+  bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs)
+  save(bmi_results, file="bmi_results.RData")
+}else{
+  load("bmi_results.RData")
+}
+
+# plot
+ggplot(bmi, aes(alpha, n_rejects, color=method)) +
+  geom_point() +
+  geom_line() +
+  xlab("FDR cutoff") + ylab("Number of rejections") +
+  ggtitle("BMI GWAS Metanalysis with Sample Size Covariate")
+```
+
+And we'll clean up the workspace before moving on to the next dataset.
+
 ```{r, GWAS1-cleanup}
 rm(bmi)
+rm(asthma_results)
 ```
 
 ### GWAS for Asthma
 
 [This study by Moffatt et al. (2010, NEJM)](http://www.nejm.org/doi/full/10.1056/NEJMoa0906312?query=TOC) performed a large
 GWAS on  10,365 people with asthma and 16,110 controls 23 individual studies. 
+
+#### Data Download
 
 Let's download the data from the Gabriel site. The second file contains metadata
 for the columns in the main data file.
@@ -102,7 +175,6 @@ the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS2-verify-contents}
 # read in meta-data
-library(readxl)
 meta <- read_xls("gabriel_results_description.xls")
 head(meta)
 dim(meta)
@@ -115,34 +187,83 @@ dim(asthma)
 nrow(meta) == ncol(asthma)
 
 # remove study-specific columns
-library(dplyr)
 empty <- which(!is.na(meta$description))
 asthma <- asthma %>%
             select(empty)
 meta <- meta %>% 
             slice(empty)
+
+# remove SNPs with missing effect size/pvalues
+asthma <- asthma %>% 
+            filter(!is.na(P_fix) & !is.na(theta_fix))
+
+dim(asthma)
 head(asthma)
 ```
 
 It looks like we have:
 
 - `P_fix` and `P_ran`:p-values for fixed and random effect models
-- `theta_fix` and `theta_fix`:effect size for fixed and random effect models
-- `se_theta_fix` and `se_theta_fix`:standard error for fixed and random effect models
+- `theta_fix` and `theta_ran`:effect size for fixed and random effect models
+- `se_theta_fix` and `se_theta_ran`:standard error for fixed and random effect models
 - additional covariates: 
     - `no_studies_meta`: Number of studies included in the meta-analysis with this SNP
     - `freq_all_1_max` and `freq_all_1_min`: Maximum and Minimum Allele Frequency of Allele 1 across samples
  
-for 567,589 SNPs.
+for 546,182 SNPs.
+
+#### Running benchmark methods
+
+First, we'll standardize the data frame to use the wrapper function. For now, we'll
+assume that there is only a single 'independent covariate' for those methods that 
+utilize this, and we'll use the sample size (number of studies with that SNP
+measured). We'll also focus on the fixed effects tests first.
+**Still to-do: consider multiple covariates for methods that allow this.**
+
+```{r, GWAS2-dat}
+asthma <- asthma %>% 
+        rename(pval = P_fix,
+               SE = se_theta_fix,
+               effect_size = theta_fix,
+               ind_covariate = no_studies_meta)
+```
+
+Now, we'll run the `run_benchmarks` helper function on the `asthma` data frame for
+several alpha values and plot the results. This is fairly computationally intensive 
+for some of the benchmark methods
+(since there are more than 500 thousand tests)
+and best run on a machine with lots of memory.
+
+```{r, GWAS2-run}
+# use same cutoffs as for the bmi study (defined above)
+if (!file.exists("asthma_results.RData")){
+  asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs)
+  save(asthma_results, file="asthma_results.RData")
+}else{
+  load("asthma_results.RData")
+}
+
+# plot
+ggplot(asthma_results, aes(alpha, n_rejects, color=method)) +
+  geom_point() +
+  geom_line() +
+  xlab("FDR cutoff") + ylab("Number of rejections") +
+  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate")
+```
+
+And we'll clean up the workspace before moving on to the next dataset.
 
 ```{r, GWAS2-cleanup}
 rm(asthma)
+rm(asthma_results)
 ```
 
 ### GWAS for Lipid Levels
 
 [This study by Willer et al. (2013, Nature Genetics)](http://www.nature.com/ng/journal/v45/n11/full/ng.2797.html) performed a large
 GWAS on 188,577 and measured blood lipid levels (as well as several cardiovascular traits).
+
+#### Data Download 
 
 Let's download the data from the University of Michigan site. The download page 
 has a handy [metadata table](http://csg.sph.umich.edu//abecasis/public/lipids2013/)
@@ -197,6 +318,49 @@ It looks like we have:
  
 for 2,439,432 SNPs.
 
+#### Running benchmark methods
+
+First, we'll standardize the data frame to use the wrapper function. For now, we'll
+assume that there is only a single 'independent covariate' for those methods that 
+utilize this, and we'll use the sample size (number of individuals with that SNP
+measured). 
+**Still to-do: consider multiple covariates for methods that allow this.**
+
+```{r, GWAS3-dat}
+trig <- trig %>% 
+        rename(pval = P_value,
+               SE = SE,
+               effect_size = beta,
+               ind_covariate = N)
+```
+
+Now, we'll run the `run_benchmarks` helper function on the `trig` data frame for
+several alpha values and plot the results. This is fairly computationally intensive 
+for some of the benchmark methods
+(since there are more than 500 thousand tests)
+and best run on a machine with lots of memory.
+
+```{r, GWAS2-run}
+# use same cutoffs as for the bmi study (defined above)
+if (!file.exists("triglyceride_results.RData")){
+  trig_results <- run_benchmarks(dat=trig, alphas=cutoffs)
+  save(trig_results, file="triglyceride_results.RData")
+}else{
+  load("triglyceride_results.RData")
+}
+
+
+# plot
+ggplot(trig_results, aes(alpha, n_rejects, color=method)) +
+  geom_point() +
+  geom_line() +
+  xlab("FDR cutoff") + ylab("Number of rejections") +
+  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate")
+```
+
+And we'll clean up the workspace before moving on to the next dataset.
+
 ```{r, GWAS3-cleanup}
 rm(trig)
+rm(trig_results)
 ```
