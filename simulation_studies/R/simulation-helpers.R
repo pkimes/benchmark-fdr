@@ -179,7 +179,8 @@ sim_runner <- function(sim, alphas, pvals = FALSE) {
     adj_pset$lfdr <- adj_p
     
     ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
-    adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim$pval, filterstat = sim$ind_covariate, 
+    adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim$pval, effect_size = sim$effect_size,
+                                       filterstat = sim$ind_covariate, 
                                        df=3, lambda=0.1, nulltype='theoretical')
     df.scott <- plyr::ldply(alphas, function(a){
         calculate_test_stats(sim=sim, adj_p = adj_p, alpha = a) })
@@ -205,7 +206,7 @@ sim_runner <- function(sim, alphas, pvals = FALSE) {
 
 
 ## adapted from IHWpaper::scott_fdrreg()
-scott_fdrreg_hickswrapper <- function(unadj_p, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
+scott_fdrreg_hickswrapper <- function(unadj_p, effect_size, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
     if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
         stop(paste("Benchmarks were run against version 0.2 of FDRreg",
                    "available on github via:",
@@ -218,7 +219,7 @@ scott_fdrreg_hickswrapper <- function(unadj_p, filterstat, df=3, lambda=0.01, nu
     b <- splines::bs(filterstat, df=df)
     
     Xs <- model.matrix( ~  b - 1)
-    fdrreg_res <- FDRreg::FDRreg(z=qnorm(unadj_p), features=Xs, nulltype = nulltype,
+    fdrreg_res <- FDRreg::FDRreg(z=qnorm(1-unadj_p/2)*sign(effect_size), features=Xs, nulltype = nulltype,
                                  control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
     adj_p <- fdrreg_res$FDR
     return(adj_p)
