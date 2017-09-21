@@ -143,31 +143,3 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
   }
 }
 
-## adapted from IHWpaper::scott_fdrreg()
-scott_fdrreg_hickswrapper <- function(zscores=NULL, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
-  if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
-    stop(paste("Benchmarks were run against version 0.2 of FDRreg",
-               "available on github via:",
-               "devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/')"
-    ))
-  }
-  
-  if (is.null(zscores) | 
-      sum(zscores < 1 & zscores > 0, na.rm=TRUE)==sum(!is.na(zscores))){
-    stop(paste0("The function scott_fdrreg_hickswrapper now takes as input ",
-                "Z-scores instead of p-values. Please calculate Z-scores ",
-                "first, either from p-values (considering whether the test ",
-                "is 1- or 2-sided), or from effect sizes and SEs."))
-  }
-  
-  ## no automated way to choose function space over which we optimize
-  ## so we just use bs(df=3) as done in their analysis
-  b <- splines::bs(filterstat, df=df)
-  
-  Xs <- model.matrix( ~  b - 1)
-  fdrreg_res <- FDRreg::FDRreg(z=zscores, features=Xs, nulltype = nulltype,
-                               control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
-  adj_p <- fdrreg_res$FDR
-  return(adj_p)
-}
-

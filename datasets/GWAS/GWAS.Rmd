@@ -43,8 +43,9 @@ an analgous version of the `sim_runner` function to apply to the real data.
 setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
 source("benchmark-fdr/simulation_studies/R/simulation-helpers.R")
 source("benchmark-fdr/datasets/R/evaluation-helpers.R")
-setwd("DATA/GWAS")
-
+datdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/DATA/GWAS/"
+resdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/RESULTS/GWAS/"
+  
 # wrangling & plotting tools
 library(data.table)
 library(readxl)
@@ -89,7 +90,8 @@ Next, we'll read in the unzipped `.txt` file into R and verify that it contains
 the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS1-verify-contents}
-bmi <- fread("BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt", header=TRUE)
+bmi <- fread(paste0(datdir, "BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt"),
+             header=TRUE)
 dim(bmi)
 head(bmi)
 ```
@@ -121,7 +123,7 @@ bmi <- bmi %>%
         mutate(zscore = effect_size/SE)
 
 # Demo on a small subset of SNPs first (remove this later)
-bmi <- bmi[sample(1:nrow(bmi), 10000),]
+bmi <- bmi[sample(1:nrow(bmi), 100000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `bmi` data frame for
@@ -131,10 +133,14 @@ and best run on a machine with lots of memory.
 
 ```{r, GWAS1-run, results="hide"}
 cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
-resfile <- paste0("bmi_results_", nrow(bmi), ".RData")
+resfile <- paste0(resdir, "bmi_results_",
+                  nrow(bmi), ".RData")
 if (!file.exists(resfile)){
+  t1 <- proc.time()
   bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs)
   save(bmi_results, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(bmi), " SNPs."))
 }else{
   load(resfile)
 }
@@ -157,7 +163,7 @@ And we'll clean up the workspace before moving on to the next dataset.
 
 ```{r, GWAS1-cleanup}
 rm(bmi)
-rm(asthma_results)
+rm(bmi_results)
 ```
 
 ### GWAS for Asthma
@@ -188,12 +194,14 @@ the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS2-verify-contents}
 # read in meta-data
-meta <- read_xls("gabriel_results_description.xls")
+meta <- read_xls(paste0(datdir, "gabriel_results_description.xls"))
 head(meta)
 dim(meta)
 
 # read in data
-asthma <- fread("gabriel_asthma_meta-analysis_36studies_format_repository_NEJM.txt", header=TRUE)
+asthma <- fread(paste0(datdir, 
+                "gabriel_asthma_meta-analysis_36studies_format_repository_NEJM.txt"),
+                header=TRUE)
 dim(asthma)
 
 # verify meta-data rows = data cols
@@ -242,7 +250,7 @@ asthma <- asthma %>%
         mutate(zscore = effect_size/SE)
 
 # Demo on a small subset of SNPs first (remove this later)
-asthma <- asthma[sample(1:nrow(asthma), 10000),]
+asthma <- asthma[sample(1:nrow(asthma), 100000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `asthma` data frame for
@@ -253,10 +261,14 @@ and best run on a machine with lots of memory.
 
 ```{r, GWAS2-run, results="hide"}
 # use same cutoffs as for the bmi study (defined above)
-resfile <- paste0("asthma_results_", nrow(asthma), ".RData")
+resfile <- paste0(resdir, "asthma_results_",
+                  nrow(asthma), ".RData")
 if (!file.exists(resfile)){
+  t1 <- proc.time()
   asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs)
   save(asthma_results, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(asthma), " SNPs."))
 }else{
   load(resfile)
 }
@@ -326,7 +338,7 @@ the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS3-verify-contents}
 # read in data
-trig <- fread("jointGwasMc_TG.txt", header=TRUE)
+trig <- fread(paste0(datdir, "jointGwasMc_TG.txt"), header=TRUE)
 dim(trig)
 head(trig)
 ```
@@ -383,7 +395,7 @@ trig <- trig %>%
   filter(!is.na(zscore))
 
 # Demo on a small subset of SNPs first (remove this later)
-trig <- trig[sample(1:nrow(trig), 10000),]
+trig <- trig[sample(1:nrow(trig), 100000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `trig` data frame for
@@ -394,10 +406,14 @@ and best run on a machine with lots of memory.
 
 ```{r, GWAS3-run, results="hide"}
 # use same cutoffs as for the bmi study (defined above)
-resfile <- paste0("trig_results_", nrow(trig), ".RData")
+resfile <- paste0(resdir, "trig_results_",
+                  nrow(trig), ".RData")
 if (!file.exists(resfile)){
+  t1 <- proc.time()
   trig_results <- run_benchmarks(dat=trig, alphas=cutoffs)
   save(trig_results, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(trig), " SNPs."))
 }else{
   load(resfile)
 }
