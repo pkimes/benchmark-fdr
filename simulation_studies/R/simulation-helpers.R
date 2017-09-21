@@ -179,7 +179,9 @@ sim_runner <- function(sim, alphas, pvals = FALSE) {
     adj_pset$lfdr <- adj_p
     
     ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
-    adj_p <- scott_fdrreg_hickswrapper(unadj_p = sim$pval, effect_size = sim$effect_size,
+    # compute z-score assuming a two-sided test
+    adj_p <- scott_fdrreg_hickswrapper(zscores = qnorm(1-sim$pval/2)*
+                                         sign(sim$effect_size),
                                        filterstat = sim$ind_covariate, 
                                        df=3, lambda=0.1, nulltype='theoretical')
     df.scott <- plyr::ldply(alphas, function(a){
@@ -206,12 +208,20 @@ sim_runner <- function(sim, alphas, pvals = FALSE) {
 
 
 ## adapted from IHWpaper::scott_fdrreg()
-scott_fdrreg_hickswrapper <- function(unadj_p, effect_size, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
+scott_fdrreg_hickswrapper <- function(zscores=NULL, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
     if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
         stop(paste("Benchmarks were run against version 0.2 of FDRreg",
                    "available on github via:",
                    "devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/')"
                    ))
+    }
+   
+    if (is.null(zscores) | 
+        sum(zscores < 1 & zscores > 0, na.rm=TRUE)==sum(!is.na(zscores))){
+      stop(paste0("The function scott_fdrreg_hickswrapper now takes as input ",
+                  "Z-scores instead of p-values. Please calculate Z-scores ",
+                  "first, either from p-values (considering whether the test ",
+                  "is 1- or 2-sided), or from effect sizes and SEs."))
     }
     
     ## no automated way to choose function space over which we optimize
@@ -219,7 +229,7 @@ scott_fdrreg_hickswrapper <- function(unadj_p, effect_size, filterstat, df=3, la
     b <- splines::bs(filterstat, df=df)
     
     Xs <- model.matrix( ~  b - 1)
-    fdrreg_res <- FDRreg::FDRreg(z=qnorm(1-unadj_p/2)*sign(effect_size), features=Xs, nulltype = nulltype,
+    fdrreg_res <- FDRreg::FDRreg(z=zscores, features=Xs, nulltype = nulltype,
                                  control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
     adj_p <- fdrreg_res$FDR
     return(adj_p)
