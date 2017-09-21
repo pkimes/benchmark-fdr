@@ -109,7 +109,8 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
   ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
   if(verbose)
     message("Running Scott.")
-  adj_p <- scott_fdrreg_hickswrapper(unadj_p = dat$pval, filterstat = dat$ind_covariate, 
+  adj_p <- scott_fdrreg_hickswrapper(unadj_p = dat$pval, effect_size = dat$effect_size,
+                                     filterstat = dat$ind_covariate, 
                                      df=3, lambda=0.1, nulltype='theoretical')
   df.scott <- plyr::ldply(alphas, function(a){
     rjs <- sum(adj_p <= a)
