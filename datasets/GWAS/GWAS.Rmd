@@ -1,7 +1,7 @@
 ---
 title: "GWAS datasets for FDR benchmarking"
 author: "Keegan Korthauer"
-date: "9/12/2017"
+date: "9/21/2017"
 output: html_document
 ---
 
@@ -28,19 +28,22 @@ download the data yourself, and see the knitted `.html` document if you do not
 wish to download the datasets but still wish to see the output.
 
 We'll also run the benchmark methods on each dataset and report the number of 
-discoveries for each one. 
+discoveries for each one. At first, we'll demo on just a __**small subset of 
+SNPs**__, since the computation is time-intensive. After that is working 
+smoothly, we'll scale it up to the full set of SNPs.
 
 ### Workspace setup
 
 To run the benchmark methods on the GWAS datasets, we'll use some of the helper 
-and wrapper functions from the simulated data analysis. We also create and source an analgous version of the `sim_runner` function to apply to the real data.
+and wrapper functions from the simulated data analysis. We also create and source
+an analgous version of the `sim_runner` function to apply to the real data.
 
 ```{r, wkspace-setup}
 # Note that swfdr package depends on R version 3.4 or higher
-setwd("/n/irizarryfs01_backed_up/kkorthauer/benchmark-fdr/")
-source("simulation_studies/R/simulation-helpers.R")
-source("datasets/R/evaluation-helpers.R")
-setwd("./datasets/GWAS")
+setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
+source("benchmark-fdr/simulation_studies/R/simulation-helpers.R")
+source("benchmark-fdr/datasets/R/evaluation-helpers.R")
+setwd("DATA/GWAS")
 
 # wrangling & plotting tools
 library(data.table)
@@ -55,7 +58,6 @@ library(qvalue)
 library(swfdr)
 library(fdrtool)
 ```
-
 
 ### GWAS meta-analysis for BMI (included in Boca-Leek)
 
@@ -115,7 +117,11 @@ bmi <- bmi %>%
         rename(pval = p_value,
                SE = stderr,
                effect_size = effect,
-               ind_covariate = N)
+               ind_covariate = N) %>%
+        mutate(zscore = effect_size/SE)
+
+# Demo on a small subset of SNPs first (remove this later)
+bmi <- bmi[sample(1:nrow(bmi), 10000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `bmi` data frame for
@@ -123,21 +129,28 @@ several alpha values and plot the results. This is fairly computationally intens
 for some of the benchmark methods (since there are more than 2.5 million tests)
 and best run on a machine with lots of memory.
 
-```{r, GWAS1-run}
+```{r, GWAS1-run, results="hide"}
 cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
-if (!file.exists("bmi_results.RData")){
+resfile <- paste0("bmi_results_", nrow(bmi), ".RData")
+if (!file.exists(resfile)){
   bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs)
-  save(bmi_results, file="bmi_results.RData")
+  save(bmi_results, file=resfile)
 }else{
-  load("bmi_results.RData")
+  load(resfile)
 }
 
-# plot
-ggplot(bmi, aes(alpha, n_rejects, color=method)) +
+# plot N rejects vs FDR cutoff
+p <- ggplot(bmi_results, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("BMI GWAS Metanalysis with Sample Size Covariate")
+  ggtitle("BMI GWAS Metanalysis with Sample Size Covariate") +
+  theme_classic()
+print(p)
+
+# log-scale y axis
+print(p + scale_y_continuous(trans="log2") + 
+        ylab("Number of rejections (log2 scale)"))
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
@@ -225,7 +238,11 @@ asthma <- asthma %>%
         rename(pval = P_fix,
                SE = se_theta_fix,
                effect_size = theta_fix,
-               ind_covariate = no_studies_meta)
+               ind_covariate = no_studies_meta) %>%
+        mutate(zscore = effect_size/SE)
+
+# Demo on a small subset of SNPs first (remove this later)
+asthma <- asthma[sample(1:nrow(asthma), 10000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `asthma` data frame for
@@ -234,21 +251,28 @@ for some of the benchmark methods
 (since there are more than 500 thousand tests)
 and best run on a machine with lots of memory.
 
-```{r, GWAS2-run}
+```{r, GWAS2-run, results="hide"}
 # use same cutoffs as for the bmi study (defined above)
-if (!file.exists("asthma_results.RData")){
+resfile <- paste0("asthma_results_", nrow(asthma), ".RData")
+if (!file.exists(resfile)){
   asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs)
-  save(asthma_results, file="asthma_results.RData")
+  save(asthma_results, file=resfile)
 }else{
-  load("asthma_results.RData")
+  load(resfile)
 }
 
-# plot
-ggplot(asthma_results, aes(alpha, n_rejects, color=method)) +
+# plot N rejects vs FDR cutoff
+p <- ggplot(asthma_results, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate")
+  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate") +
+  theme_classic()
+print(p)
+
+# log-scale y axis
+print(p + scale_y_continuous(trans="log2") + 
+        ylab("Number of rejections (log2 scale)"))
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
@@ -326,12 +350,40 @@ utilize this, and we'll use the sample size (number of individuals with that SNP
 measured). 
 **Still to-do: consider multiple covariates for methods that allow this.**
 
+Note that for this dataset, all reported effect sizes are positive. This is because
+the alleles (A1 and A2) have been ordered such that the direction of effect are 
+consistent. Since Scott assumes that the Z-scores are standard normal, we can't 
+apply this method to a set of all positive Z-scores. To recover the direction of 
+effect, we use the `Freq.A1.1000G.EUR` (allele frequency of A1) variable,
+and use it to determine whether
+`A1` (allele 1) is the reference allele or not. If the allele frequence of A1 is
+greater than 0.5, we consider it the reference allele. Then we'll use the 
+comparison of reference to minor as the positive direction. That is,
+if A2 was reference,
+then effect direction is negative. Otherwise it is positive. Since some of the
+SNPs are missing the reference allele information, we cannot determine their 
+direction of effect and they will be removed.
+
 ```{r, GWAS3-dat}
 trig <- trig %>% 
-        rename(pval = P_value,
-               SE = SE,
+        rename(pval = "P-value",
+               SE = se,
                effect_size = beta,
-               ind_covariate = N)
+               ind_covariate = N)%>%
+        mutate(zscore = effect_size/SE)
+
+# add effect size
+trig <- trig %>% 
+       mutate(A2.reference = Freq.A1.1000G.EUR < 0.5) %>%
+       mutate(zscore = zscore * (1-2*A2.reference))
+
+# remove SNPs with missing values for zscore (couldn't determine direction of 
+# effect)
+trig <- trig %>% 
+  filter(!is.na(zscore))
+
+# Demo on a small subset of SNPs first (remove this later)
+trig <- trig[sample(1:nrow(trig), 10000),]
 ```
 
 Now, we'll run the `run_benchmarks` helper function on the `trig` data frame for
@@ -340,22 +392,29 @@ for some of the benchmark methods
 (since there are more than 500 thousand tests)
 and best run on a machine with lots of memory.
 
-```{r, GWAS2-run}
+```{r, GWAS3-run, results="hide"}
 # use same cutoffs as for the bmi study (defined above)
-if (!file.exists("triglyceride_results.RData")){
+resfile <- paste0("trig_results_", nrow(trig), ".RData")
+if (!file.exists(resfile)){
   trig_results <- run_benchmarks(dat=trig, alphas=cutoffs)
-  save(trig_results, file="triglyceride_results.RData")
+  save(trig_results, file=resfile)
 }else{
-  load("triglyceride_results.RData")
+  load(resfile)
 }
 
-
-# plot
-ggplot(trig_results, aes(alpha, n_rejects, color=method)) +
+# plot N rejects vs FDR cutoff
+p <- ggplot(trig_results, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate")
+  ggtitle("Triglyceride GWAS Metanalysis with Sample Size Covariate") +
+  theme_classic()
+print(p)
+
+# log-scale y axis
+print(p + scale_y_continuous(trans="log2") + 
+        ylab("Number of rejections (log2 scale)"))
+
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.

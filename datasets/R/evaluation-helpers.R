@@ -25,6 +25,7 @@
 #'
 #' @md
 #' @author Stephanie Hicks
+#' @author Keegan Korthauer
 run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) { 
   
   ## keep adjusted p-values
@@ -37,7 +38,7 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
   df.bonf <- plyr::ldply(alphas, function(a){
     rjs <- sum(adj_p <= a)
     data.frame(n_rejects = rjs, alpha = a) 
-    })
+  })
   adj_pset$bonf <- adj_p
   
   ## BH
@@ -107,16 +108,22 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
   adj_pset$lfdr <- adj_p
   
   ## Scott et al. (2015) (FDR regression (FDRreg) available via GitHub for version 2.0)
-  if(verbose)
-    message("Running Scott.")
-  adj_p <- scott_fdrreg_hickswrapper(unadj_p = dat$pval, effect_size = dat$effect_size,
-                                     filterstat = dat$ind_covariate, 
-                                     df=3, lambda=0.1, nulltype='theoretical')
-  df.scott <- plyr::ldply(alphas, function(a){
-    rjs <- sum(adj_p <= a)
-    data.frame(n_rejects = rjs, alpha = a) 
-  })
-  adj_pset$scott <- adj_p
+  # can only run if z-scores are present.
+  if("zscore" %in% colnames(dat)){
+    if(verbose)
+      message("Running Scott.")
+    adj_p <- scott_fdrreg_hickswrapper(zscores = dat$zscore, 
+                                       filterstat = dat$ind_covariate, 
+                                       df=3, lambda=0.1, nulltype='theoretical')
+    df.scott <- plyr::ldply(alphas, function(a){
+      rjs <- sum(adj_p <= a)
+      data.frame(n_rejects = rjs, alpha = a) 
+    })
+    adj_pset$scott <- adj_p
+  }else{
+    if(verbose)
+      message("Skipping Scott; no Z-scores present")
+  }
   
   ## Summary table of FDP for each method at each alpha
   stat_df <- rbind(data.frame(df.bonf, "method" = "bonferroni"), 
@@ -135,3 +142,32 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
     return(stat_df)
   }
 }
+
+## adapted from IHWpaper::scott_fdrreg()
+scott_fdrreg_hickswrapper <- function(zscores=NULL, filterstat, df=3, lambda=0.01, nulltype = 'theoretical') {
+  if (! as.character(packageVersion("FDRreg")) %in% c('0.2.1', '0.2')){
+    stop(paste("Benchmarks were run against version 0.2 of FDRreg",
+               "available on github via:",
+               "devtools::install_github(repo= 'jgscott/FDRreg', subdir='R_pkg/')"
+    ))
+  }
+  
+  if (is.null(zscores) | 
+      sum(zscores < 1 & zscores > 0, na.rm=TRUE)==sum(!is.na(zscores))){
+    stop(paste0("The function scott_fdrreg_hickswrapper now takes as input ",
+                "Z-scores instead of p-values. Please calculate Z-scores ",
+                "first, either from p-values (considering whether the test ",
+                "is 1- or 2-sided), or from effect sizes and SEs."))
+  }
+  
+  ## no automated way to choose function space over which we optimize
+  ## so we just use bs(df=3) as done in their analysis
+  b <- splines::bs(filterstat, df=df)
+  
+  Xs <- model.matrix( ~  b - 1)
+  fdrreg_res <- FDRreg::FDRreg(z=zscores, features=Xs, nulltype = nulltype,
+                               control=list(lambda = lambda)) # assumption of test statistic follow a standard normal
+  adj_p <- fdrreg_res$FDR
+  return(adj_p)
+}
+
