@@ -3,7 +3,10 @@
 For 16S microbiome datasets, many studies do univariate comparisons across
 case and control groups.
 
-# Case control (univariate effect) datasets
+# Case control datasets
+
+The most basic kind of data analysis in 16S microbiome studies is differential
+abundance.......
 
 I've collected and processed the raw data for many of these case-control
 datasets, which are available on [Zenodo](https://zenodo.org/record/840333).
@@ -12,10 +15,17 @@ We can use these to directly calculate everything we need for the FDR methods.
 Covariates could include:
 - mean/median read depth of each OTU across all samples
 - mean/median ubiquity of each OTU across all samples
-- biological metadata like age, BMI, etc?
+- mean/median abundance of each OTU across people who have it
+- phylogeny (e.g. we expect many Proteobacteria to be significant, but fewer
+    in the other phyla)
+
+We'll need to check independence under the null for these covariates,
+especially detection rate.
 
 I think we can pick the largest study from each well-characterized disease:
 diarrhea, inflammatory bowel disease, colorectal cancer, and perhaps obesity.
+Obesity might be interesting, because the signal is so variable across
+studies...
 
 More info about the available datasets is available [here](https://github.com/cduvallet/microbiomeHD/blob/master/final/tables/table2.dataset_info_supplement.md).
 
