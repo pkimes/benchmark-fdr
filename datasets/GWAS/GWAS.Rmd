@@ -52,6 +52,7 @@ library(readxl)
 library(dplyr)
 library(ggplot2)
 library(cowplot)
+library(UpSetR)
 
 # benchmark methods
 library(IHW)
@@ -59,6 +60,9 @@ library(ashr)
 library(qvalue)
 library(swfdr)
 library(fdrtool)
+
+# constant parameters (for UpSet Plots)
+alpha.cutoff <- 0.05
 ```
 
 ### GWAS meta-analysis for BMI (included in Boca-Leek)
@@ -180,7 +184,7 @@ resfile <- paste0(resdir, "bmi_results_",
                   nrow(bmi), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs)
+  bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs, pvals=TRUE)
   save(bmi_results, file=resfile)
   message(paste0("Took ", round((proc.time()-t1)[3],1),
                  " seconds for ", nrow(bmi), " SNPs."))
@@ -189,7 +193,7 @@ if (!file.exists(resfile)){
 }
 
 # plot N rejects vs FDR cutoff
-p <- ggplot(bmi_results, aes(alpha, n_rejects, color=method)) +
+p <- ggplot(bmi_results$stats, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
@@ -200,6 +204,18 @@ print(p)
 # log-scale y axis
 print(p + scale_y_continuous(trans="log2") + 
         ylab("Number of rejections (log2 scale)"))
+```
+
+Next, we look beyond the number of rejections for each method and examine
+the overlap between them. We'll use the Venn diagram alternative provided in the
+UpsetR package.
+
+```{r, GWAS1-upset, fig.width=9, fig.height=9}
+sig_df <- bmi_results$pvals %>%
+            mutate_all(function(x) 1*(x < alpha.cutoff))
+upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
+      order.by = c("freq"), decreasing = c(TRUE), 
+      sets.bar.color = "#56B4E9")
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
@@ -338,7 +354,7 @@ resfile <- paste0(resdir, "asthma_results_",
                   nrow(asthma), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs)
+  asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs, pvals=TRUE)
   save(asthma_results, file=resfile)
   message(paste0("Took ", round((proc.time()-t1)[3],1),
                  " seconds for ", nrow(asthma), " SNPs."))
@@ -347,7 +363,7 @@ if (!file.exists(resfile)){
 }
 
 # plot N rejects vs FDR cutoff
-p <- ggplot(asthma_results, aes(alpha, n_rejects, color=method)) +
+p <- ggplot(asthma_results$stats, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
@@ -358,6 +374,18 @@ print(p)
 # log-scale y axis
 print(p + scale_y_continuous(trans="log2") + 
         ylab("Number of rejections (log2 scale)"))
+```
+
+Next, we look beyond the number of rejections for each method and examine
+the overlap between them. We'll use the Venn diagram alternative provided in the
+UpsetR package.
+
+```{r, GWAS2-upset, fig.width=9, fig.height=9}
+sig_df <- asthma_results$pvals %>%
+            mutate_all(function(x) 1*(x < alpha.cutoff))
+upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
+      order.by = c("freq"), decreasing = c(TRUE), 
+      sets.bar.color = "#56B4E9")
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
@@ -507,7 +535,7 @@ resfile <- paste0(resdir, "trig_results_",
                   nrow(trig), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  trig_results <- run_benchmarks(dat=trig, alphas=cutoffs)
+  trig_results <- run_benchmarks(dat=trig, alphas=cutoffs, pvals=TRUE)
   save(trig_results, file=resfile)
   message(paste0("Took ", round((proc.time()-t1)[3],1),
                  " seconds for ", nrow(trig), " SNPs."))
@@ -516,7 +544,7 @@ if (!file.exists(resfile)){
 }
 
 # plot N rejects vs FDR cutoff
-p <- ggplot(trig_results, aes(alpha, n_rejects, color=method)) +
+p <- ggplot(trig_results$stats, aes(alpha, n_rejects, color=method)) +
   geom_point() +
   geom_line() +
   xlab("FDR cutoff") + ylab("Number of rejections") +
@@ -528,6 +556,18 @@ print(p)
 print(p + scale_y_continuous(trans="log2") + 
         ylab("Number of rejections (log2 scale)"))
 
+```
+
+Next, we look beyond the number of rejections for each method and examine
+the overlap between them. We'll use the Venn diagram alternative provided in the
+UpsetR package.
+
+```{r, GWAS3-upset, fig.width=9, fig.height=9}
+sig_df <- trig_results$pvals %>%
+            mutate_all(function(x) 1*(x < alpha.cutoff))
+upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
+      order.by = c("freq"), decreasing = c(TRUE), 
+      sets.bar.color = "#56B4E9")
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
