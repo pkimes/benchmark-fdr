@@ -9,6 +9,9 @@
 #' @param effect_size expected mean difference
 #' @param n_samples number of total samples, should be multiple of `n_groups` (default = 20)
 #' @param n_groups number of groups in comparison [NOT SUPPORTED] (default = 2)
+#' @param informative_ind_covariate default is TRUE. If informative covariate (TRUE), 
+#' then it's the pooled variance (in this case, it's the sd across all samples). 
+#' If uninformative covariate (FALSE), then we randomly sample from Uniform[0,1].
 #' @param seed integer seed for random number generator, ignored if NULL (default = NULL) 
 #'
 #' @return
@@ -17,8 +20,8 @@
 #' * `test_statistic`: t-test statistic
 #' * `effect_size`: group mean difference
 #' * `pval`: t-test p-value
-#' * `ind_covariate`: in this case, it's standard deviation (sd) across all samples 
-#' * `SE`: standard error across all samples (sd / sqrt(n))
+#' * `ind_covariate`: the independent covariate 
+#' * `SE`: standard error across all samples (estimated using the ratio of difference in means / t-test statistic)
 #'
 #' @details
 #' This function builds on `IHWpaper::du_ttest_sim` originally written by Nikos Ignatiadis
@@ -29,7 +32,8 @@
 #' @importFrom genefilter rowtests
 #' @importFrom genefilter rowSds
 #' @author Stephanie Hicks
-du_ttest_sim <- function(m, pi0, effect_size, n_samples = 20, n_groups = 2, seed = NULL) {
+du_ttest_sim <- function(m, pi0, effect_size, n_samples = 20, n_groups = 2, 
+                         informative_ind_covariate = TRUE, seed = NULL) {
     if (!is.null(seed)) {
         set.seed(seed)
     }
@@ -44,7 +48,11 @@ du_ttest_sim <- function(m, pi0, effect_size, n_samples = 20, n_groups = 2, seed
     H[false_nulls] <- 1
     gF <- factor(rep(1:n_groups, each=n_samples/n_groups))
     t_test <- genefilter::rowttests(z_table, gF)
-    sds <- genefilter::rowSds(z_table) # pooled var reduces to unpooled var b/c same sample sizes across groups 
+    if(informative_ind_covariate){
+      sds <- genefilter::rowSds(z_table) # pooled var reduces to unpooled var b/c same sample sizes across groups 
+    } else {
+      sds <- runif(m, 0, 1)
+    }
     SE <- t_test$dm / t_test$statistic
     simDf <- data.frame(H = H, test_statistic = t_test$statistic, effect_size = t_test$dm, 
                         pval = t_test$p.value, ind_covariate = sds, SE = SE)
