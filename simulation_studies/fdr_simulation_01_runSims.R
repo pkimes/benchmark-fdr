@@ -48,8 +48,11 @@ library("doParallel")
 ## helper scripts, e.g. wrappers to FDRreg, clfdr
 source("R/simulation-helpers.R")
 
+## helper digest function
+library("digest")
+
 ## set location
-projdir <- "/Users/pkimes/workspace/git/projects/project-02-benchmark-fdr"
+projdir <- "/n/irizarryfs01/pkimes/projects/project-02-benchmark-fdr"
 
 
 ## ##############################################################################
@@ -70,38 +73,56 @@ setting_base <- list(m = 20000,         # number of hypothesis tests
 ## ##############################################################################
 
 bd <- BenchDesign()
-bd %<>% addMethod("unadjusted", function(x) { x },
-                  x = pval)                  
-bd %<>% addMethod("bonf",
-                  p.adjust,
-                  p = pval, method = "bonferroni")
-bd %<>% addMethod("bh",
-                  p.adjust,
-                  p = pval, method = "BH")
-bd %<>% addMethod("qvalue",
-                  qvalue::qvalue,
-                  function(x) { x$qvalues },
-                  p = pval)
-bd %<>% addMethod("ihw",
-                  IHW::ihw,
-                  IHW::adj_pvalues,
-                  pvalues = pval, covariates = ind_covariate, alpha =  0.1)
-bd %<>% addMethod("ashs",
-                  ashr::ash,
-                  ashr::get_svalue,
-                  betahat = effect_size, sebetahat = SE)
-bd %<>% addMethod("bl",
-                  swfdr::lm_pi0,
-                  function(x) { x$pi0 * p.adjust(pval, method = "BH") },
-                  pValues = pval, X = ind_covariate, smooth.df = 3)
-bd %<>% addMethod("lfdr",
-                  clfdr_hickswrapper,
-                  unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
-bd %<>% addMethod("scott",
-                  scott_fdrreg_hickswrapper,
-                  zscores = qnorm(1 - pval / 2) * sign(effect_size),
-                  filterstat = ind_covariate, df = 3, lambda = 0.1,
-                  nulltype = 'theoretical')
+## Bonferonni correction
+bd %<>% addBMethod("bonf",
+                   p.adjust,
+                   p = pval, method = "bonferroni")
+## Benjamini-Hochberg correction
+bd %<>% addBMethod("bh",
+                   p.adjust,
+                   p = pval, method = "BH")
+## Storey's q-value
+bd %<>% addBMethod("qvalue",
+                   qvalue::qvalue,
+                   function(x) { x$qvalues },
+                   p = pval)
+## IHW (w/ varying alpha threshold) 
+for (ia in seq(0.01, 0.10, by=0.01)) {
+    bd %<>% addBMethod(paste0("ihw-a", sprintf("%02g", ia*100)),
+                       IHW::ihw,
+                       IHW::adj_pvalues,
+                       pvalues = pval, covariates = ind_covariate,
+                       alpha =  UQ(ia))
+}
+## Stephen's ASH
+bd %<>% addBMethod("ashs",
+                   ashr::ash,
+                   ashr::get_svalue,
+                   betahat = effect_size, sebetahat = SE)
+## Boca-Leek (w/ varying smoothing degrees of freedom)
+for (idf in 1:5) {
+    bd %<>% addBMethod(paste0("bl-df", sprintf("%02g", idf)), 
+                       swfdr::lm_pi0,
+                       function(x) { x$pi0 * p.adjust(pval, method = "BH") },
+                       pValues = pval, X = ind_covariate,
+                       smooth.df = UQ(idf))
+}
+## Cai's local FDR
+bd %<>% addBMethod("lfdr",
+                   clfdr_hickswrapper,
+                   unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
+## Scott's FDR regression w/ theoretical null
+bd %<>% addBMethod("scott-theoretical",
+                   scott_fdrreg_hickswrapper,
+                   zscores = qnorm(1 - pval / 2) * sign(effect_size),
+                   filterstat = ind_covariate, df = 3, lambda = 0.1,
+                   nulltype = 'theoretical')
+## Scott's FDR regression w/ empirical null
+bd %<>% addBMethod("scott-empirical",
+                   scott_fdrreg_hickswrapper,
+                   zscores = qnorm(1 - pval / 2) * sign(effect_size),
+                   filterstat = ind_covariate, df = 3, lambda = 0.1,
+                   nulltype = 'empirical')
 
 
 ## ##############################################################################
@@ -109,10 +130,10 @@ bd %<>% addMethod("scott",
 ## ##############################################################################
 
 ## number of replications
-M <- 10
+M <- 100
 
 ## set up parallel environment
-nCores <- 2
+nCores <- 10
 registerDoParallel(cores = nCores)
 
 
@@ -130,10 +151,6 @@ settings <- lapply(seq(.1, 1, by=.1),
                        })
 names(settings) <- paste0("altp0_", 1:10)
 
-## create data.frame of parameters
-ptab <- do.call(rbind.data.frame, settings)
-ptab$setting <- rownames(ptab)
-setnames(ptab, "effect_size", "true_effsize") 
 
 ## ##############################################################################
 ## run simulations and save simulations
@@ -143,18 +160,29 @@ for (idx in seq(settings)) {
     iset <- settings[[idx]]
     
     sblist <- foreach(i = 1:M, .verbose = T) %dopar% {
-        ## simulate uninformative indep covariate
+        ## will break if i > ~2000 (integer seed value too large)
+        sim_seed <- (as.integer(Sys.time()) %% 1e6) + (i * 1e6)
+        set.seed(sim_seed)
+        
+        ## simulate data with seed
         sim_df <- do.call(du_ttest_sim, iset)
         names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
-        
-        ## create and process SummarizedBenchmark
-        sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)        
-        sb <- addDefaultMetrics(sb)
-        sb <- estimatePerformanceMetrics(sb, alpha=c(0.01, 0.05, 0.1),
-                                         addColData = TRUE)
+
+        ## calc data digest
+        sim_digest <- digest::sha1(sim_df)
+
+        ## create SummarizedBenchmark
+        sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
+
+        ## add simulation information to metadata
+        metadata(sb)$sim_func <- du_ttest_sim
+        metadata(sb)$sim_parameters <- iset
+        metadata(sb)$sim_seed <- sim_seed
+        metadata(sb)$sim_digest <- sim_digest
     }
     saveRDS(sblist, file = paste0("data/results-", names(settings)[idx], "-M", M, ".RDS"))
 }
+
 
 
 ## ##############################################################################
@@ -162,10 +190,4 @@ for (idx in seq(settings)) {
 ##   - no informative covariate
 ##   - varying effect size
 ## ##############################################################################
-
-
-## ##############################################################################
-## run simulations and save simulations
-
-
 
