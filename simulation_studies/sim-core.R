@@ -3,6 +3,17 @@
 #' @author Patrick Kimes
 
 ## ##############################################################################
+## parse simulation run parameters
+## ##############################################################################
+
+args <- commandArgs(trailingOnly = TRUE)
+
+M <- as.integer(args[1])
+ncores <- as.integer(args[2])
+setting_idx <- as.integer(args[3])
+
+
+## ##############################################################################
 ## install packages
 ## ##############################################################################
 
@@ -17,7 +28,7 @@
 ## ## from GitHub
 ## devtools::install_github('jgscott/FDRreg', subdir="R_pkg/")
 ## devtools::install_github("nignatiadis/IHWpaper")
-## devtools::install_github("areyesq89/SummarizedBenchmark", ref = "feat/design-flexibility")
+## devtools::install_github("areyesq89/SummarizedBenchmark")
 
 
 ## ##############################################################################
@@ -48,11 +59,17 @@ library("doParallel")
 ## helper scripts, e.g. wrappers to FDRreg, clfdr
 source("R/simulation-helpers.R")
 
+## parameter settings
+source("sim-core-settings.R")
+
 ## helper digest function
 library("digest")
 
 ## set location
-projdir <- "/n/irizarryfs01/pkimes/projects/project-02-benchmark-fdr"
+projdir <- "/n/irizarryfs01_backed_up/pkimes/project/project-02-benchmark-fdr"
+
+## set parallelization
+registerDoParallel(cores = ncores)
 
 
 ## ##############################################################################
@@ -100,7 +117,7 @@ bd %<>% addBMethod("ashs",
                    ashr::get_svalue,
                    betahat = effect_size, sebetahat = SE)
 ## Boca-Leek (w/ varying smoothing degrees of freedom)
-for (idf in 1:5) {
+for (idf in 2:5) {
     bd %<>% addBMethod(paste0("bl-df", sprintf("%02g", idf)), 
                        swfdr::lm_pi0,
                        function(x) { x$pi0 * p.adjust(pval, method = "BH") },
@@ -115,45 +132,26 @@ bd %<>% addBMethod("lfdr",
 bd %<>% addBMethod("scott-theoretical",
                    scott_fdrreg_hickswrapper,
                    zscores = qnorm(1 - pval / 2) * sign(effect_size),
-                   filterstat = ind_covariate, df = 3, lambda = 0.1,
+                   filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'theoretical')
 ## Scott's FDR regression w/ empirical null
 bd %<>% addBMethod("scott-empirical",
                    scott_fdrreg_hickswrapper,
                    zscores = qnorm(1 - pval / 2) * sign(effect_size),
-                   filterstat = ind_covariate, df = 3, lambda = 0.1,
+                   filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'empirical')
 
 
 ## ##############################################################################
-## define parallelized replications
+## generate simulation settings
 ## ##############################################################################
 
-## number of replications
-M <- 100
-
-## set up parallel environment
-nCores <- 10
-registerDoParallel(cores = nCores)
+settings <- define_settings(setting_base, setting_idx)
 
 
 ## ##############################################################################
-## Define Simulation Setting 1
-##   - no informative covariate
-##   - varying null proportion ($\pi_0$)
+## run and save simulations
 ## ##############################################################################
-
-## create settings w/ varying pi0 (null proportions)
-settings <- lapply(seq(.1, 1, by=.1),
-                       function(p) { replace(setting_base,
-                                             c("pi0", "effect_size"),
-                                             c(p, 1.5))
-                       })
-names(settings) <- paste0("altp0_", 1:10)
-
-
-## ##############################################################################
-## run simulations and save simulations
 
 ## loop over parameter settings
 for (idx in seq(settings)) {
@@ -179,15 +177,8 @@ for (idx in seq(settings)) {
         metadata(sb)$sim_parameters <- iset
         metadata(sb)$sim_seed <- sim_seed
         metadata(sb)$sim_digest <- sim_digest
+
+        sb
     }
     saveRDS(sblist, file = paste0("data/results-", names(settings)[idx], "-M", M, ".RDS"))
 }
-
-
-
-## ##############################################################################
-## Define Simulation Setting 2
-##   - no informative covariate
-##   - varying effect size
-## ##############################################################################
-
