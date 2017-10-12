@@ -90,6 +90,10 @@ setting_base <- list(m = 20000,         # number of hypothesis tests
 ## ##############################################################################
 
 bd <- BenchDesign()
+## unadjusted p-values
+bd %<>% addBMethod("unadjusted",
+                   function(p) { p },
+                   p = pval)
 ## Bonferonni correction
 bd %<>% addBMethod("bonf",
                    p.adjust,
@@ -153,32 +157,63 @@ settings <- define_settings(setting_base, setting_idx)
 ## run and save simulations
 ## ##############################################################################
 
-## loop over parameter settings
-for (idx in seq(settings)) {
-    iset <- settings[[idx]]
-    
-    sblist <- foreach(i = 1:M, .verbose = T) %dopar% {
-        ## will break if i > ~2000 (integer seed value too large)
-        sim_seed <- (as.integer(Sys.time()) %% 1e6) + (i * 1e6)
+## save data and results if only 1 replication requested
+if (M == 1) {
+
+    for (idx in seq(settings)) {
+        iset <- settings[[idx]]
+
+        sim_seed <- (as.integer(Sys.time()) %% 1e6)
         set.seed(sim_seed)
-        
+
         ## simulate data with seed
         sim_df <- do.call(du_ttest_sim, iset)
         names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
-
+        
         ## calc data digest
         sim_digest <- digest::sha1(sim_df)
-
+        
         ## create SummarizedBenchmark
         sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
-
+        
         ## add simulation information to metadata
         metadata(sb)$sim_func <- du_ttest_sim
         metadata(sb)$sim_parameters <- iset
         metadata(sb)$sim_seed <- sim_seed
         metadata(sb)$sim_digest <- sim_digest
-
-        sb
+        
+        save(sb, sim_df, file = paste0("data/results-", names(settings)[idx], "-M", M, ".rdata"))
     }
-    saveRDS(sblist, file = paste0("data/results-", names(settings)[idx], "-M", M, ".RDS"))
+
+} else { 
+
+    ## loop over parameter settings
+    for (idx in seq(settings)) {
+        iset <- settings[[idx]]
+        
+        sblist <- foreach(i = 1:M, .verbose = T) %dopar% {
+            ## will break if i > ~2000 (integer seed value too large)
+            sim_seed <- (as.integer(Sys.time()) %% 1e6) + (i * 1e6)
+            set.seed(sim_seed)
+            
+            ## simulate data with seed
+            sim_df <- do.call(du_ttest_sim, iset)
+            names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
+
+            ## calc data digest
+            sim_digest <- digest::sha1(sim_df)
+
+            ## create SummarizedBenchmark
+            sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
+
+            ## add simulation information to metadata
+            metadata(sb)$sim_func <- du_ttest_sim
+            metadata(sb)$sim_parameters <- iset
+            metadata(sb)$sim_seed <- sim_seed
+            metadata(sb)$sim_digest <- sim_digest
+
+            sb
+        }
+        saveRDS(sblist, file = paste0("data/results-", names(settings)[idx], "-M", M, ".RDS"))
+    }
 }
