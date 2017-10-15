@@ -3,3 +3,6 @@
 *.Rproj
 .Rproj.user
 *.RDS
+simulation_studies/plots
+simulation_studies/data
+simulation_studies/_slurmio
