@@ -47,6 +47,9 @@
 #' @importFrom genefilter rowSds
 #' @author Stephanie Hicks, Patrick Kimes
 du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NULL) {
+
+    library("genefilter")
+    
     ## use specified random seed
     if (!is.null(seed)) {
         set.seed(seed)
@@ -66,10 +69,16 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     stopifnot(length(ind_cov) == m)
 
     ## pi0 returns probability of null, sample alts from [1 - pi0s]
-    pi0s <- pi0(ind_cov)
+    if (is.function(pi0)) {
+        pi0s <- pi0(ind_cov)
+    } else if (length(pi0) == 1) {
+        pi0s <- rep(pi0, m)
+    } else {
+        stop("pi0 must be function or single numeric value")
+    }
     stopifnot(length(pi0s) == m)
     stopifnot(min(pi0s) >= 0 && max(pi0s) <= 1)
-    alts <- rbinom(m, 1, 1 - pi0s)
+    alts <- which(rbinom(m, 1, 1 - pi0s) == 1)
     
     ## generate set of null (0) and alternative test statistics
     ts <- rep(0, m)

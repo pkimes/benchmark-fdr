@@ -14,15 +14,15 @@ pi0_f1 <- function(x) {
     
     y <- -a*(x-p1)*(x-p2)
     y[x >= 0.7] <- -a*(0.7-p1)*(0.7-p2)
-    y[x <= (p1+p2)/2] <- 1  
+    y[x <= (p1+p2)/2] <- 1
     y
 }
 pi0_f2 <- function(x) {
     y <- rep(0, length=length(x))
-    y[x >= 0.7] <- -2.5*(x[x >= 0.7]-0.7)^2  
+    y[x >= 0.7] <- -2.5*(x[x >= 0.7]-0.7)^2
     y
 }
-pi0f3 <- function(x) {
+pi0_f3 <- function(x) {
     y <- rep(0, length=length(x))
     y[x < 0.7] <- -(x[x < 0.7]-0.1)^2
     y[x >= 0.7] <- -(min(x[x >= 0.7])-0.1)^2

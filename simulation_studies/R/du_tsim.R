@@ -47,6 +47,9 @@
 #' @author Stephanie Hicks, Patrick Kimes
 du_tsim <- function(m, pi0, effect_size, n_samples = 10, n_groups = 2, 
                     icovariate = TRUE, seed = NULL) {
+
+    library("genefilter")
+
     ## use specified random seed
     if (!is.null(seed)) {
         set.seed(seed)
@@ -61,22 +64,28 @@ du_tsim <- function(m, pi0, effect_size, n_samples = 10, n_groups = 2,
     n_total <- sum(n_samples)
 
     ## check for functional icovariate, pi0 specification
-    if (is.function(icovariate) && is.function(pi0)) {
+    if (is.function(icovariate)) {
         ## simulate indep covariate from icovariate function
         ind_cov <- icovariate(m)
         stopifnot(length(ind_cov) == m)
-        ## pi0 returns probability of null, sample alts from [1 - pi0s]
-        pi0s <- pi0(ind_cov)
+        if (is.function(pi0)) {
+            ## pi0 returns probability of null, sample alts from [1 - pi0s]
+            pi0s <- pi0(ind_cov)
+        } else if (length(pi0) == 1) {
+            pi0s <- rep(pi0, m)
+        } else {
+            stop("pi0 must be function or single numeric value")
+        }
         stopifnot(length(pi0s) == m)
         stopifnot(min(pi0s) >= 0 && max(pi0s) <= 1)
-        alts <- rbinom(m, 1, 1 - pi0s)
+        alts <- which(rbinom(m, 1, 1 - pi0s) == 1)
     } else if (is.logical(icovariate) && is.numeric(pi0)) {
         ## use flat pi0 rate
         m0 <- ceiling(m * pi0)
         alts <- sample(1:m, m - m0)
     } else {
-        stop("icovariate and pi0 must either both be functions or ",
-             "logical and numeric, respectively.")
+        stop("if icovariate is not a function, pi0 must be a ",
+             "single numeric value.")
     }
 
     ## check for functional effect_size specification
@@ -93,7 +102,7 @@ du_tsim <- function(m, pi0, effect_size, n_samples = 10, n_groups = 2,
     ## simulate data from mixture normal
     z_table <- matrix(rnorm(n_total * m), ncol = n_total)
     z_table[alts, (n_samples[1] + 1):n_total] <-
-        z_table[alts, (n_samples[1] + 1):n_total] + effect_size
+        z_table[alts, (n_samples[1] + 1):n_total] + esize
     
     ## if ind_cov not simulated, use sample cov or uniform (as in IHW)
     if (is.logical(icovariate)) {
@@ -119,54 +128,4 @@ du_tsim <- function(m, pi0, effect_size, n_samples = 10, n_groups = 2,
     data.frame(H = H, test_statistic = t_test$statistic, effect_size = t_test$dm, 
                pval = t_test$p.value, ind_covariate = ind_cov, SE = SE)
 }
-
-
-## ##############################################################################
-## test all settings
-## ##############################################################################
-
-## << du_tsim(m, pi0, effect_size, n_sample, n_groups, icovariate=TRUE) >>
-## expanded with following variations
-## 1. pi0 fixed, icovariate = TRUE
-## 2. pi0 fixed, icovariate = FALSE
-## 3. pi0 fixed, icovariate = (function: int -> reals)
-## 4. pi0 = (function: int -> reals), icovariate = (function: int -> reals)
-## 5. pi0 = (function: int -> reals), icovariate = logical (ERROR!!) 
-## 6. n_sample length 1
-## 7. n_sample lenght 2
-## 8. effect_size fixed
-## 9. effect_size = (function: int -> reals)
-
-## need to check output of functionals
-## 1. pi0 returns value between [0, 1]
-## 2. icovariate returns int in reals
-## 3. effect_size returns int in reals
-
-## 
-## 1. pi0 fixed, icovariate = TRUE
-dat <- du_tsim(m = 100, pi0 = 0.5, effect_size = 2, n_sample = 5,
-               n_groups = 2, icovariate = TRUE)
-
-## 2. pi0 fixed, icovariate = FALSE
-dat <- du_tsim(m = 100, pi0 = 0.5, effect_size = 2, n_sample = 5,
-               n_groups = 2, icovariate = FALSE)
-
-## 3. pi0 fixed, icovariate = (function: int -> reals)
-icovf <- function(n) { r }
-dat <- du_tsim(m = 100, pi0 = 0.5, effect_size = 2, n_sample = 5,
-               n_groups = 2, icovariate = FALSE)
-
-## 4. pi0 = (function: int -> reals), icovariate = (function: int -> reals)
-
-
-## 5. pi0 = (function: int -> reals), icovariate = logical (ERROR!!) 
-
-
-## 6. n_sample length 1
-
-## 7. n_sample lenght 2
-
-## 8. effect_size fixed
-
-## 9. effect_size = (function: int -> reals)
 
