@@ -1,0 +1,201 @@
+---
+title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
+author: "Keegan Korthauer"
+date: "10/19/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Summary
+
+In the previous document `GWAS.Rmd`, we identified three GWAS datasets for FDR
+benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
+perform the benchmarking in a standardized way. 
+
+### Workspace setup
+
+```{r, wkspace-setup}
+# project directory & data/results folders
+setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
+datdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/DATA/GWAS/"
+resdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/RESULTS/GWAS/"
+  
+# wrangling & plotting tools
+library(data.table)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(R.utils)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)
+source("benchmark-fdr/simulation_studies/R/simulation-helpers.R")
+sourceDirectory("benchmark-fdr/datasets/R/")
+```
+
+### GWAS meta-analysis for BMI (included in Boca-Leek)
+
+Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+
+#### Data download
+
+```{bash, GWAS1-download, eval=FALSE}
+curl -O "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+```
+
+Next we unzip the file, and delete the files we won't use (they provide results
+subsetted by ancestry and sex), keeping only the file with all ancestries and
+both sexes `BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt`. Note that it seems that
+the Boca-Leek paper actually used the 'EuropeanOnly' subset, but it's not clear
+why (to me), and there's no reason we need to do the same.
+
+```{bash, GWAS1-unzip, eval=FALSE}
+unzip BMI.SNPadjSMK.zip
+rm BMI.SNPadjSMK.zip
+rm BMI.SNPadjSMK.Women.EuropeanOnly.txt
+rm BMI.SNPadjSMK.Women.AllAncestry.txt
+rm BMI.SNPadjSMK.Men.EuropeanOnly.txt
+rm BMI.SNPadjSMK.Men.AllAncestry.txt
+rm BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt
+```
+
+Next, we'll read in the unzipped `.txt` file into R and verify that it contains
+the necessary inputs to run the FDR benchmark comparisons.
+
+```{r, GWAS1-verify-contents}
+bmi <- fread(paste0(datdir, "BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt"),
+             header=TRUE)
+dim(bmi)
+head(bmi)
+```
+
+It looks like we have:
+
+- `p_value`:p-value
+- `effect`:effect size
+- `stderr`:standard error
+- additional covariates: 
+    - `N`: Number of samples with this SNP - BMI association measured
+    - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
+ 
+for 2,458,133 SNPs.
+
+Before moving on, we'll rename the relevant columns so that they will use common terms
+across the different datasets. We'll also add a 'zscore' column, and subset on a 
+toy example before moving on to the full dataset.
+
+```{r, GWAS1-reformat}
+bmi <- bmi %>% 
+        dplyr::rename(pval = p_value,
+               SE = stderr,
+               effect_size = effect,
+               ind_covariate = N) %>%
+        mutate(zscore = effect_size/SE) 
+
+### experimenting on a subset of the full dataset for now
+bmi <- bmi[1:10000,]
+```
+
+#### Check Covariate Diagnostics
+
+```{r, GWAS1-diag, fig.width=10, fig.height=3.5}
+strat_hist(bmi, pval="pval", covariate="ind_covariate", maxy=3)
+rank_scatter(bmi, pval="pval", covariate="ind_covariate")
+```
+
+#### Set up BenchDesign object 
+
+First, we'll create an object of `BenchDesign` class to hold the data. 
+
+**Still to-do: consider multiple covariates for methods that allow this.**
+
+```{r, GWAS1-benchdesign}
+bd <- BenchDesign(bmi)
+```
+
+Next, we'll add the benchmark methods to the `BenchDesign` object.
+
+```{r, GWAS1-methods}
+# This should maybe be sourced from a common script that everyone uses...
+bd %<>% addBMethod(blabel = "BH", bfunc = p.adjust,
+                 p = pval, method = "BH")
+
+bd %<>% addBMethod("qv", qvalue::qvalue,
+                  p = pval,
+                  bpost = function(x) { x$qvalues })
+
+bd %<>% addBMethod("ihw", IHW::ihw,
+                  pvalues = pval,
+                  covariates = IHW::groups_by_filter(ind_covariate, 5),
+                  alpha = 0.1,
+                  bpost = IHW::adj_pvalues)
+```
+
+Now, we're ready to construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, GWAS1-sb}
+resfile <- paste0(resdir, "bmi_summarizedBenchmark_",
+                  nrow(bmi), ".RData")
+if (!file.exists(resfile)){
+  t1 <- proc.time()
+  sb <- bd %>% buildBench
+  metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+  save(sb, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(bmi), " SNPs."))
+}else{
+  load(resfile)
+}
+
+```
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, GWAS1-metrics}
+# rename assay to qvalue
+names(assays(sb)) <- names(rowData(sb)) <- names(sb@performanceMetrics) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+sb
+
+head(assay(sb))
+colData(sb)
+sb@performanceMetrics[[1]]
+
+# estimate perf metrics
+sb <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), addColData=TRUE)
+colData( sb )
+```
+
+Now, we'll plot the results.
+
+```{r, GWAS1-plot, results="hide"}
+## to go here - standardized plotting functions from SummarizedBenchmarks -
+## to discuss at meeting 10/19
+
+# alpha versus nrejects
+
+# upset plot
+
+```
+
+And we'll clean up the workspace before moving on to the next dataset.
+
+```{r, GWAS1-cleanup}
+rm(bmi)
+rm(bmi_results)
+```
