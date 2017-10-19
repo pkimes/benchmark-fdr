@@ -82,7 +82,7 @@ registerDoParallel(cores = ncores)
 setting_base <- list(m = 20000,          # number of hypothesis tests
                      pi0 = 1,            # proportion of null hypotheses
                      effect_size = 0,    # expected mean diff of non-null tests
-                     n_samples = 20,     # total number of samples
+                     n_samples = 10,     # number of samples per group
                      n_groups = 2,       # number of groups in contrast
                      icovariate = FALSE) # self-explainatory
 
@@ -166,17 +166,18 @@ if (M == 1) {
         iset <- settings[[idx]]
 
         ## check if sim already run
-        outf <- paste0("data/M", M, "/results-", names(settings)[idx], "-M", M, ".rdata")
+        outf <- paste0("data/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+                       "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
         }
-        dir.create(dirname(outf), showWarnings = FALSEm recursive = TRUE)
+        dir.create(dirname(outf), showWarnings = FALSE, recursive = TRUE)
         
         sim_seed <- (as.integer(Sys.time()) %% 1e6)
         set.seed(sim_seed)
 
         ## simulate data with seed
-        sim_df <- do.call(du_ttest_sim, iset)
+        sim_df <- do.call(du_tsim, iset)
         names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
         
         ## calc data digest
@@ -186,7 +187,7 @@ if (M == 1) {
         sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
         
         ## add simulation information to metadata
-        metadata(sb)$sim_func <- du_ttest_sim
+        metadata(sb)$sim_func <- du_tsim
         metadata(sb)$sim_parameters <- iset
         metadata(sb)$sim_seed <- sim_seed
         metadata(sb)$sim_digest <- sim_digest
@@ -201,11 +202,12 @@ if (M == 1) {
         iset <- settings[[idx]]
         
         ## check if sim already run
-        outf <- paste0("data/M", M, "/results-", names(settings)[idx], "-M", M, ".rdata")
+        outf <- paste0("data/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+                       "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
         }
-        dir.create(dirname(outf), showWarnings = FALSEm recursive = TRUE)
+        dir.create(dirname(outf), showWarnings = FALSE, recursive = TRUE)
         
         sblist <- foreach(i = 1:M, .verbose = T) %dopar% {
             ## will break if i > ~2000 (integer seed value too large)
@@ -213,7 +215,7 @@ if (M == 1) {
             set.seed(sim_seed)
             
             ## simulate data with seed
-            sim_df <- do.call(du_ttest_sim, iset)
+            sim_df <- do.call(du_tsim, iset)
             names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
 
             ## calc data digest
@@ -223,7 +225,7 @@ if (M == 1) {
             sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
 
             ## add simulation information to metadata
-            metadata(sb)$sim_func <- du_ttest_sim
+            metadata(sb)$sim_func <- du_tsim
             metadata(sb)$sim_parameters <- iset
             metadata(sb)$sim_seed <- sim_seed
             metadata(sb)$sim_digest <- sim_digest

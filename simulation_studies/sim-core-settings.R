@@ -30,9 +30,10 @@ define_settings <- function(sbase, vparam, icparam) {
     if (vparam == "pi0" && icparam == "bl") {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
     }
-    
 
-    ## change default 
+    ## ##########################################################################
+    ## define type of informative/independent covariate by 'icparam'
+
     if (icparam == "uniform") {
         ## don't need to do anything
     } else if (icparam == "se") {
@@ -42,8 +43,9 @@ define_settings <- function(sbase, vparam, icparam) {
         sbase <- replace(sbase, c("pi0", "icovariate"), c(pi0_smooth1, runif))
     }
     
-    
-    ## define main simulations settings by vparam
+    ## ##########################################################################
+    ## define main simulations settings by 'vparam'
+
     if (vparam == "pi0") {
         ## varying pi0 (null proportions) #######################################
         settings <- lapply(seq(.1, 1, by=.1),
