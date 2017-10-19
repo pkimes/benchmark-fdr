@@ -1,6 +1,7 @@
-# Submit simulation jobs to slurm cluster
-#
-# Patrick Kimes
+## Submit simulation jobs to slurm cluster
+## (tsim: t-test simulation)
+##
+## Patrick Kimes
 
 M <- 100
 ncores <- 10

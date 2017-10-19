@@ -1,4 +1,29 @@
-#' Alternative Simulations with Uninformative Covariate
+#' T-Test Simulations for FDR Assessment
+#' 
+#' This script is should be run from the command line with the following
+#' four ordered arguments:
+#'
+#' 1. M: integer number of simulation replications
+#' 2. ncores: integer number of computing cores to use for parallelization
+#' 3. setting_vparam: simulation setting (variable parameter)
+#' 4. setting_icparam: simulation setting (informative covariate parameter)
+#'
+#' For a specified simulation settings ('setting_vparam' + 'setting_icparam'),
+#' this script applied FDR correction to results from a collection of independent
+#' t-tests. For more deetails on the simulation settings, see the `define_settings`
+#' function defined in `sim-core-settings.R`. 
+#'
+#' This script works with the following other scripts:
+#' - `R/du_tsim.R`: `du_tsim`
+#'     This function is used for actually simulating t-tests.
+#' - `sim-core-settings.R`: `define_settings`
+#'     This function is used for defining the settings to be passed to
+#'     `du_tsim` for the simulations.
+#' - `tsim-submit.R`: 
+#'     This script is a wrapper to submit jobs to the SLURM cluster.
+#' 
+#' The results of the simulations are saved as RDS files containing a list
+#' of `SummarizedBenchmark` objects of length M.
 #'
 #' @author Patrick Kimes
 
