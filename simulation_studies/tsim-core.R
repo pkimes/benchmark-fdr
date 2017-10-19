@@ -62,7 +62,7 @@ source("R/simulation-helpers.R")
 source("R/du_tsim.R")
 
 ## parameter settings
-source("sim-core-settings.R")
+source("tsim-core-settings.R")
 
 ## helper digest function
 library("digest")
