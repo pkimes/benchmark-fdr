@@ -10,7 +10,8 @@ args <- commandArgs(trailingOnly = TRUE)
 
 M <- as.integer(args[1])
 ncores <- as.integer(args[2])
-setting_idx <- as.integer(args[3])
+setting_vparam <- args[3]
+setting_icparam <- args[4]
 
 
 ## ##############################################################################
@@ -58,6 +59,7 @@ library("doParallel")
 
 ## helper scripts, e.g. wrappers to FDRreg, clfdr
 source("R/simulation-helpers.R")
+source("R/du_tsim.R")
 
 ## parameter settings
 source("sim-core-settings.R")
@@ -77,12 +79,12 @@ registerDoParallel(cores = ncores)
 ## ##############################################################################
 
 ## setting 0: (base) null simulation setting
-setting_base <- list(m = 20000,         # number of hypothesis tests
-                     pi0 = 1,           # proportion of null hypotheses
-                     effect_size = 0,   # expected mean diff of non-null tests
-                     n_samples = 20,    # total number of samples
-                     n_groups = 2,      # number of groups in contrast
-                     informative_ind_covariate = FALSE) # self-explainatory
+setting_base <- list(m = 20000,          # number of hypothesis tests
+                     pi0 = 1,            # proportion of null hypotheses
+                     effect_size = 0,    # expected mean diff of non-null tests
+                     n_samples = 20,     # total number of samples
+                     n_groups = 2,       # number of groups in contrast
+                     icovariate = FALSE) # self-explainatory
 
 
 ## ##############################################################################
@@ -135,13 +137,13 @@ bd %<>% addBMethod("lfdr",
 ## Scott's FDR regression w/ theoretical null
 bd %<>% addBMethod("scott-theoretical",
                    scott_fdrreg_hickswrapper,
-                   zscores = qnorm(1 - pval / 2) * sign(effect_size),
+                   zscores = qnorm(1 - pval / 2) * sign(test_statistic),
                    filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'theoretical')
 ## Scott's FDR regression w/ empirical null
 bd %<>% addBMethod("scott-empirical",
                    scott_fdrreg_hickswrapper,
-                   zscores = qnorm(1 - pval / 2) * sign(effect_size),
+                   zscores = qnorm(1 - pval / 2) * sign(test_statistic),
                    filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'empirical')
 
@@ -150,7 +152,7 @@ bd %<>% addBMethod("scott-empirical",
 ## generate simulation settings
 ## ##############################################################################
 
-settings <- define_settings(setting_base, setting_idx)
+settings <- define_settings(setting_base, setting_vparam, setting_icparam)
 
 
 ## ##############################################################################
@@ -163,6 +165,13 @@ if (M == 1) {
     for (idx in seq(settings)) {
         iset <- settings[[idx]]
 
+        ## check if sim already run
+        outf <- paste0("data/M", M, "/results-", names(settings)[idx], "-M", M, ".rdata")
+        if (file.exists(outf)) {
+            next
+        }
+        dir.create(dirname(outf), showWarnings = FALSEm recursive = TRUE)
+        
         sim_seed <- (as.integer(Sys.time()) %% 1e6)
         set.seed(sim_seed)
 
@@ -182,7 +191,7 @@ if (M == 1) {
         metadata(sb)$sim_seed <- sim_seed
         metadata(sb)$sim_digest <- sim_digest
         
-        save(sb, sim_df, file = paste0("data/results-", names(settings)[idx], "-M", M, ".rdata"))
+        save(sb, sim_df, file = outf)
     }
 
 } else { 
@@ -190,6 +199,13 @@ if (M == 1) {
     ## loop over parameter settings
     for (idx in seq(settings)) {
         iset <- settings[[idx]]
+        
+        ## check if sim already run
+        outf <- paste0("data/M", M, "/results-", names(settings)[idx], "-M", M, ".rdata")
+        if (file.exists(outf)) {
+            next
+        }
+        dir.create(dirname(outf), showWarnings = FALSEm recursive = TRUE)
         
         sblist <- foreach(i = 1:M, .verbose = T) %dopar% {
             ## will break if i > ~2000 (integer seed value too large)
@@ -214,6 +230,6 @@ if (M == 1) {
 
             sb
         }
-        saveRDS(sblist, file = paste0("data/results-", names(settings)[idx], "-M", M, ".RDS"))
+        saveRDS(sblist, file = outf)
     }
 }
