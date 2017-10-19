@@ -16,7 +16,7 @@ params <- list(spiky = list(c(.4, .2, .2, .2), c(0, 0, 0, 0), c(.25, .5, 1, 2)),
                near_normal = list(c(2/3, 1/3), c(0, 0), c(1, 2)))
 
 ## function factory to generate mixture normal samplers 
-rnormmix_sampler <- function(g) {
+rnormmix_generator <- function(g) {
     k <- unique(sapply(g, length))
     stopifnot(length(k) == 1)
     stopifnot(sum(g[[1]]) == 1)
@@ -27,13 +27,44 @@ rnormmix_sampler <- function(g) {
 }
 
 ## ASH effect-size distributions
-sampler_spiky <- rnormmix_sampler(params$spiky)
-sampler_skew <- rnormmix_sampler(params$skew)
-sampler_bignormal <- rnormmix_sampler(params$bignormal)
-sampler_bimodal <- rnormmix_sampler(params$bimodal)
-sampler_flat_top <- rnormmix_sampler(params$flat_top)
-sampler_near_normal <- rnormmix_sampler(params$near_normal)
+sampler_spiky <- rnormmix_generator(params$spiky)
+sampler_skew <- rnormmix_generator(params$skew)
+sampler_bignormal <- rnormmix_generator(params$bignormal)
+sampler_bimodal <- rnormmix_generator(params$bimodal)
+sampler_flat_top <- rnormmix_generator(params$flat_top)
+sampler_near_normal <- rnormmix_generator(params$near_normal)
 
 ## ##############################################################################
 ## END CODE DERIVED FROM EXTERNAL SOURCE
 ## ##############################################################################
+
+## function factory: normal distribution
+rnorm_generator <- function(m, s = 1) {
+    function(n) {
+        rnorm(n, m, s)
+    }
+}
+
+## function factory: non-central t distribution
+rt_generator <- function(df, m = 0) {
+    if (m == 0) {
+        return(function(n) { rt(n, df) })
+    } else if (df > 1) {
+        ncp <- m / gamma((df-1)/2) * gamma(df/2) / sqrt(df/2)
+        return(function(n) { rt(n, df, ncp) })
+    } else {
+        stop("eep! my author didn't write me to accept ",
+             "(df <= 1) & (m != 0). sorry!")
+    }
+}
+
+## function factory: non-central chi-sq distribution
+rchisq_generator <- function(df, m = 0) {
+    if (m == 0) {
+        return(function(n) { rchisq(n, df) })
+    } else {
+        ncp <- m - df
+        stopifnot(ncp > 0)
+        return(function(n) { rchisq(n, df, ncp) })
+    }
+}
