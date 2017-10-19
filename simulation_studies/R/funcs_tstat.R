@@ -68,3 +68,61 @@ rchisq_generator <- function(df, m = 0) {
         return(function(n) { rchisq(n, df, ncp) })
     }
 }
+
+## ##############################################################################
+## ##############################################################################
+
+## function factory: normal perturbation
+## - returns functions which takes input vector and simulates normal
+##   random variables with specified vector as means.
+rnorm_perturber <- function(s = 1) {
+    function(m) {
+        rnorm(length(m), m, s)
+    }
+}
+
+## function factory: non-central t distribution
+## - returns functions which takes input vector and simulates non-central t
+##   random variables with specified vector as means.
+rt_perturber <- function(df) {
+    if (df <= 1) {
+        stop("eep! mean for non-central t-distribution not defined for df = 1.")
+    }
+    
+    function(m) {
+        ncp <- m / gamma((df-1)/2) * gamma(df/2) / sqrt(df/2)
+        rt(length(m), df, ncp)
+    }
+}
+
+## function factory: non-central chi-sq perturbation
+## - returns functions which takes input vector and sim non-central chi-sq
+##   random variables with specified vector as means.
+rchisq_perturber <- function(df) {
+    function(m) {
+        ncp <- m - df
+        stopifnot(ncp > 0)
+        rchisq(length(m), df, ncp)
+    }
+}
+
+## ##############################################################################
+## ##############################################################################
+
+## function factory: two-sided normal p-value calculator
+rnorm_2pvaluer <- function(s) {
+    function(x) { 2 * (1 - pnorm(abs(x), 0, s)) }
+}
+
+
+## function factory: two-sided t p-value calculator
+rt_2pvaluer <- function(df) {
+    function(x) { 2 * (1 - pt(abs(x), df)) }
+}
+
+
+## function factory: chi-sq p-value calculator
+rchisq_pvaluer <- function(df) {
+    function(x) { 1 - pchisq(x, df) }
+}
+

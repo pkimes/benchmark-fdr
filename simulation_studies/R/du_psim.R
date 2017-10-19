@@ -42,8 +42,6 @@
 #' @md
 #' @author Patrick Kimes
 du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NULL) {
-
-    library("genefilter")
     
     ## use specified random seed
     if (!is.null(seed)) {
@@ -53,11 +51,6 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     stopifnot(is.function(tstat))
     stopifnot(is.function(tstat_dist))
     stopifnot(is.function(icovariate))
-              
-    ## convert pi0 to function
-    if (!is.function(pi0)) {
-        pi0 <- function(x) { pi0 }
-    }
     
     ## simulate indep covariate from icovariate function
     ind_cov <- icovariate(m)
@@ -79,7 +72,7 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     ts <- rep(0, m)
     ts[alts] <- tstat(length(alts))
     ts <- tstat_dist(ts)
-    stopifnot(length(ts) == length(alts))
+    stopifnot(length(ts) == m)
     
     ## null/alt indicator
     H <- rep(0, m)
@@ -88,7 +81,7 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     ## calculate p-values and 'effect size' (just N(0,1) z-score)
     pv <- null_dist(ts)
     es <- qnorm(pv)
-    
+
     ## return test results as data.frame
     data.frame(H = H, test_statistic = ts, effect_size = es,
                pval = pv, ind_covariate = ind_cov)
