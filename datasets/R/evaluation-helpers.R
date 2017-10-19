@@ -1,6 +1,7 @@
-#' Dataset Evaluation
+#' Dataset Evaluation (deprecated)
 #'
-#' Wrapper function for computing adjusted p-values (or comparable values) and
+#' This function is no longer used. Please use the SummarizedBenchmark framework 
+#' instead! Wrapper function for computing adjusted p-values (or comparable values) and
 #' number of rejections at various alphas for
 #' all methods in benchmkaring study.
 #' 
@@ -27,6 +28,9 @@
 #' @author Stephanie Hicks
 #' @author Keegan Korthauer
 run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) { 
+  
+  message("Warning! This function is deprecated! Please don't use this function.",
+          " Please use SummarizedBenchmark instead.")
   
   ## keep adjusted p-values
   adj_pset <- list()
@@ -141,103 +145,4 @@ run_benchmarks <- function(dat, alphas, pvals = FALSE, verbose = TRUE) {
   } else {
     return(stat_df)
   }
-}
-
-
-# strat hist function to input data frame and the covariate of interest, 
-# and output a cowplot object that displays 4 histograms: one overall, 
-# and three for the tertiles of the covariate
-# also takes as input the bin width and the max y value for the density
-
-# dat = dataframe with each row as a test
-# pval = name of p-value covariate
-# covariate = name of covariate to stratify by
-# binwidth = binwidth parameter for geom_hist
-# maximum y-value for density (so that all histograms are on the same scale
-strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3){
-  
-  # First for the sample size covariate (N)
-  gg_all <- ggplot(data=dat, aes(x=get(pval))) + 
-    geom_histogram(binwidth = binwidth, boundary = 0, 
-                   colour="grey", fill="lightgrey") +
-    aes(y=..density..)+
-    theme_classic() +
-    theme(axis.title = element_text(face="bold"),
-          plot.title = element_text(face="bold")) +
-    scale_x_continuous(expand = c(0.02, 0)) + 
-    scale_y_continuous(expand = c(0.02, 0), limits=c(0,maxy)) + 
-    xlab("p-value") +
-    ylab("Density") +
-    ggtitle("All SNPs")
-  
-  dat.strat <- dat %>% 
-    filter(-rank(get(covariate), ties="first") > quantile(-rank(get(covariate), ties="first"), 2/3))
-  gg_top <- ggplot(data=dat.strat, aes(x=get(pval))) + 
-    geom_histogram(binwidth = binwidth, boundary = 0, 
-                   colour="grey", fill="lightgrey") +
-    aes(y=..density..)+
-    theme_classic() +
-    theme(axis.title = element_text(face="bold"),
-          plot.title = element_text(face="bold")) +
-    scale_x_continuous(expand = c(0.02, 0)) + 
-    scale_y_continuous(expand = c(0.02, 0), limits=c(0,maxy)) + 
-    xlab("p-value") +
-    ylab("Density") +
-    ggtitle(paste0("Top third by ", covariate))
-  
-  dat.strat <- dat %>% 
-    filter(-rank(get(covariate), ties="first") <= quantile(-rank(get(covariate), ties="first"), 2/3) &
-           -rank(get(covariate), ties="first") > quantile(-rank(get(covariate), ties="first"), 1/3) )
-  gg_mid <- ggplot(data=dat.strat, aes(x=get(pval))) + 
-    geom_histogram(binwidth = binwidth, boundary = 0, 
-                   colour="grey", fill="lightgrey") +
-    aes(y=..density..)+
-    theme_classic() +
-    theme(axis.title = element_text(face="bold"),
-          plot.title = element_text(face="bold")) +
-    scale_x_continuous(expand = c(0.02, 0)) + 
-    scale_y_continuous(expand = c(0.02, 0), limits=c(0,maxy)) + 
-    xlab("p-value") +
-    ylab("Density") +
-    ggtitle(paste0("Middle third by ", covariate))
-  
-  dat.strat <- dat %>% 
-    filter(-rank(get(covariate), ties="first") <= quantile(-rank(get(covariate), ties="first"), 1/3))
-  gg_bot <- ggplot(data=dat.strat, aes(x=get(pval))) + 
-    geom_histogram(binwidth = binwidth, boundary = 0, 
-                   colour="grey", fill="lightgrey") +
-    aes(y=..density..)+
-    theme_classic() +
-    theme(axis.title = element_text(face="bold"),
-          plot.title = element_text(face="bold")) +
-    scale_x_continuous(expand = c(0.02, 0)) + 
-    scale_y_continuous(expand = c(0.02, 0), limits=c(0,maxy)) + 
-    xlab("p-value") +
-    ylab("Density") +
-    ggtitle(paste0("Lower third by ", covariate))
-  
-  gg_stratified <- plot_grid(gg_all, gg_top, gg_mid, gg_bot,
-                             nrow=1,
-                             labels=c("(a)", "(b)", "(c)","(d)"),
-                             hjust = 0.1)
-  return(gg_stratified)
-}
-
-# rank scatter function to input data frame and the covariate of interest, 
-# and output a ggplot object that displays a scatter plot of the covariate
-# rank versus the -log10 p-value
-# also takes as input the number of bins for geom_hex
-
-# dat = dataframe with each row as a test
-# pval = name of p-value covariate
-# covariate = name of covariate to stratify by
-# bins = number of bins for geom_hex (default 100)
-rank_scatter <- function(dat, pval, covariate, bins=100){
-  gg_scat <- ggplot(dat, aes(y=-log10(get(pval)), 
-                             x=rank(get(covariate), ties="random")/nrow(dat))) +
-      geom_hex(bins = bins) +
-      ylab(expression(-log[10]~p)) +
-      xlab("Covariate Rank")
-    theme_classic()
-  return(gg_scat)
 }
