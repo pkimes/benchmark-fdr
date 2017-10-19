@@ -38,14 +38,9 @@
 #' @details
 #' If a function is specified for either of `effect_size` or `icovariate`, a function must also be
 #' specified for the other parameter.
-#' This function builds on `IHWpaper::du_ttest_sim` originally written by Nikos Ignatiadis
-#' and released under the Artistic-2.0 license. The original function is available at:
-#' https://github.com/nignatiadis/IHWpaper
 #'
 #' @md
-#' @importFrom genefilter rowtests
-#' @importFrom genefilter rowSds
-#' @author Stephanie Hicks, Patrick Kimes
+#' @author Patrick Kimes
 du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NULL) {
 
     library("genefilter")
