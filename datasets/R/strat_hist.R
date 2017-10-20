@@ -43,7 +43,8 @@ strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3, numQ=3){
       theme(axis.title = element_text(face="bold"),
           plot.title = element_text(face="bold")) +
       scale_x_continuous(expand = c(0.02, 0)) + 
-      scale_y_continuous(expand = c(0.02, 0), limits=c(0,maxy)) + 
+      scale_y_continuous(expand = c(0.02, 0)) +
+      coord_cartesian(ylim=c(0, maxy)) + 
       xlab("p-value") +
       ylab("Density") +
       ggtitle(title)
