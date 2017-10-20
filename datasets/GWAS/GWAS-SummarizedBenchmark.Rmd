@@ -30,6 +30,7 @@ library(dplyr)
 library(ggplot2)
 library(magrittr)
 library(R.utils)
+library(cowplot)
 
 # benchmark methods
 library(IHW)
@@ -41,7 +42,6 @@ library(FDRreg)
 
 # comparison tools/functions
 library(SummarizedBenchmark)
-source("benchmark-fdr/simulation_studies/R/simulation-helpers.R")
 sourceDirectory("benchmark-fdr/datasets/R/")
 ```
 
@@ -117,42 +117,25 @@ rank_scatter(bmi, pval="pval", covariate="ind_covariate")
 
 #### Set up BenchDesign object 
 
-First, we'll create an object of `BenchDesign` class to hold the data. 
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object.
 
 **Still to-do: consider multiple covariates for methods that allow this.**
 
 ```{r, GWAS1-benchdesign}
-bd <- BenchDesign(bmi)
-```
-
-Next, we'll add the benchmark methods to the `BenchDesign` object.
-
-```{r, GWAS1-methods}
-# This should maybe be sourced from a common script that everyone uses...
-bd %<>% addBMethod(blabel = "BH", bfunc = p.adjust,
-                 p = pval, method = "BH")
-
-bd %<>% addBMethod("qv", qvalue::qvalue,
-                  p = pval,
-                  bpost = function(x) { x$qvalues })
-
-bd %<>% addBMethod("ihw", IHW::ihw,
-                  pvalues = pval,
-                  covariates = IHW::groups_by_filter(ind_covariate, 5),
-                  alpha = 0.1,
-                  bpost = IHW::adj_pvalues)
+bd <- initializeBenchDesign()
 ```
 
 Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
-```{r, GWAS1-sb}
+```{r, GWAS1-sb, results="hide"}
 resfile <- paste0(resdir, "bmi_summarizedBenchmark_",
                   nrow(bmi), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  sb <- bd %>% buildBench
+  sb <- bd %>% buildBench(data=bmi)
   metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
   save(sb, file=resfile)
   message(paste0("Took ", round((proc.time()-t1)[3],1),
@@ -184,7 +167,9 @@ colData( sb )
 Now, we'll plot the results.
 
 ```{r, GWAS1-plot, results="hide"}
-## to go here - standardized plotting functions from SummarizedBenchmarks -
+# 
+
+## to add here - standardized plotting functions from SummarizedBenchmarks -
 ## to discuss at meeting 10/19
 
 # alpha versus nrejects
@@ -197,5 +182,6 @@ And we'll clean up the workspace before moving on to the next dataset.
 
 ```{r, GWAS1-cleanup}
 rm(bmi)
-rm(bmi_results)
+rm(bd)
+rm(sb)
 ```
