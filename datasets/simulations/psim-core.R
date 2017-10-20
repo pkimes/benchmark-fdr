@@ -163,7 +163,7 @@ bd %<>% addBMethod("scott-empirical",
 ## generate simulation settings
 ## ##############################################################################
 
-settings <- define_settings(setting_base, setting_vparam, setting_icparam)
+settings <- psim_settings(setting_base, setting_vparam, setting_icparam)
 
 
 ## ##############################################################################

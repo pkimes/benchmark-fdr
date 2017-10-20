@@ -10,13 +10,13 @@
 #'
 #' For a specified simulation settings ('setting_vparam' + 'setting_icparam'),
 #' this script applied FDR correction to results from a collection of independent
-#' t-tests. For more deetails on the simulation settings, see the `define_settings`
+#' t-tests. For more details on the simulation settings, see the `tsim_settings`
 #' function defined in `sim-core-settings.R`. 
 #'
 #' This script works with the following other scripts:
 #' - `R/du_tsim.R`: `du_tsim`
 #'     This function is used for actually simulating t-tests.
-#' - `sim-core-settings.R`: `define_settings`
+#' - `sim-core-settings.R`: `tsim_settings`
 #'     This function is used for defining the settings to be passed to
 #'     `du_tsim` for the simulations.
 #' - `tsim-submit.R`: 
@@ -176,7 +176,7 @@ bd %<>% addBMethod("scott-empirical",
 ## generate simulation settings
 ## ##############################################################################
 
-settings <- define_settings(setting_base, setting_vparam, setting_icparam)
+settings <- tsim_settings(setting_base, setting_vparam, setting_icparam)
 
 
 ## ##############################################################################
