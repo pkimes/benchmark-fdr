@@ -21,10 +21,6 @@ ncores <- as.integer(args[2])
 setting_vparam <- args[3]
 setting_icparam <- args[4]
 
-M <- 10
-ncores <- 1
-setting_vparam <- "esize_fixed"
-setting_icparam <- "bl"
 
 ## ##############################################################################
 ## install packages
