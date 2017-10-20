@@ -1,5 +1,5 @@
-#' T-Test Simulations for FDR Assessment
-#' 
+#' Direct Parameter Simulations for FDR Assessment
+#'
 #' This script is should be run from the command line with the following
 #' four ordered arguments:
 #'
@@ -7,23 +7,6 @@
 #' 2. ncores: integer number of computing cores to use for parallelization
 #' 3. setting_vparam: simulation setting (variable parameter)
 #' 4. setting_icparam: simulation setting (informative covariate parameter)
-#'
-#' For a specified simulation settings ('setting_vparam' + 'setting_icparam'),
-#' this script applied FDR correction to results from a collection of independent
-#' t-tests. For more deetails on the simulation settings, see the `define_settings`
-#' function defined in `sim-core-settings.R`. 
-#'
-#' This script works with the following other scripts:
-#' - `R/du_tsim.R`: `du_tsim`
-#'     This function is used for actually simulating t-tests.
-#' - `sim-core-settings.R`: `define_settings`
-#'     This function is used for defining the settings to be passed to
-#'     `du_tsim` for the simulations.
-#' - `tsim-submit.R`: 
-#'     This script is a wrapper to submit jobs to the SLURM cluster.
-#' 
-#' The results of the simulations are saved as RDS files containing a list
-#' of `SummarizedBenchmark` objects of length M.
 #'
 #' @author Patrick Kimes
 
@@ -38,6 +21,10 @@ ncores <- as.integer(args[2])
 setting_vparam <- args[3]
 setting_icparam <- args[4]
 
+M <- 10
+ncores <- 1
+setting_vparam <- "esize_fixed"
+setting_icparam <- "bl"
 
 ## ##############################################################################
 ## install packages
@@ -84,10 +71,12 @@ library("doParallel")
 
 ## helper scripts, e.g. wrappers to FDRreg, clfdr
 source("R/simulation-helpers.R")
-source("R/du_tsim.R")
+source("R/du_psim.R")
+source("R/funcs_pi0.R")
+source("R/funcs_tstat.R")
 
 ## parameter settings
-source("tsim-core-settings.R")
+source("psim-core-settings.R")
 
 ## helper digest function
 library("digest")
@@ -104,12 +93,12 @@ registerDoParallel(cores = ncores)
 ## ##############################################################################
 
 ## setting 0: (base) null simulation setting
-setting_base <- list(m = 20000,          # number of hypothesis tests
-                     pi0 = 1,            # proportion of null hypotheses
-                     effect_size = 0,    # expected mean diff of non-null tests
-                     n_samples = 10,     # number of samples per group
-                     n_groups = 2,       # number of groups in contrast
-                     icovariate = FALSE) # self-explainatory
+setting_base <- list(m = 20000,                        # integer: number of hypothesis tests
+                     pi0 = 1,                          # numeric: proportion of null hypotheses
+                     tstat = rnorm_generator(0, 1),    # functional: dist of alternative test stats
+                     tstat_dist = rnorm_perturber(1),  # functional: sampling dist/noise for test stats
+                     null_dist = rnorm_2pvaluer(1),    # functional: dist to calc p-values
+                     icovariate = runif)               # functional: independent covariate
 
 
 ## ##############################################################################
@@ -191,7 +180,7 @@ if (M == 1) {
         iset <- settings[[idx]]
 
         ## check if sim already run
-        outf <- paste0("data-tsim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-psim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
                        "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
@@ -202,7 +191,7 @@ if (M == 1) {
         set.seed(sim_seed)
 
         ## simulate data with seed
-        sim_df <- do.call(du_tsim, iset)
+        sim_df <- do.call(du_psim, iset)
         names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
         
         ## calc data digest
@@ -212,7 +201,7 @@ if (M == 1) {
         sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
         
         ## add simulation information to metadata
-        metadata(sb)$sim_func <- du_tsim
+        metadata(sb)$sim_func <- du_psim
         metadata(sb)$sim_parameters <- iset
         metadata(sb)$sim_seed <- sim_seed
         metadata(sb)$sim_digest <- sim_digest
@@ -227,7 +216,7 @@ if (M == 1) {
         iset <- settings[[idx]]
         
         ## check if sim already run
-        outf <- paste0("data-tsim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-psim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
                        "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
@@ -240,7 +229,7 @@ if (M == 1) {
             set.seed(sim_seed)
             
             ## simulate data with seed
-            sim_df <- do.call(du_tsim, iset)
+            sim_df <- do.call(du_psim, iset)
             names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
 
             ## calc data digest
@@ -250,7 +239,7 @@ if (M == 1) {
             sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
 
             ## add simulation information to metadata
-            metadata(sb)$sim_func <- du_tsim
+            metadata(sb)$sim_func <- du_psim
             metadata(sb)$sim_parameters <- iset
             metadata(sb)$sim_seed <- sim_seed
             metadata(sb)$sim_digest <- sim_digest

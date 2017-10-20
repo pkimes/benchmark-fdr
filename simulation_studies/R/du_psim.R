@@ -30,9 +30,9 @@
 #' @return
 #' data.frame of test results for `m` simulated data sets, with columns:
 #' * `H`: 0/1 indicator whether data simulated under null (0) or alternative (1)
-#' * `test_statistic`: t-test statistic
-#' * `effect_size`: group mean difference
-#' * `pval`: t-test p-value
+#' * `test_statistic`: simulated test statistic (NOT scaled by SE estimate)
+#' * `effect_size`: z-score transform of p-value (not really effect size)
+#' * `pval`: test p-value calculated from test-statistic using `null_dist`
 #' * `ind_covariate`: the independent covariate 
 #'
 #' @details
@@ -80,7 +80,7 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
 
     ## calculate p-values and 'effect size' (just N(0,1) z-score)
     pv <- null_dist(ts)
-    es <- qnorm(pv)
+    es <- qnorm(1 - pv / 2) * sign(ts)
 
     ## return test results as data.frame
     data.frame(H = H, test_statistic = ts, effect_size = es,
