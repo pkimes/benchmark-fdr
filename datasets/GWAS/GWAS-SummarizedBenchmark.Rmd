@@ -17,7 +17,7 @@ perform the benchmarking in a standardized way.
 
 ### Workspace setup
 
-```{r, wkspace-setup}
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 # project directory & data/results folders
 setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
 datdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/DATA/GWAS/"
@@ -93,7 +93,7 @@ It looks like we have:
 for 2,458,133 SNPs.
 
 Before moving on, we'll rename the relevant columns so that they will use common terms
-across the different datasets. We'll also add a 'zscore' column, and subset on a 
+across the different datasets. We'll also add a 'test_statistic' column, and subset on a 
 toy example before moving on to the full dataset.
 
 ```{r, GWAS1-reformat}
@@ -102,10 +102,10 @@ bmi <- bmi %>%
                SE = stderr,
                effect_size = effect,
                ind_covariate = N) %>%
-        mutate(zscore = effect_size/SE) 
+        mutate(test_statistic = effect_size/SE) 
 
 ### experimenting on a subset of the full dataset for now
-bmi <- bmi[1:10000,]
+bmi <- bmi[1:50000,]
 ```
 
 #### Check Covariate Diagnostics
@@ -166,8 +166,9 @@ colData( sb )
 
 Now, we'll plot the results.
 
-```{r, GWAS1-plot, results="hide"}
-# 
+```{r, GWAS1-plot, results="hide", width=15, height=12}
+# plot adjusted p-values by effect_size (diagnostic from ASH paper)
+plotsim_single(data.frame(assay(sb)), bmi, strat = "effect_size") 
 
 ## to add here - standardized plotting functions from SummarizedBenchmarks -
 ## to discuss at meeting 10/19
