@@ -1,22 +1,42 @@
-#' Simulation Setting Blocks for FDR Benchmarking
+#' Direct Parameter Simulation Settings for FDR Benchmarking
 #'
 #' Function takes a baseline set of simulation settings for the
-#' `du_ttest_sim` function and returns a list of alternative simulation
+#' `du_psim` function and returns a list of alternative simulation
 #' settings which should be run jointly. 
 #'
-#' @param sbase
+#' @param sbase default simulation settings to be modified.
 #' @param vparam variable parameter; should be one of: "pi0",
-#'        "esize_fixed", "esize_random"
+#'        "esize_fixed", "esize_random_ua", "esize_random_shift",
+#'        "altnoise".
 #' @param icparam independent/informative covariate parameter; should be
-#'        one of: "uniform", "bl"
+#'        one of: "uniform", "bl".
 #'
 #' @description
-#' The following alternative parameter groups are defined.
-#' - `sidx = 1`: no informative covariate, varying null proportion
+#' The following simulation groups are defined:
+#' - `vparam`: variable parameter
+#'     - `pi0`: for fixed effect size, varying null prop
+#'     - `esize_fixed`: varying effect size taken to be the same fixed
+#'                      value across all alternative tests.
+#'     - `esize_random_ua`: varying effect size sampled from a (mostly)
+#'                          unimodal set of distributions centered at zero
+#'                          (distributions from ASH paper).
+#'     - `esize_random_shift`: varying effect size sampled from a set of
+#'                             distributions not centered at zero
+#'                             (shifted normal, non-central t, non-central chi-sq). 
+#'     - `altnoise`: varying sampling distributions for perturbing the
+#'                   test statistics (both null and alternative)
+#'                   (shifted normal, non-central t, non-central chi-sq).
+#' - `icparam`: independent covariate structure
+#'     - `uniform`: covariate sampled from uniform (0, 1) interval AND
+#'                  no association between covariate and distribution of
+#'                  p-values is introduced.
+#'     - `bl`: covariate sampled from uniform (0, 1) interval AND
+#'             the probability of a test being null (pi0) is given a functional
+#'             form of the single covariate (as in the Boca-Leek paper).
 #' 
 #' @author Patrick Kimes
 
-define_settings <- function(sbase, vparam, icparam) {
+psim_settings <- function(sbase, vparam, icparam) {
 
     ## check that variable parameter is one of specified set
     vp <- c("pi0", "esize_fixed", "esize_random_ua", "esize_random_shift", "altnoise")
@@ -30,20 +50,10 @@ define_settings <- function(sbase, vparam, icparam) {
     if (vparam == "pi0" && icparam == "bl") {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
     }
-
-    ## ##########################################################################
-    ## define type of informative/independent covariate by 'icparam'
-
-    if (icparam == "uniform") {
-        ## don't need to do anything
-    } else if (icparam == "bl") {
-        source("R/funcs_pi0.R")
-        sbase <- replace(sbase, c("pi0", "icovariate"), c(pi0_smooth1, runif))
-    }
     
     ## ##########################################################################
     ## define main simulations settings by 'vparam'
-
+    
     if (vparam == "pi0") {
         ## varying pi0 (null proportions) #######################################
         settings <- lapply(seq(.1, 1, by=.1),
@@ -52,19 +62,18 @@ define_settings <- function(sbase, vparam, icparam) {
                                                  c(p, function(zz) { 1.5 }))
                            })
         names(settings) <- paste0("altp0_", 1:10)
-
+        
     } else if (vparam == "esize_fixed") {
         ## varying effect size (fixed value) ####################################
         settings <- lapply(seq(0, 2, by=.2),
                            function(x) { replace(sbase,
                                                  c("pi0", "tstat"),
                                                  c(0.8, function(zz) { x })
-                           })
+                           }))
         names(settings) <- paste0("alteff_", seq(0, 20, by=2))
         
     } else if (vparam == "esize_random_ua") {
         ## varying effect size (stochastic/UA) ##################################
-        source("R/funcs_tstat.R")
         settings <- list("alteff_spiky" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, sampler_spiky)),
@@ -85,8 +94,7 @@ define_settings <- function(sbase, vparam, icparam) {
                                      c(0.8, sampler_near_normal)))
         
     } else if (vparam == "esize_random_shift") {
-        ## varying effect size not  ##################################
-        ## add settings for rnorm/rt/rchisq_generator
+        ## varying effect size (mean shifted distributions) #####################
         settings <- list("alteff_normal_shift1" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, rnorm_generator(1))),
@@ -107,7 +115,7 @@ define_settings <- function(sbase, vparam, icparam) {
                                      c(0.8, rchisq_generator(3, 1))))
         
     } else if (vparam == "altnoise") {
-        ## add settings for rnorm/rt/rchisq_generator
+        ## varying sampling noise ###############################################
         settings <- list("altnoise_t_df5" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
                                      c(0.8, sampler_bimodal, rt_perturber(5), rt_2pvaluer(5))),
@@ -123,7 +131,16 @@ define_settings <- function(sbase, vparam, icparam) {
                                      c(0.8, rchisq_generator(1, 1+3^2), rchisq_perturber(3),
                                        rchisq_pvaluer(1))))
     }
-
+    
+    ## ##########################################################################
+    ## define type of informative/independent covariate by 'icparam'
+    
+    if (icparam == "uniform") {
+        ## don't need to do anything
+    } else if (icparam == "bl") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_smooth1, runif))
+    }
+    
     return(settings)
 }
 

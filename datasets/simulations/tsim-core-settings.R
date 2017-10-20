@@ -1,22 +1,35 @@
-#' Simulation Setting Blocks for FDR Benchmarking
+#' T-Test Simulation Settings for FDR Benchmarking
 #'
 #' Function takes a baseline set of simulation settings for the
-#' `du_ttest_sim` function and returns a list of alternative simulation
+#' `du_tsim` function and returns a list of alternative simulation
 #' settings which should be run jointly. 
 #'
-#' @param sbase
+#' @param sbase default simulation settings to be modified.
 #' @param vparam variable parameter; should be one of: "pi0", "n",
-#'        "esize_fixed", "esize_random"
+#'        "esize_fixed", "esize_random".
 #' @param icparam independent/informative covariate parameter; should be
-#'        one of: "uniform", "se", "bl"
+#'        one of: "uniform", "se", "bl".
 #'
-#' @description
-#' The following alternative parameter groups are defined.
-#' - `sidx = 1`: no informative covariate, varying null proportion
+#' @details
+#' The following simulation groups are defined:
+#' - `vparam`: variable parameter
+#'     - `pi0`: for fixed effect size and sample size, varying null prop.
+#'     - `n`: for fixed effect size and null prop, varying sample sizes.
+#'     - `esize_fixed`: for fixed sample size and null prop, varying effect size
+#'                      taken to be the same fixed value across all alternative tests.
+#'     - `esize_random`: for fixed sample size and null prop, varying effect size
+#'                       sampled from (mostly) unimodal set of distributions centered
+#'                       centered at zero (distributions from ASH paper).
+#' - `icparam`: independent covariate structure
+#'     - `uniform`: covariate sampled from uniform (0, 1) interval.
+#'     - `se`: standard error used as covariate (as in IHW paper).
+#'     - `bl`: covariate sampled from uniform (0, 1) interval AND
+#'             probability of test being null (pi0) takes a functional
+#'             form of the single covariate (as in the Boca-Leek paper).
 #' 
 #' @author Patrick Kimes
 
-define_settings <- function(sbase, vparam, icparam) {
+tsim_settings <- function(sbase, vparam, icparam) {
 
     ## check that variable parameter is one of specified set
     vp <- c("pi0", "n", "esize_fixed", "esize_random")
@@ -29,18 +42,6 @@ define_settings <- function(sbase, vparam, icparam) {
     ## filter out unsupported setting pairs
     if (vparam == "pi0" && icparam == "bl") {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
-    }
-
-    ## ##########################################################################
-    ## define type of informative/independent covariate by 'icparam'
-
-    if (icparam == "uniform") {
-        ## don't need to do anything
-    } else if (icparam == "se") {
-        sbase <- replace(sbase, "icovariate", TRUE)
-    } else if (icparam == "bl") {
-        source("R/funcs_pi0.R")
-        sbase <- replace(sbase, c("pi0", "icovariate"), c(pi0_smooth1, runif))
     }
     
     ## ##########################################################################
@@ -82,7 +83,6 @@ define_settings <- function(sbase, vparam, icparam) {
         
     } else if (vparam == "esize_random") {
         ## varying effect size (stochastic/UA) ##################################
-        source("R/funcs_tstat.R")
         settings <- list("alteff_spiky" =
                              replace(sbase, c("pi0", "effect_size"),
                                      c(0.8, sampler_spiky)),
@@ -104,6 +104,18 @@ define_settings <- function(sbase, vparam, icparam) {
                          )
     }
         
+
+    ## ##########################################################################
+    ## define type of informative/independent covariate by 'icparam'
+
+    if (icparam == "uniform") {
+        ## don't need to do anything
+    } else if (icparam == "se") {
+        settings <- lapply(settings, replace, "icovariate", TRUE)
+    } else if (icparam == "bl") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_smooth1, runif))
+    }
+
     return(settings)
 }
 
