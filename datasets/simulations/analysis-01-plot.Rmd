@@ -18,6 +18,7 @@ output:
 ```{r, load-libraries, message=FALSE}
 library("dplyr")
 library("ggplot2")
+library("viridis")
 library("data.table")
 library("SummarizedBenchmark")
 ```
@@ -26,6 +27,8 @@ library("SummarizedBenchmark")
 source("../R/plotsim_standardize.R")
 source("../R/plotsim_average.R")
 source("../R/plotsim_single.R")
+source("../R/rank_scatter.R")
+source("../R/strat_hist.R")
 ```
 
 <!-- ######################################################################## -->
@@ -66,6 +69,19 @@ for (dd in dl) {
         gp <- plotsim_single(sbas, sim_df, "SE", TRUE)
         ggsave(paste0(outp, "/SE-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
                gp, width=10, height=9, units="in", dpi=200)
+
+        ## covariate rank vs. nlp (unadjusted)
+        gp <- rank_scatter(sim_df, "pval", "ind_covariate") +
+            scale_fill_viridis(option="viridis", direction=-1) +
+            ggtitle("Informative Covariate Check")
+        ggsave(paste0(outp, "/truep-heatmap-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
+               gp, width=10, height=6, units="in", dpi=200)
+
+        ## stratified covariate vs. nlp (unadjusted)
+        gp <- strat_hist(sim_df, "pval", "ind_covariate", maxy=5) +
+            ggtitle("Informative Covariate Check")
+        ggsave(paste0(outp, "/truep-barchart-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
+               gp, width=10, height=4, units="in", dpi=200)
     }
 }
 ```
