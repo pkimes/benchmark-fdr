@@ -12,29 +12,6 @@ output:
 ---
 
 <!-- ######################################################################## -->
-<!-- preliminaries                                                            --> 
-<!-- ######################################################################## -->
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r, install-benchmarked-methods, eval=FALSE}
-## from CRAN
-install.packages("ashr")
-
-## from Bioconductor
-BiocInstaller::biocLite("IHW")
-BiocInstaller::biocLite("qvalue")
-BiocInstaller::biocLite("swfdr")
-
-## from GitHub
-devtools::install_github('jgscott/FDRreg', subdir="R_pkg/")
-devtools::install_github("nignatiadis/IHWpaper")
-```
-
-
-<!-- ######################################################################## -->
 ## Workspace Setup
 <!-- ######################################################################## -->
 
@@ -46,8 +23,51 @@ library("SummarizedBenchmark")
 ```
 
 ```{r, load-helper-functions}
-source("analysis-01-plotters.R")
-source("../datasets/R/evaluation-helpers.R")
+source("../R/plotsim_standardize.R")
+source("../R/plotsim_average.R")
+source("../R/plotsim_single.R")
+```
+
+<!-- ######################################################################## -->
+## Plot Adjusted P-Values (1 replication)
+<!-- ######################################################################## -->
+
+```{r}
+## list of results from 100 replication experiments
+dl <- list.dirs("data-tsim/M1", recursive=FALSE, full.names=TRUE)
+
+for (dd in dl) {
+    fl <- list.files(dd, pattern=".rdata", full.names=TRUE)
+
+    outp <- gsub("data", "plots", dd)
+    dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+    
+    ## generate same plots for all parameter settings
+    for (f in fl) {
+        ## read process data
+        load(f)
+        sba <- data.frame(assay(sb))
+
+        ## for plots, only interested in Boca-Leek w/ 3 dof, IHw w/ alpha=0.05
+        sbas <- select(sba, -c(`bl.df02`, `bl.df04`, `bl.df05`, `bonf`,
+                               `ihw.a01`:`ihw.a04`, `ihw.a06`:`ihw.a10`))
+
+        ## adjusted p-values vs. effect size
+        gp <- plotsim_single(sbas, sim_df, "effect_size", TRUE)
+        ggsave(paste0(outp, "/effectsize-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
+               gp, width=10, height=9, units="in", dpi=200)
+
+        ## adjusted p-values vs. independent covariate (uniformative)
+        gp <- plotsim_single(sbas, sim_df, "ind_covariate", TRUE)
+        ggsave(paste0(outp, "/indcov-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
+               gp, width=10, height=9, units="in", dpi=200)
+
+        ## adjusted p-values vs. standard error
+        gp <- plotsim_single(sbas, sim_df, "SE", TRUE)
+        ggsave(paste0(outp, "/SE-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
+               gp, width=10, height=9, units="in", dpi=200)
+    }
+}
 ```
 
 <!-- ######################################################################## -->
@@ -56,76 +76,48 @@ source("../datasets/R/evaluation-helpers.R")
 
 ```{r}
 ## list of results from 100 replication experiments
-fl <- list.files("data", pattern="results-.*-M100.RDS", full.names=TRUE)
+dl <- list.dirs("data-tsim/M100", recursive=FALSE, full.names=TRUE)
 
-## generate same plots for all parameter settings
-for (f in fl) {
-    ## read process data
-    res <- readRDS(f)
-    tsb <- standardize_results(res, alpha = seq(0.01, 0.10, 0.01))
-    tsbs <- tsb %>%
-        filter(!(blabel %in% c("bl-df02", "bl-df04", "bl-df05", "bonf"))) 
+for (dd in dl) {
+    fl <- list.files(dd, pattern=".rds", full.names=TRUE)
 
-    ## look at FPR for Boca-Leek variations
-    gp <- tsb %>%
-        filter(grepl("^bl-", blabel)) %>%
-        average_plots("FPR")
-    ggsave(paste0("plots/FPR-bocaleek-",
-                  gsub("(.*)\\.RDS", "\\1", basename(f)), ".png"), gp,
-           width=7, height=6, units="in", dpi=200)
+    outp <- gsub("data", "plots", dd)
+    dir.create(outp, showWarnings=FALSE, recursive=TRUE)
     
-    ## look at FPR for IHW variations
-    gp <- tsb %>%
-        filter(grepl("^ihw-", blabel)) %>%
-        average_plots("FPR", merge_ihw = FALSE)
-    ggsave(paste0("plots/FPR-ihw-",
-                  gsub("(.*)\\.RDS", "\\1", basename(f)), ".png"), gp,
-           width=7, height=6, units="in", dpi=200)
-    
-    ## make plots for all metrics
-    for (im in unique(tsbs$performanceMetric)) {
-        gp <- average_plots(tsbs, im, clean_names = TRUE)
-        ggsave(paste0("plots/", im, "-", gsub("(.*)\\.RDS", "\\1", basename(f)), ".png"), gp,
+    ## generate same plots for all parameter settings
+    for (f in fl) {
+        ## read process data
+        res <- readRDS(f)
+        tsb <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+        tsbs <- tsb %>%
+            filter(!(blabel %in% c("bl-df02", "bl-df04", "bl-df05", "bonf"))) 
+
+        ## look at FPR for Boca-Leek variations
+        gp <- tsb %>%
+            filter(grepl("^bl-", blabel)) %>%
+            plotsim_average("FPR")
+        ggsave(paste0(outp, "/FPR-bocaleek-",
+                      gsub("(.*)\\.rds", "\\1", basename(f)), ".png"), gp,
                width=7, height=6, units="in", dpi=200)
+        
+        ## look at FPR for IHW variations
+        gp <- tsb %>%
+            filter(grepl("^ihw-", blabel)) %>%
+            plotsim_average("FPR", merge_ihw = FALSE)
+        ggsave(paste0(outp, "/FPR-ihw-",
+                      gsub("(.*)\\.rds", "\\1", basename(f)), ".png"), gp,
+               width=7, height=6, units="in", dpi=200)
+        
+        ## make plots for all metrics
+        for (im in unique(tsbs$performanceMetric)) {
+            gp <- plotsim_average(tsbs, im, clean_names = TRUE)
+            ggsave(paste0(outp, "/", im, "-", gsub("(.*)\\.rds", "\\1", basename(f)), ".png"), gp,
+                   width=7, height=6, units="in", dpi=200)
+        }
     }
 }
 ```
 
-
-<!-- ######################################################################## -->
-## Plot Adjusted P-Values (1 replication)
-<!-- ######################################################################## -->
-
-```{r}
-## list of results from 1 replication experiments
-fl <- list.files("data", pattern = "results-.*-M1.rdata", full.names = TRUE)
-
-## generate same plots for all parameter settings
-for (f in fl) {
-    ## read process data
-    load(f)
-    sba <- data.frame(assay(sb))
-
-    ## for plots, only interested in Boca-Leek w/ 3 dof, IHw w/ alpha=0.05
-    sbas <- select(sba, -c(`bl.df02`, `bl.df04`, `bl.df05`, `bonf`,
-                           `ihw.a01`:`ihw.a04`, `ihw.a06`:`ihw.a10`))
-
-    ## adjusted p-values vs. effect size
-    gp <- single_plots(sbas, sim_df, "effect_size", TRUE)
-    ggsave(paste0("plots/effectsize-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
-           gp, width=10, height=9, units="in", dpi=200)
-
-    ## adjusted p-values vs. independent covariate (uniformative)
-    gp <- single_plots(sbas, sim_df, "ind_covarate", TRUE)
-    ggsave(paste0("plots/indcov-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
-           gp, width=10, height=9, units="in", dpi=200)
-
-    ## adjusted p-values vs. standard error
-    gp <- single_plots(sbas, sim_df, "SE", TRUE)
-    ggsave(paste0("plots/SE-adjp-", gsub("(.*)\\.rdata", "\\1", basename(f)), ".png"),
-           gp, width=10, height=9, units="in", dpi=200)
-}
-```
 
 
 
