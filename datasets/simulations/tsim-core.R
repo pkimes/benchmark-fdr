@@ -82,6 +82,7 @@ source("../R/simulation-helpers.R")
 source("../R/du_tsim.R")
 source("../R/funcs_pi0.R")
 source("../R/funcs_tstat.R")
+source("../R/common-BenchDesign.R")
 
 ## parameter settings
 source("tsim-core-settings.R")
@@ -110,8 +111,7 @@ setting_base <- list(m = 20000,          # number of hypothesis tests
 ## define bechmarking design
 ## ##############################################################################
 
-source("../R/common-BenchDesign.R")
-
+bd <- initializeBenchDesign()
 
 ## ##############################################################################
 ## generate simulation settings
@@ -168,7 +168,7 @@ if (M == 1) {
         
         ## check if sim already run
         outf <- paste0("data-tsim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
-                       "results-", names(settings)[idx], "-M", M, ".rdata")
+                       "results-", names(settings)[idx], "-M", M, ".rds")
         if (file.exists(outf)) {
             next
         }

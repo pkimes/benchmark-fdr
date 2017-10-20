@@ -65,6 +65,7 @@ source("../R/simulation-helpers.R")
 source("../R/du_psim.R")
 source("../R/funcs_pi0.R")
 source("../R/funcs_tstat.R")
+source("../R/common-BenchDesign.R")
 
 ## parameter settings
 source("psim-core-settings.R")
@@ -93,7 +94,10 @@ setting_base <- list(m = 20000,                        # integer: number of hypo
 ## define bechmarking design
 ## ##############################################################################
 
-source("../R/common-BenchDesign.R")
+bd <- initializeBenchDesign()
+
+## remove ash since these sims don't have SE estimates
+bd$methods <- bd$methods[-(which(names(bd$methods) == "ashs"))]
 
 
 ## ##############################################################################
@@ -151,7 +155,7 @@ if (M == 1) {
         
         ## check if sim already run
         outf <- paste0("data-psim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
-                       "results-", names(settings)[idx], "-M", M, ".rdata")
+                       "results-", names(settings)[idx], "-M", M, ".rds")
         if (file.exists(outf)) {
             next
         }
