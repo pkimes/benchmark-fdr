@@ -1,0 +1,137 @@
+---
+title: "GSEA datasets for FDR benchmarking"
+author: "Alejandro Reyes (on behalf of the Rafalab Benchmarking Consortium)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Differential expression analysis with DESeq2
+
+Downloading *DESeqDataSet* if not present locally,
+	    
+```{r, message=FALSE}
+
+file <- "dsd.RData"
+if(!file.exists( file ) ){
+    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",destfile="dsd.RData")
+}
+load(file)
+
+library(DESeq2)
+levels(colData(dsdObject)$individual) <- gsub("GTEX-", "",levels(colData(dsdObject)$individual))
+
+```
+
+Specify model matrix design and run DESeq2 to get differentially expressed genes. 
+
+```{r deseq2}
+
+library(EnsDb.Hsapiens.v86)
+gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
+dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
+dsdObject <- DESeq(dsdObject)
+res <- results( dsdObject, lfcThreshold=1 )
+
+```
+
+Performing a gene set enrichment analysis with goseq.
+	   
+```{r goseq, message=FALSE}
+
+library(goseq)
+
+file="goSets.RData"
+if(!file.exists(file)){
+  stopifnot( require( biomaRt ) )
+  mart <- useMart( "ensembl", "hsapiens_gene_ensembl" )
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
+  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
+  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
+  save(goSets, file=file)
+}else{
+  load(file)
+}
+
+genes <- as.numeric( res$padj < 0.1 )
+names( genes ) <- rownames( res )
+
+### getting median transcript length
+txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
+geneLength <- sapply( width( txByGene ), median )
+geneLength <- geneLength[names(genes)]
+genes[is.na( genes )] <- 0
+
+any( is.na(genes) )
+stopifnot(!any(is.na(genes)))
+pwf <- nullp(genes, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+
+```
+
+
+
+```{r, fig.height=3.5, fig.width=4, message=FALSE}
+library(ggplot2)
+library(magrittr)
+library(cowplot)
+
+ggplot( goRes,
+       aes( log10(numInCat), -log10(over_represented_pvalue) ) ) +
+    geom_hex(aes( alpha=log2(..count..)), fill="black", color="black", bins=100, show.legend=FALSE) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab(expression(log[10]~"(# of genes)")) +
+    ylab(expression(-log[10]~"(p-value)")) 
+
+```
+
+```{r, message=FALSE}
+library(IHW)
+goRes$groups <- groups_by_filter( goRes$numInCat, 10 )
+
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+#dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+
+dplyr:::filter( goRes, numInCat > 10, numDEInCat > 0 ) %>%
+  dplyr:::mutate( groups = groups_by_filter( numInCat, 4 ) ) %>%
+  ggplot(aes(x=over_represented_pvalue)) + 
+  geom_histogram(binwidth = 0.025, boundary = 0) +
+  facet_wrap( ~ groups, nrow = 2) +
+  ggtitle("Distribution of p-values") +
+  ylab("Frequency") + xlab("p-value")
+
+```
+ 
+ Generating the *SummarizedBenchmark* object:
+ 
+```{r}
+
+library(R.utils)
+sourceDirectory("../R/")
+
+designBen <- initializeBenchDesign()
+res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+res$pval <- pmin( res$pval, 1 )
+
+sGSEA <- designBen %>% buildBench( res )
+assayNames(sGSEA) <- names( rowData(sGSEA) ) <-  names(sGSEA@performanceMetrics) <- "qvalue"
+
+sGSEA <- addDefaultMetrics( sGSEA )
+
+estimatePerformanceMetrics( sGSEA, alpha=seq(0, 0.6, 0.1), tidy=TRUE ) %>%
+  dplyr:::filter(pkg_name == "IHW") %>%
+  head
+
+    
+  dplyr:::select(blabel, key, value, assay, performanceMetric, alpha ) %>%
+  dplyr:::filter(blabel!="unadjusted") %>%
+  ggplot( aes(alpha, value, col=blabel) ) +
+  geom_line() +
+  geom_point()
+
+```
+ 
