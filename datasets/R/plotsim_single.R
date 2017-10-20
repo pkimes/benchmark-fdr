@@ -52,7 +52,7 @@ plotsim_single <- function(sba, df, strat = "effect_size", clean_names = FALSE) 
     }
 
     ## check for negative adjusted p-values and throw warning; still plot with 0s
-    if (any(sba$adjp < 0)) {
+    if (any(sba$adjp < 0, na.rm=TRUE)) {
         negp <- which(sba$adjp < 0)
         nneg <- length(negp)
         mneg <- paste(unique(sba$method[negp]), collapse=",")
