@@ -59,14 +59,8 @@ rt_generator <- function(df, m = 0) {
 }
 
 ## function factory: non-central chi-sq distribution
-rchisq_generator <- function(df, m = 0) {
-    if (m == 0) {
-        return(function(n) { rchisq(n, df) })
-    } else {
-        ncp <- m - df
-        stopifnot(ncp > 0)
-        return(function(n) { rchisq(n, df, ncp) })
-    }
+rchisq_generator <- function(df, ncp = 0) {
+    return(function(n) { rchisq(n, df, ncp) })
 }
 
 ## ##############################################################################
@@ -75,8 +69,10 @@ rchisq_generator <- function(df, m = 0) {
 ## function factory: normal perturbation
 ## - returns functions which takes input vector and simulates normal
 ##   random variables with specified vector as means.
+## - returned function can also return (true) SD of sampling dist
 rnorm_perturber <- function(s = 1) {
-    function(m) {
+    function(m, se = FALSE) {
+        if (se) { return(rep(s, length(m))) }
         rnorm(length(m), m, s)
     }
 }
@@ -84,25 +80,28 @@ rnorm_perturber <- function(s = 1) {
 ## function factory: non-central t distribution
 ## - returns functions which takes input vector and simulates non-central t
 ##   random variables with specified vector as means.
+## - returned function can also return (true) SD of sampling dist
 rt_perturber <- function(df) {
-    if (df <= 1) {
-        stop("eep! mean for non-central t-distribution not defined for df = 1.")
+    if (df <= 2) {
+        stop("var not defined for non-central t with df <= 2.")
     }
-    
-    function(m) {
+    function(m, se = FALSE) {
         ncp <- m / gamma((df-1)/2) * gamma(df/2) / sqrt(df/2)
-        rt(length(m), df, ncp)
+        if (se) { return(sqrt(df*(1+ncp^2) / (df-2) - m^2)) }
+        ## rt(..) w/ length(ncp) > 1 throws warning - just call underlying code
+        rnorm(length(m), ncp) / sqrt(rchisq(length(m), df) / df)
     }
 }
 
 ## function factory: non-central chi-sq perturbation
 ## - returns functions which takes input vector and sim non-central chi-sq
 ##   random variables with specified vector as means.
+## - returned function can also return (true) SD of sampling dist
 rchisq_perturber <- function(df) {
-    function(m) {
-        ncp <- m - df
-        stopifnot(ncp > 0)
-        rchisq(length(m), df, ncp)
+    function(ncp, se = FALSE) {
+        stopifnot(ncp >= 0)
+        if (se) { return(sqrt(2 * df + 4 * ncp)) }
+        rchisq(length(ncp), df, ncp)
     }
 }
 
@@ -125,4 +124,3 @@ rt_2pvaluer <- function(df) {
 rchisq_pvaluer <- function(df) {
     function(x) { 1 - pchisq(x, df) }
 }
-

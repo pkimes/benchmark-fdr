@@ -106,30 +106,38 @@ psim_settings <- function(sbase, vparam, icparam) {
                                      c(0.8, rt_generator(10, 1))),
                          "alteff_t_shift2_df10" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rt_generator(10, 1))),
-                         "alteff_chisq_shift1_df3" =
+                                     c(0.8, rt_generator(10, 2))),
+                         "alteff_chisq_shift0_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 1))),
+                                     c(0.8, rchisq_generator(3, 0))),
                          "alteff_chisq_shift2_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 1))))
+                                     c(0.8, rchisq_generator(3, 2))))
         
     } else if (vparam == "altnoise") {
         ## varying sampling noise ###############################################
-        settings <- list("altnoise_t_df5" =
+        settings <- list("altnoise_t_df5_bimodal" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
                                      c(0.8, sampler_bimodal, rt_perturber(5), rt_2pvaluer(5))),
-                         "altnoise_t_df10" =
+                         "altnoise_t_df10_bimodal" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
                                      c(0.8, sampler_bimodal, rt_perturber(10), rt_2pvaluer(10))),
-                         "altnoise_chisq_df1" =
+                         "altnoise_chisq_df1_shift2sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 1+3^2), rchisq_perturber(1),
+                                     c(0.8, rchisq_generator(1, 2^2), rchisq_perturber(1),
                                        rchisq_pvaluer(1))),
-                         "altnoise_chisq_df4" =
+                         "altnoise_chisq_df4_shift2sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 1+3^2), rchisq_perturber(3),
-                                       rchisq_pvaluer(1))))
+                                     c(0.8, rchisq_generator(1, 2^2), rchisq_perturber(4),
+                                       rchisq_pvaluer(4))),
+                         "altnoise_chisq_df1_shift3sq" =
+                             replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
+                                     c(0.8, rchisq_generator(1, 3^2), rchisq_perturber(1),
+                                       rchisq_pvaluer(1))),
+                         "altnoise_chisq_df4_shift3sq" =
+                             replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
+                                     c(0.8, rchisq_generator(1, 3^2), rchisq_perturber(4),
+                                       rchisq_pvaluer(4))))
     }
     
     ## ##########################################################################

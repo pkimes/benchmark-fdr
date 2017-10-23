@@ -33,7 +33,8 @@
 #' * `test_statistic`: simulated test statistic (NOT scaled by SE estimate)
 #' * `effect_size`: z-score transform of p-value (not really effect size)
 #' * `pval`: test p-value calculated from test-statistic using `null_dist`
-#' * `ind_covariate`: the independent covariate 
+#' * `ind_covariate`: the independent covariate
+#' * `SE`: true standard deviations for sampling distributions (for ASH)
 #'
 #' @details
 #' If a function is specified for either of `effect_size` or `icovariate`, a function must also be
@@ -71,6 +72,11 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     ## generate set of null (0) and alternative test statistics
     ts <- rep(0, m)
     ts[alts] <- tstat(length(alts))
+
+    ## determine (true) SD of sampling dist used to perturb each stat
+    SE <- tstat_dist(ts, se = TRUE)
+
+    ## perturb each stat
     ts <- tstat_dist(ts)
     stopifnot(length(ts) == m)
     
@@ -82,7 +88,8 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     pv <- null_dist(ts)
     es <- qnorm(1 - pv / 2) * sign(ts)
 
+
     ## return test results as data.frame
     data.frame(H = H, test_statistic = ts, effect_size = es,
-               pval = pv, ind_covariate = ind_cov)
+               pval = pv, ind_covariate = ind_cov, SE = SE)
 }
