@@ -68,8 +68,8 @@ psim_settings <- function(sbase, vparam, icparam) {
         settings <- lapply(seq(0, 2, by=.2),
                            function(x) { replace(sbase,
                                                  c("pi0", "tstat"),
-                                                 c(0.8, function(zz) { x })
-                           }))
+                                                 c(0.8, function(zz) { x }))
+                           })
         names(settings) <- paste0("alteff_", seq(0, 20, by=2))
         
     } else if (vparam == "esize_random_ua") {
