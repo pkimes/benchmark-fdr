@@ -4,7 +4,7 @@
 #SBATCH -N 1                        # All cores on one machine
 #SBATCH -p irizarry,serial_requeue  # Partition
 #SBATCH --mem 20000                 # Memory request 
-#SBATCH -t 0-1:00                   # Maximum execution time (D-HH:MM)
+#SBATCH -t 0-5:00                   # Maximum execution time (D-HH:MM)
 #SBATCH -o SLURM/render-%j.out  # Standard output
 #SBATCH -e SLURM/render-%j.err  # Standard error
  

@@ -1,7 +1,7 @@
 ---
 title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
 author: "Keegan Korthauer"
-date: "10/19/2017"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: html_document
 ---
 
@@ -90,7 +90,7 @@ It looks like we have:
     - `N`: Number of samples with this SNP - BMI association measured
     - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
  
-for 2,458,133 SNPs.
+for `r nrow(bmi)` SNPs.
 
 Before moving on, we'll rename the relevant columns so that they will use common terms
 across the different datasets. We'll also add a 'test_statistic' column, and subset on a 
@@ -105,7 +105,7 @@ bmi <- bmi %>%
         mutate(test_statistic = effect_size/SE) 
 
 ### experimenting on a subset of the full dataset for now
-bmi <- bmi[1:50000,]
+bmi <- bmi[1:500000,]
 ```
 
 #### Check Covariate Diagnostics
@@ -151,32 +151,41 @@ to rename the assay to 'qvalue'.
 
 ```{r, GWAS1-metrics}
 # rename assay to qvalue
-names(assays(sb)) <- names(rowData(sb)) <- names(sb@performanceMetrics) <- "qvalue"
+assayNames(sb) <- "qvalue"
+names(rowData(sb)) <- names(sb@performanceMetrics) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-sb
+
 
 head(assay(sb))
-colData(sb)
+head(colData(sb))
 sb@performanceMetrics[[1]]
 
-# estimate perf metrics
-sb <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), addColData=TRUE)
-colData( sb )
+# estimate perf metrics and store in tidy format for plotting
+pf <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), tidy=TRUE)
 ```
 
 Now, we'll plot the results.
 
-```{r, GWAS1-plot, results="hide", width=15, height=12}
+```{r, GWAS1-plot, results="hide", width=15, height=15}
 # plot adjusted p-values by effect_size (diagnostic from ASH paper)
 plotsim_single(data.frame(assay(sb)), bmi, strat = "effect_size") 
 
-## to add here - standardized plotting functions from SummarizedBenchmarks -
-## to discuss at meeting 10/19
+# plot adjusted p-values by independent covariate
+plotsim_single(data.frame(assay(sb)), bmi, strat = "ind_covariate") 
 
 # alpha versus nrejects
+plotsim_average(pf, met="rejections", merge_ihw = TRUE) +
+  ggtitle("Number of rejections for BMI dataset") 
 
+# alpha versus nrejects (excluding "unadjusted")
+plotsim_average(pf, met="rejections", filter_set = "unadjusted", merge_ihw = TRUE) +
+  ggtitle("Number of rejections for BMI dataset") 
+  
 # upset plot
-
+plotMethodsOverlap(sb, alpha=0.1, nsets=ncol(sb))
+  
+# upset plot excluding "unadjusted"
+plotMethodsOverlap(sb[,-1], alpha=0.1, nsets=ncol(sb)-1)
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
@@ -185,4 +194,5 @@ And we'll clean up the workspace before moving on to the next dataset.
 rm(bmi)
 rm(bd)
 rm(sb)
+rm(pf)
 ```
