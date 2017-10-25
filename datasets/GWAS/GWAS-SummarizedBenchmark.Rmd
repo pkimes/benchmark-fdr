@@ -152,9 +152,7 @@ to rename the assay to 'qvalue'.
 ```{r, GWAS1-metrics}
 # rename assay to qvalue
 assayNames(sb) <- "qvalue"
-names(rowData(sb)) <- names(sb@performanceMetrics) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-
 
 head(assay(sb))
 head(colData(sb))
