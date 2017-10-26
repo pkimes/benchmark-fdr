@@ -91,13 +91,13 @@ initializeBenchDesign <- function(){
   ## Scott's FDR regression w/ theoretical null
   bd %<>% addBMethod("scott-theoretical",
                    scott_fdrreg_hickswrapper,
-                   zscores = qnorm(1 - pval / 2) * sign(test_statistic),
+                   zscores = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(test_statistic),
                    filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'theoretical')
   ## Scott's FDR regression w/ empirical null
   bd %<>% addBMethod("scott-empirical",
                    scott_fdrreg_hickswrapper,
-                   zscores = qnorm(1 - pval / 2) * sign(test_statistic),
+                   zscores = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(test_statistic),
                    filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'empirical')
 
