@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/n/irizarryfs01_backed_up/kkorthauer/FDR")
 ```
 
 ### Summary
@@ -19,7 +20,7 @@ perform the benchmarking in a standardized way.
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 # project directory & data/results folders
-setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
+#setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
 datdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/DATA/GWAS/"
 resdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/RESULTS/GWAS/"
   
@@ -102,7 +103,8 @@ bmi <- bmi %>%
                SE = stderr,
                effect_size = effect,
                ind_covariate = N) %>%
-        mutate(test_statistic = effect_size/SE) 
+        mutate(test_statistic = effect_size/SE) %>%
+        select(pval, SE, effect_size, ind_covariate, test_statistic) 
 
 ### experimenting on a subset of the full dataset for now
 bmi <- bmi[1:500000,]
