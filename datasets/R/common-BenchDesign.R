@@ -100,6 +100,13 @@ initializeBenchDesign <- function(){
                    zscores = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(test_statistic),
                    filterstat = ind_covariate, df = 3, lambda = 0.01,
                    nulltype = 'empirical')
-
+  ## Lei and Fithian's AdaPT 
+  bd %<>% addBMethod("adapt",
+                     AdaPT,
+                     x = order(ind_covariate), pvals = pval, 
+                     s0 = rep(0.45, length(pval)), 
+                     delta.high = 0.05, delta.low = 0.05, 
+                     B = 5, q.list = seq(0.01, 0.10, by=0.01), 
+                     quiet = TRUE)
   return(bd)
 }

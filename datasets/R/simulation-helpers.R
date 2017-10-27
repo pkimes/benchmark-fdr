@@ -293,3 +293,18 @@ lfdr_fit <- function(unadj_p, group, lfdr_estimation="fdrtool"){
     fit_obj
 }
 
+
+#' AdaPT FDR method
+#'
+#' The following code implements the AdaPT method from the paper:
+#' Lihua Lei & William Fithian,
+#'   "AdaPT: An interactive procedure for multiple testing with side information"
+#' Available from http://arxiv.org/abs/
+#' Code available here: https://github.com/lihualei71/AdaPT/blob/master/AdaPT.R
+#' 
+#' @author Stephanie Hicks
+
+library(RCurl)
+script <- getURL("https://raw.githubusercontent.com/lihualei71/AdaPT/master/AdaPT.R")
+eval(parse(text = script))
+
