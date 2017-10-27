@@ -35,7 +35,7 @@ strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3, numQ=3){
   }
   
   plotOne <- function(d, pval, covariate, title=""){
-    ggplot(d, aes(x=get("pval"))) + 
+    ggplot(d, aes(x=get(pval))) + 
       geom_histogram(binwidth = binwidth, boundary = 0, 
                    colour="grey", fill="lightgrey") +
       aes(y=..density..)+
@@ -54,12 +54,12 @@ strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3, numQ=3){
   
   for (q in 1:(numQ+1)){
     if(q==(numQ+1)){
-      gglist[[q]] <- plotOne(dat, title="All")
+      gglist[[q]] <- plotOne( dat, pval=pval, covariate=covariate, title="All" )
     }else{
       dat.strat <- dat %>% 
         filter(rank(get(covariate), ties="first") <= quantile(rank(get(covariate), ties="first"), q/numQ) &
                rank(get(covariate), ties="first") >= quantile(rank(get(covariate), ties="first"), (q-1)/numQ) )
-      gglist[[q]] <- plotOne(dat.strat, title=paste0("Covariate group ", q))
+      gglist[[q]] <- plotOne(dat.strat, pval=pval, covariate=covariate, title=paste0("Covariate group ", q))
     }
   }
    
