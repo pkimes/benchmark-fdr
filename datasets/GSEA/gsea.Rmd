@@ -27,7 +27,7 @@ levels(colData(dsdObject)$individual) <- gsub("GTEX-", "",levels(colData(dsdObje
 
 Specify model matrix design and run DESeq2 to get differentially expressed genes. 
 
-```{r deseq2}
+```{r deseq2, message=FALSE}
 
 library(EnsDb.Hsapiens.v86)
 gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
@@ -73,65 +73,55 @@ goRes <- goseq( pwf, gene2cat=goSets )
 
 
 
-```{r, fig.height=3.5, fig.width=4, message=FALSE}
+```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
 library(ggplot2)
 library(magrittr)
 library(cowplot)
+library(R.utils)
+library(scales)
+sourceDirectory("../R/")
 
-ggplot( goRes,
-       aes( log10(numInCat), -log10(over_represented_pvalue) ) ) +
-    geom_hex(aes( alpha=log2(..count..)), fill="black", color="black", bins=100, show.legend=FALSE) +
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
     ylim(0, 12) + ggtitle("Over-represented gene sets") +
-    xlab(expression(log[10]~"(# of genes)")) +
-    ylab(expression(-log[10]~"(p-value)")) 
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
 
 ```
 
-```{r, message=FALSE}
-library(IHW)
-goRes$groups <- groups_by_filter( goRes$numInCat, 10 )
+
+```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
+
+library(dplyr)
 
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 
-dplyr:::filter( goRes, numInCat > 10, numDEInCat > 0 ) %>%
-  dplyr:::mutate( groups = groups_by_filter( numInCat, 4 ) ) %>%
-  ggplot(aes(x=over_represented_pvalue)) + 
-  geom_histogram(binwidth = 0.025, boundary = 0) +
-  facet_wrap( ~ groups, nrow = 2) +
-  ggtitle("Distribution of p-values") +
-  ylab("Frequency") + xlab("p-value")
-
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 15 ) %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+  
 ```
  
  Generating the *SummarizedBenchmark* object:
  
-```{r}
-
-library(R.utils)
-sourceDirectory("../R/")
-
+```{r runningBenckmark, message=FALSE}
 designBen <- initializeBenchDesign()
 res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
   dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 res$pval <- pmin( res$pval, 1 )
-
 sGSEA <- designBen %>% buildBench( res )
-assayNames(sGSEA) <- names( rowData(sGSEA) ) <-  names(sGSEA@performanceMetrics) <- "qvalue"
-
+assayNames(sGSEA) <- "qvalue"
 sGSEA <- addDefaultMetrics( sGSEA )
+```
 
-estimatePerformanceMetrics( sGSEA, alpha=seq(0, 0.6, 0.1), tidy=TRUE ) %>%
-  dplyr:::filter(pkg_name == "IHW") %>%
-  head
+```{r plottingResults}
+rejections_scatter( sGSEA, as_fraction=FALSE )
 
-    
-  dplyr:::select(blabel, key, value, assay, performanceMetric, alpha ) %>%
-  dplyr:::filter(blabel!="unadjusted") %>%
-  ggplot( aes(alpha, value, col=blabel) ) +
-  geom_line() +
-  geom_point()
+stopifnot( all(assays(sGSEA)[["qvalue"]][,"unadjusted"] == pmin(goRes$over_represented_pvalue, 1) ) )
+rowData(sGSEA)$numInCat <- goRes$numInCat
 
+rejection_scatter_bins( sGSEA, "numInCat", threshold=15, bins=4, as_fraction=TRUE )
 ```
  
