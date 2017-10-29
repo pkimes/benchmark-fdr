@@ -44,6 +44,11 @@ library(FDRreg)
 # comparison tools/functions
 library(SummarizedBenchmark)
 sourceDirectory("benchmark-fdr/datasets/R/")
+
+# set up parallel backend
+library(BiocParallel)
+cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+multicoreParam <- MulticoreParam(workers = cores)
 ```
 
 ### GWAS meta-analysis for BMI (included in Boca-Leek)
@@ -107,14 +112,14 @@ bmi <- bmi %>%
         select(pval, SE, effect_size, ind_covariate, test_statistic) 
 
 ### experimenting on a subset of the full dataset for now
-bmi <- bmi[1:500000,]
+bmi <- bmi[1:750000,]
 ```
 
 #### Check Covariate Diagnostics
 
 ```{r, GWAS1-diag, fig.width=10, fig.height=3.5}
-strat_hist(bmi, pval="pval", covariate="ind_covariate", maxy=3)
-rank_scatter(bmi, pval="pval", covariate="ind_covariate")
+strat_hist(bmi, pvalue="pval", covariate="ind_covariate", maxy=3)
+rank_scatter(bmi, pvalue="pval", covariate="ind_covariate")
 ```
 
 #### Set up BenchDesign object 
@@ -137,7 +142,7 @@ resfile <- paste0(resdir, "bmi_summarizedBenchmark_",
                   nrow(bmi), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  sb <- bd %>% buildBench(data=bmi)
+  sb <- bd %>% buildBench(data=bmi, parallel=TRUE, BPPARAM=multicoreParam)
   metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
   save(sb, file=resfile)
   message(paste0("Took ", round((proc.time()-t1)[3],1),
@@ -160,32 +165,33 @@ head(assay(sb))
 head(colData(sb))
 sb@performanceMetrics[[1]]
 
-# estimate perf metrics and store in tidy format for plotting
-pf <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), tidy=TRUE)
+# estimate perf metrics 
+sb <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), addColData=TRUE)
 ```
 
 Now, we'll plot the results.
 
 ```{r, GWAS1-plot, results="hide", width=15, height=15}
-# plot adjusted p-values by effect_size (diagnostic from ASH paper)
-plotsim_single(data.frame(assay(sb)), bmi, strat = "effect_size") 
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb)
 
-# plot adjusted p-values by independent covariate
-plotsim_single(data.frame(assay(sb)), bmi, strat = "ind_covariate") 
+# Add ind covariate to rowData
+rowData(sb)$ind_covariate <- bmi$ind_covariate
 
-# alpha versus nrejects
-plotsim_average(pf, met="rejections", merge_ihw = TRUE) +
-  ggtitle("Number of rejections for BMI dataset") 
-
-# alpha versus nrejects (excluding "unadjusted")
-plotsim_average(pf, met="rejections", filter_set = "unadjusted", merge_ihw = TRUE) +
-  ggtitle("Number of rejections for BMI dataset") 
+rejection_scatter_bins(sb, covariate="ind_covariate", bins=4)
   
-# upset plot
-plotMethodsOverlap(sb, alpha=0.1, nsets=ncol(sb))
-  
+# upset plot (only plot IHW for the plotted alpha)
+rmv.ihw <- which(grepl("ihw", colnames(sb)) &
+                              colData(sb)$param.alpha != 0.05)
+
+plotMethodsOverlap(sb[,-rmv.ihw], 
+                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw),
+                   order.by="freq", decreasing=TRUE)
+
 # upset plot excluding "unadjusted"
-plotMethodsOverlap(sb[,-1], alpha=0.1, nsets=ncol(sb)-1)
+plotMethodsOverlap(sb[,-c(1,rmv.ihw)], 
+                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw)-1,
+                   order.by="freq", decreasing=TRUE)
 ```
 
 And we'll clean up the workspace before moving on to the next dataset.
