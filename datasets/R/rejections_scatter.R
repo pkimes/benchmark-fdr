@@ -46,6 +46,8 @@ rejections_scatter <- function( sb, as_fraction=FALSE ){
 #' is larger than this number are considered. 
 #' @param bins Number of bins.
 #' @param ncol_facet Number of columns for facet_grid
+#' @param covariate Character object that represents the name of the rowData
+#' column containing the independent covariate to bin on
 #'        
 #' @return a ggplot2 object
 #' 
