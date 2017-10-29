@@ -99,8 +99,7 @@ It looks like we have:
 for `r nrow(bmi)` SNPs.
 
 Before moving on, we'll rename the relevant columns so that they will use common terms
-across the different datasets. We'll also add a 'test_statistic' column, and subset on a 
-toy example before moving on to the full dataset.
+across the different datasets. We'll also add a 'test_statistic' column.
 
 ```{r, GWAS1-reformat}
 bmi <- bmi %>% 
@@ -110,9 +109,6 @@ bmi <- bmi %>%
                ind_covariate = N) %>%
         mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size)) %>%
         select(pval, SE, effect_size, ind_covariate, test_statistic) 
-
-### experimenting on a subset of the full dataset for now
-bmi <- bmi[1:750000,]
 ```
 
 #### Check Covariate Diagnostics
@@ -137,21 +133,22 @@ Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
-```{r, GWAS1-sb, results="hide"}
+```{r, GWAS1-sb, results="hide", message=FALSE}
 resfile <- paste0(resdir, "bmi_summarizedBenchmark_",
                   nrow(bmi), ".RData")
 if (!file.exists(resfile)){
   t1 <- proc.time()
-  sb <- bd %>% buildBench(data=bmi, parallel=TRUE, BPPARAM=multicoreParam)
+  sb <- bd %>% buildBench(data=bmi, ftCols = "ind_covariate",
+                          parallel=TRUE, BPPARAM=multicoreParam)
   metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
   save(sb, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(bmi), " SNPs."))
+  duration <- round((proc.time()-t1)[3]/60,1)
 }else{
   load(resfile)
 }
-
 ```
+
+This step took `r duration` minutes for `r nrow(bmi)` SNPs using `r cores` cores.
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -171,9 +168,6 @@ Now, we'll plot the results.
 ```{r, GWAS1-plot, results="hide", width=15, height=15}
 # plot nrejects by method overall and stratified by covariate
 rejections_scatter(sb)
-
-# Add ind covariate to rowData
-rowData(sb)$ind_covariate <- bmi$ind_covariate
 
 rejection_scatter_bins(sb, covariate="ind_covariate", bins=4)
   
