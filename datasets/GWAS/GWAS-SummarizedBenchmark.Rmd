@@ -127,7 +127,7 @@ rank_scatter(bmi, pvalue="pval", covariate="ind_covariate")
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object.
 
-**Still to-do: consider multiple covariates for methods that allow this.**
+**Still to-do: repeat for additional covariate (MAF).**
 
 ```{r, GWAS1-benchdesign}
 bd <- initializeBenchDesign()
@@ -164,9 +164,6 @@ sb <- addDefaultMetrics(sb)
 head(assay(sb))
 head(colData(sb))
 sb@performanceMetrics[[1]]
-
-# estimate perf metrics 
-sb <- estimatePerformanceMetrics(sb, alpha=seq(0.01, 0.10, 0.01), addColData=TRUE)
 ```
 
 Now, we'll plot the results.
