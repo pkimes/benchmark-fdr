@@ -9,7 +9,7 @@
 #'
 #' @param dat data.frame with one row for each hypothesis test, and includes
 #'  a column of p-values, and a column of covariate values.
-#' @param pval character that defines the name of the column in `dat` that 
+#' @param pvalue character that defines the name of the column in `dat` that 
 #'  contains the p-values
 #' @param covariate character that defines the name of the column in `dat` that 
 #'  contains the covariate
@@ -20,11 +20,11 @@
 #' @return a ggplot object 
 #' 
 #' @author Keegan Korthauer      
-rank_scatter <- function( dat, pval, covariate,bins=100,
+rank_scatter <- function( dat, pvalue, covariate,bins=100,
                          funx=function(x){rank(x, ties="first")/nrow(dat)},
                          funfill=NULL )
 {
-  gg_scat <- ggplot(dat, aes(y=-log10(get(pval)), x=funx(get(covariate)))) +
+  gg_scat <- ggplot(dat, aes(y=-log10(get(pvalue)), x=funx(get(covariate)))) +
     geom_hex(bins = bins)+
     ylab(expression(-log[10]~p)) +
     xlab("Covariate") +

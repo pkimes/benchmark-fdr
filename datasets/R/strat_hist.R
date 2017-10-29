@@ -7,7 +7,7 @@
 #'   
 #' @param dat data.frame with one row for each hypothesis test, and includes
 #'  a column of p-values, and a column of covariate values.
-#' @param pval character that defines the name of the column in `dat` that 
+#' @param pvalue character that defines the name of the column in `dat` that 
 #'  contains the p-values
 #' @param covariate character that defines the name of the column in `dat` that 
 #'  contains the covariate
@@ -23,19 +23,19 @@
 #' 
 #' 
 #' @author Keegan Korthauer     
-strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3, numQ=3){
+strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3){
   # check numQ input
   if (numQ > 5){
     stop("Please specify a valid value of numQ")
   }
   
-  # check for pval and covariate cols
-  if (!pval %in% colnames(dat) | !covariate %in% colnames(dat)){
-    stop("pval and covariate must be variables that define column names in dat")
+  # check for pvalue and covariate cols
+  if (!pvalue %in% colnames(dat) | !covariate %in% colnames(dat)){
+    stop("pvalue and covariate must be variables that define column names in dat")
   }
   
-  plotOne <- function(d, pval, covariate, title=""){
-    ggplot(d, aes(x=get(pval))) + 
+  plotOne <- function(d, pvalue, covariate, title=""){
+    ggplot(d, aes(x=get(pvalue))) + 
       geom_histogram(binwidth = binwidth, boundary = 0, 
                    colour="grey", fill="lightgrey") +
       aes(y=..density..)+
@@ -54,12 +54,12 @@ strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3, numQ=3){
   
   for (q in 1:(numQ+1)){
     if(q==(numQ+1)){
-      gglist[[q]] <- plotOne( dat, pval=pval, covariate=covariate, title="All" )
+      gglist[[q]] <- plotOne( dat, pvalue=pvalue, covariate=covariate, title="All" )
     }else{
       dat.strat <- dat %>% 
         filter(rank(get(covariate), ties="first") <= quantile(rank(get(covariate), ties="first"), q/numQ) &
                rank(get(covariate), ties="first") >= quantile(rank(get(covariate), ties="first"), (q-1)/numQ) )
-      gglist[[q]] <- plotOne(dat.strat, pval=pval, covariate=covariate, title=paste0("Covariate group ", q))
+      gglist[[q]] <- plotOne(dat.strat, pvalue=pvalue, covariate=covariate, title=paste0("Covariate group ", q))
     }
   }
    
