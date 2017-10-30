@@ -74,6 +74,7 @@ goRes <- goseq( pwf, gene2cat=goSets )
 
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+
 library(ggplot2)
 library(magrittr)
 library(cowplot)
@@ -111,7 +112,9 @@ designBen <- initializeBenchDesign()
 res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
   dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 res$pval <- pmin( res$pval, 1 )
-sGSEA <- designBen %>% buildBench( res )
+head(res)
+sGSEA <- designBen %>% buildBench( res, ftCols="ind_covariate")
+elementMetadata( rowData(sGSEA) )
 assayNames(sGSEA) <- "qvalue"
 sGSEA <- addDefaultMetrics( sGSEA )
 ```
@@ -120,8 +123,9 @@ sGSEA <- addDefaultMetrics( sGSEA )
 rejections_scatter( sGSEA, as_fraction=FALSE )
 
 stopifnot( all(assays(sGSEA)[["qvalue"]][,"unadjusted"] == pmin(goRes$over_represented_pvalue, 1) ) )
-rowData(sGSEA)$numInCat <- goRes$numInCat
 
-rejection_scatter_bins( sGSEA, "numInCat", threshold=15, bins=4, as_fraction=TRUE )
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=TRUE )
+
 ```
  
