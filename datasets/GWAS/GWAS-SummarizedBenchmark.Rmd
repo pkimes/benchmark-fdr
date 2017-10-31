@@ -113,17 +113,19 @@ bmi <- bmi %>%
 
 #### Check Covariate Diagnostics
 
+Here we look to see if the covariate does indeed look informative.
+
 ```{r, GWAS1-diag, fig.width=10, fig.height=3.5}
 strat_hist(bmi, pvalue="pval", covariate="ind_covariate", maxy=3)
 rank_scatter(bmi, pvalue="pval", covariate="ind_covariate")
 ```
 
+**Still to-do: repeat for additional covariate (MAF).**
+
 #### Set up BenchDesign object 
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object.
-
-**Still to-do: repeat for additional covariate (MAF).**
 
 ```{r, GWAS1-benchdesign}
 bd <- initializeBenchDesign()
@@ -136,6 +138,7 @@ helper scripts).
 ```{r, GWAS1-sb, results="hide", message=FALSE}
 resfile <- paste0(resdir, "bmi_summarizedBenchmark_",
                   nrow(bmi), ".RData")
+duration <- NA
 if (!file.exists(resfile)){
   t1 <- proc.time()
   sb <- bd %>% buildBench(data=bmi, ftCols = "ind_covariate",
@@ -148,7 +151,12 @@ if (!file.exists(resfile)){
 }
 ```
 
-This step took `r duration` minutes for `r nrow(bmi)` SNPs using `r cores` cores.
+```{r, echo=FALSE}
+if(!is.na(duration)){
+  message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+        cores, " cores.")
+}
+```
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -157,10 +165,6 @@ to rename the assay to 'qvalue'.
 # rename assay to qvalue
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-
-head(assay(sb))
-head(colData(sb))
-sb@performanceMetrics[[1]]
 ```
 
 Now, we'll plot the results.
