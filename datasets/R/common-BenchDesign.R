@@ -20,7 +20,7 @@
 #' @return an object of class `BenchDesign` that is initialized with the 
 #' benchmarking methods to compare FDR control. These are currently: unadjusted,
 #' Bonferroni, Benjamini-Hochberg, Storey's q-value, IHW (with 10 different 
-#' alpha values from 0.01 to 0.10), Stephen's ash, Boca-Leek (with 4 different
+#' alpha values from 0.01 to 0.10), Stephens' ash, Boca-Leek (with 4 different
 #' smoothing df values from 2 to 5), Cai's local FDR, and Scott's FDR regression
 #' (with two null settings, empirical and theoretical).
 #' 
@@ -71,7 +71,7 @@ initializeBenchDesign <- function(){
                        pvalues = pval, covariates = ind_covariate,
                        alpha =  UQ(ia))
   }
-  ## Stephen's ASH
+  ## Stephens' ASH
   bd %<>% addBMethod("ashs",
                    ashr::ash,
                    ashr::get_svalue,
@@ -103,7 +103,8 @@ initializeBenchDesign <- function(){
   ## Lei and Fithian's AdaPT 
   bd %<>% addBMethod("adapt",
                      AdaPT,
-                     x = order(ind_covariate), pvals = pval, 
+                     x = rank(ind_covariate),
+                     pvals = pval, 
                      s0 = rep(0.45, length(pval)), 
                      delta.high = 0.05, delta.low = 0.05, 
                      B = 5, q.list = seq(0.01, 0.10, by=0.01), 
