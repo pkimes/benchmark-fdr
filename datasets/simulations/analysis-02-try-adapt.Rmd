@@ -58,7 +58,7 @@ vec_tib <- tibble(step = res$step,
 
 The `step` vector is likely the iteration index for the updates used in the AdaPT algorithm. We can plot the two other vectors, `fdp` and `num_rej` as a function of `step`.
 
-```{r, fig.width = }
+```{r, fig.width = 5, fig.height = 6}
 vec_tib %>%
     gather(var, value, -step) %>%
     ggplot(aes(x = step, y = value, label = step)) +
