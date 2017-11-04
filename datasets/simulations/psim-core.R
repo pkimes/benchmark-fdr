@@ -21,7 +21,6 @@ ncores <- as.integer(args[2])
 setting_vparam <- args[3]
 setting_icparam <- args[4]
 
-
 ## ##############################################################################
 ## install packages
 ## ##############################################################################
@@ -170,8 +169,12 @@ if (M == 1) {
             sim_df <- do.call(du_psim, iset)
             names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
 
-            ## calc data digest
-            sim_digest <- digest::sha1(sim_df)
+            ## calc data digest::sha1 (truncated) - or use digest::digest (full if truncate fails)
+            sim_digest <- tryCatch({ digest::sha1(sim_df) },
+                                   error = function(e) {
+                                       message("!! error at digest::sha1, using digest::digest !!")
+                                       return(digest(sim_df))
+                                   })
 
             ## create SummarizedBenchmark
             sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)
