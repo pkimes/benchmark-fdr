@@ -59,18 +59,18 @@ psim_settings <- function(sbase, vparam, icparam) {
         settings <- lapply(seq(.1, 1, by=.1),
                            function(p) { replace(sbase,
                                                  c("pi0", "tstat"),
-                                                 c(p, function(zz) { 1.5 }))
+                                                 c(p, function(zz) { 3.0 }))
                            })
         names(settings) <- paste0("altp0_", 1:10)
         
     } else if (vparam == "esize_fixed") {
         ## varying effect size (fixed value) ####################################
-        settings <- lapply(seq(0, 2, by=.2),
+        settings <- lapply(seq(0, 5, by=.5),
                            function(x) { replace(sbase,
                                                  c("pi0", "tstat"),
                                                  c(0.8, function(zz) { x }))
                            })
-        names(settings) <- paste0("alteff_", seq(0, 20, by=2))
+        names(settings) <- paste0("alteff_", seq(0, 50, by=5))
         
     } else if (vparam == "esize_random_ua") {
         ## varying effect size (stochastic/UA) ##################################
