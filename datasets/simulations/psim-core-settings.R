@@ -101,18 +101,30 @@ psim_settings <- function(sbase, vparam, icparam) {
                          "alteff_normal_shift2" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, rnorm_generator(2))),
+                         "alteff_normal_shift3" =
+                             replace(sbase, c("pi0", "tstat"),
+                                     c(0.8, rnorm_generator(3))),
                          "alteff_t_shift1_df10" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, rt_generator(10, 1))),
                          "alteff_t_shift2_df10" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, rt_generator(10, 2))),
+                         "alteff_t_shift3_df10" =
+                             replace(sbase, c("pi0", "tstat"),
+                                     c(0.8, rt_generator(10, 3))),
                          "alteff_chisq_shift0_df3" =
                              replace(sbase, c("pi0", "tstat"),
                                      c(0.8, rchisq_generator(3, 0))),
+                         "alteff_chisq_shift1_df3" =
+                             replace(sbase, c("pi0", "tstat"),
+                                     c(0.8, rchisq_generator(3, 1))),
                          "alteff_chisq_shift2_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 2))))
+                                     c(0.8, rchisq_generator(3, 2))),
+                         "alteff_chisq_shift3_df3" =
+                             replace(sbase, c("pi0", "tstat"),
+                                     c(0.8, rchisq_generator(3, 3))))
         
     } else if (vparam == "altnoise") {
         ## varying sampling noise ###############################################
