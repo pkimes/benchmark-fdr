@@ -25,14 +25,14 @@ rejections_scatter <- function( sb, as_fraction=FALSE, supplementary=TRUE ){
     yl <- "Number of rejections"
   }
   plotDF <- estimatePerformanceMetrics( sb, alpha=alphas, tidy=TRUE ) %>%
-    dplyr:::filter( !(pkg_name == "IHW" & param.alpha != alpha ) ) %>%
+    dplyr:::filter( !(grepl("ihw", blabel) & param.alpha != alpha ) ) %>%
     dplyr:::mutate( blabel=gsub("(ihw)-a\\d+", "\\1", blabel ) ) %>%
     #dplyr:::select( blabel, key, value, assay, performanceMetric, alpha ) %>%
     dplyr:::filter( blabel!="unadjusted", performanceMetric == "rejections" ) 
   if( !supplementary ){
     plotDF <- plotDF %>%
       dplyr:::mutate( param.smooth.df=gsub("L", "", param.smooth.df ) ) %>%
-      dplyr:::filter( !( pkg_name == "swfdr" & 
+      dplyr:::filter( !( grepl("bl-df", blabel) & 
                       as.numeric(as.character(param.smooth.df) != 3 ) ) ) %>%
       dplyr:::mutate( blabel=gsub("-df03", "", blabel))
   }
@@ -87,14 +87,14 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
   levels(dataPerBin$bin) <- tapply( rowData(sb)[[covariate]], 
                                     rowData(sb)$bin, 
                                     function(x){paste(range(x), collapse=" - ")} )
-  plotDF <- dataPerBin %>% dplyr:::filter( !(pkg_name == "IHW" & param.alpha != alpha ) ) %>%
+  plotDF <- dataPerBin %>% dplyr:::filter( !(grepl("ihw", blabel) & param.alpha != alpha ) ) %>%
     dplyr:::mutate( blabel=gsub("(ihw)-a\\d+", "\\1", blabel ) ) %>%
 #    dplyr:::select( blabel, key, value, assay, performanceMetric, alpha, bin ) %>%
     dplyr:::filter( blabel!="unadjusted", performanceMetric == "rejections" ) 
   if( !supplementary ){
     plotDF <- plotDF %>%
       dplyr:::mutate( param.smooth.df=gsub("L", "", param.smooth.df ) ) %>%
-      dplyr:::filter( !( pkg_name == "swfdr" & 
+      dplyr:::filter( !( grepl("bl-df", blabel) & 
                            as.numeric(as.character(param.smooth.df) != 3 ) ) ) %>%
       dplyr:::mutate( blabel=gsub("-df03", "", blabel))
   }
