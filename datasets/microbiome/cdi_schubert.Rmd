@@ -109,6 +109,8 @@ calculate_covariates <- function(otu, abun_otu){
   # Mean read depth
   reads <- rowMeans(otu)
   
+  ## TODO: median read depth!
+  
   # Ubiquity
   ubi <- rowSums(otu > 0) / length(rownames(otu))
   
@@ -226,6 +228,7 @@ strat_hist <- function(dat, pval, covariate, binwidth=0.025, maxy=3){
 
 ```{r}
 # Read and clean cdi_schubert
+## TODO: less filtering! Keep as many hypotheses open as possible.
 otu_path = paste0(wd, "cdi_schubert_results/RDP/cdi_schubert.otu_table.100.denovo.rdp_assigned")
 meta_path = paste0(wd, "cdi_schubert_results/cdi_schubert.metadata.txt")
 labels = c("H", "nonCDI", "CDI")
@@ -355,7 +358,7 @@ strat_hist(goodrichdat, pcol, covcol)
 
 ```{r, explore-goodrich-covariates}
 var <- "logubiquity"
-g <- ggplot(goodrichdat, aes(x = get(var), y = pval)) + geom_point()
+g <- ggplot(goodrichdat, aes(x = get(var), y = logpval)) + geom_point()
 g
 ```
 
@@ -365,7 +368,7 @@ strat_hist(goodrichdat, pcol, covcol)
 ```
 
 ```{r}
-g <- ggplot(goodrichdat, aes(x = get(covcol), y = pval)) + geom_point()
+g <- ggplot(goodrichdat, aes(x = get(covcol), y = logpval)) + geom_point()
 g
 ```
 

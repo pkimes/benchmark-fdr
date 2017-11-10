@@ -1,0 +1,564 @@
+---
+title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
+author: "Keegan Korthauer"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = "/n/irizarryfs01_backed_up/kkorthauer/FDR")
+```
+
+### Summary
+
+In the previous document `cdi_schubert.Rmd`, we explored two microbiome datasets for FDR
+benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
+perform the benchmarking in a standardized way. 
+
+### Workspace setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+# project directory & data/results folders
+setwd("/Users/claire/github/benchmark-fdr/datasets/microbiome/")
+datdir <- "/Users/claire/github/benchmark-fdr/datasets/microbiome/DATA/"
+resdir <- "/Users/claire/github/benchmark-fdr/datasets/microbiome/RESULTS/"
+  
+# wrangling & plotting tools
+library(data.table)
+#library(readxl)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(R.utils)
+library(cowplot)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)  
+sourceDirectory("/Users/claire/github/benchmark-fdr/datasets/R/")
+
+## set up parallel backend 
+library(BiocParallel)
+cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+multicoreParam <- MulticoreParam(workers = cores)
+```
+
+Let's just keep going and hopefully it's okay...
+
+### CDI Schubert - diarrhea dataset
+
+Here we download and analyze the CDI Schubert diarrhea (C. diff and non-C.diff diarrhea) dataset. 
+We'll download the processed OTU tables from Zenodo and unzip them in the 
+`benchmark-fdr/datasets/microbiome/DATA` folder.
+
+#### Data download
+
+```{bash, schubert-download, eval=FALSE}
+cd /Users/claire/github/benchmark-fdr/datasets/microbiome/DATA/
+curl -O "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
+tar -xzvf cdi_schubert_results.tar.gz
+cd ..
+```
+
+Next, we'll read in the unzipped OTU table and metadata files into R.
+
+We'll need to manually define which disease labels are of interest and what metadata
+column contains the sample IDs (i.e. the IDs in the OTU table).
+
+```{r, schubert-readdata}
+otu_path = paste0(datdir, "cdi_schubert_results/RDP/cdi_schubert.otu_table.100.denovo.rdp_assigned")
+meta_path = paste0(datdir, "cdi_schubert_results/cdi_schubert.metadata.txt")
+
+# DiseaseState labels to keep
+labels <- c("H", "nonCDI", "CDI")
+
+# Metadata column that has sample IDs
+col_label <- 'sample_id'
+
+# load OTU table and metadata
+otu <- read.table(otu_path)
+meta <- read.csv(meta_path, sep='\t')
+
+# Keep only samples with the right DiseaseState metadata
+meta <- meta %>% filter(DiseaseState %in% labels)
+
+# Keep only samples with both metadata and 16S data
+keep_samples <- intersect(colnames(otu), meta[, 1])
+otu <- otu[, keep_samples]
+meta <- meta %>% filter(get(col_label) %in% keep_samples)
+
+```
+
+Since we'll be using OTU-wise covariates, we shouldn't need to perform any
+filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
+(This may happen after removing shallow samples, I think.)
+However, let's make sure we get rid of any samples with too few reads. 
+We define the minimum number of reads per sample in `sample_reads`. 
+
+After we've removed any shallow samples, we'll convert the OTU table to relative
+abundances. I'll add a pseudo-count of 1e-6 to any zero entries, to avoid
+problems with taking logs.
+
+```{r, schubert-cleandata}
+remove_shallow_smpls <- function(df, n_reads) {
+  # Removes samples with fewer than n_reads from dataframe df.
+  # df has OTUs in rows and samples in columns
+  return(df[, colSums(df) > n_reads])
+  }
+
+remove_shallow_otus <- function(df, n_reads){
+  return(df[rowSums(df) > n_reads, ])
+  }
+
+## Remove OTUs with fewere than 10 reads
+#otu <- remove_shallow_otus(otu, 10)
+
+# Remove samples with fewer than sample_Reads reads
+sample_reads <- 100
+otu <- remove_shallow_smpls(otu, sample_reads)
+
+# Update metadata with new samples
+meta <- meta %>% filter(get(col_label) %in% colnames(otu))
+
+# Remove empty OTUs
+otu <- otu[rowSums(otu) > 0, ]
+
+# Convert to relative abundance
+abun_otu <- t(t(otu) / rowSums(t(otu)))
+
+# Add pseudo counts
+#minabun <- min(abun_otu[abun_otu > 0]) # Use this to figure out what pseudo-count value to add
+zeroabun <- 1e-6
+abun_otu <- abun_otu + zeroabun
+
+```
+
+Next, we need to calculate the pvalues, effect size, and standard error for each OTU.
+Here, we'll compare diarrhea vs. healthy. Diarrhea will include both CDI and nonCDI
+patients. We'll put these results into a dataframe, and label the columns with the 
+standardized names for downstream use (`pval`, `SE`, `effect_size`, `test_statistic`).
+The test statistic is the one returned by `wilcox.test()`.
+
+Note that the effect here is calculated as logfold change of mean abundance in controls
+relative to cases (i.e. `log(mean_abun[controls]/mean_abun[cases])`)
+
+While we're at it, we'll also calculate the mean abundance and ubiquity (detection rate)
+of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
+for use in downstream steps.
+
+```{r, schubert-pvals}
+resfile <- paste0(resdir, "schubert_results_",
+                  nrow(abun_otu), "_OTUs.RData")
+if (!file.exists(resfile)){
+  # Get case and control indices
+  case_idx <- meta$DiseaseState %in% c("CDI", "nonCDI")
+  ctrl_idx <- meta$DiseaseState %in% c("H")
+  
+  # Calculate pvalues, effects, and stderr
+  pvals <- c()
+  teststats <- c()
+  ses <- c()
+  effs <- c()
+  mean_abuns <- c()
+  mean_abuns_present <- c()
+  ubis <- c()
+  
+  casedf <- abun_otu[, case_idx]
+  ctrldf <- abun_otu[, ctrl_idx]
+  for (o in rownames(abun_otu)) {
+    # wilcoxon p value  
+    w <- wilcox.test(casedf[o, ], 
+                     ctrldf[o, ])
+    p <- w$p.value
+    teststat <- w$statistic
+    
+    pvals <- c(pvals, p)
+    teststats <- c(teststats, teststat)
+    
+    # standard error of the OTU abundance, across all samples
+    ses <- c(ses, 
+             sd(abun_otu[o, ])/sqrt(length(abun_otu[o, ]))
+             )
+    
+    # mean OTU abundance across all samples (after removing pseudo-count)
+    mean_abuns <- c(mean_abuns, 
+                    mean(abun_otu[o, ] - zeroabun)
+                    )
+    
+    # mean OTU abundance across only samples with the OTU present
+    mean_abuns_present <- c(mean_abuns_present, 
+                            sum(abun_otu[o, ] - zeroabun) / sum(abun_otu[o, ] > zeroabun)
+                            )
+    
+    # ubiquity of OTU across all samples
+    ubis <- c(ubis, 
+              sum(abun_otu[o, ] > zeroabun) / length(abun_otu[o, ])
+              )
+    
+    # effect (logfold difference)
+    effs <- c(effs, 
+              log(mean(abun_otu[o, ctrl_idx])/mean(abun_otu[o, case_idx]))
+              )
+  
+  }
+  
+  res <- data.frame(otu = rownames(abun_otu), 
+                    pval = pvals, test_statistic = teststats,
+                    SE = ses, effect_size = effs, 
+                    mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
+                    ubiquity = ubis)
+  save(res, file=resfile)
+  
+}else{
+  load(resfile)
+}
+head(res)
+```
+
+Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
+
+```{r, schubert-addphylo}
+res <- res %>% separate(otu, 
+                        c("kingdom", "phylum", "class", "order", "family", "genus", "species", "denovo"), 
+                        sep=";", remove = FALSE)
+
+```
+
+#### Check Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+##### Ubiquity
+
+```{r, schubert-ubi, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=20)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+##### Mean abundance (across non-zero samples)
+
+```{r, schubert-abun, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+##### Phylogeny?!
+
+Let's look at phylum-level stratification first. A priori, I *might* expect
+Proteobacteria to be enriched for low p-values? But I don't know if that's
+super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
+
+```{r, schubert-phylo, fig.width=10, fig.height=6}
+#strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
+#rank_scatter(res, pvalue="pval", covariate="ubiquity")
+ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
+```
+
+Let's use `ubiquity` as our `ind_covariate`
+
+```{r, schubert-labelcovariate}
+res <- res %>% mutate(ind_covariate = ubiquity)
+```
+
+#### Set up BenchDesign object 
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object.
+
+```{r, schubert-benchdesign}
+bd <- initializeBenchDesign()
+```
+
+Now, we're ready to construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, GWAS1-sb, results="hide", message=FALSE, eval=FALSE}
+resfile <- paste0(resdir, "schubert_summarizedBenchmark_",
+                  nrow(res), ".RData")
+duration <- NA
+if (!file.exists(resfile)){
+  t1 <- proc.time()
+  sb <- bd %>% buildBench(data=res, ftCols = "ind_covariate")
+                          #parallel=TRUE, BPPARAM=multicoreParam)
+  metadata(sb)$data_download_link <- "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
+  save(sb, file=resfile)
+  duration <- round((proc.time()-t1)[3]/60,1)
+}else{
+  load(resfile)
+}
+```
+
+```{r, echo=FALSE, eval=FALSE}
+if(!is.na(duration)){
+  message("This step took ", duration, " minutes for ", nrow(res), " OTUs using ",
+        cores, " cores.")
+}
+```
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, schubert-metrics, eval=FALSE}
+# rename assay to qvalue
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, schubert-plot, results="hide", width=15, height=15, eval=FALSE}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb)
+
+rejection_scatter_bins(sb, covariate="ind_covariate", bins=4)
+  
+# upset plot (only plot IHW for the plotted alpha)
+rmv.ihw <- which(grepl("ihw", colnames(sb)) &
+                              colData(sb)$param.alpha != 0.05)
+
+plotMethodsOverlap(sb[,-rmv.ihw], 
+                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw),
+                   order.by="freq", decreasing=TRUE)
+
+# upset plot excluding "unadjusted"
+plotMethodsOverlap(sb[,-c(1,rmv.ihw)], 
+                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw)-1,
+                   order.by="freq", decreasing=TRUE)
+```
+
+And we'll clean up the workspace before moving on to the next dataset.
+
+```{r, schubert-cleanup}
+rm(res)
+rm(bd)
+rm(sb)
+rm(pf)
+```
+
+### OB Goodrich - obesity dataset
+
+Let's repeat these analyses for the OB Goodrich dataset.
+
+Here we download and analyze the CDI Schubert diarrhea (C. diff and non-C.diff diarrhea) dataset. 
+We'll download the processed OTU tables from Zenodo and unzip them in the 
+`benchmark-fdr/datasets/microbiome/DATA` folder.
+
+#### Data download
+
+```{bash, goodrich-download, eval=FALSE}
+cd /Users/claire/github/benchmark-fdr/datasets/microbiome/DATA/
+curl -O "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
+tar -xzvf ob_goodrich_results.tar.gz
+cd ..
+```
+
+Next, we'll read in the unzipped OTU table and metadata files into R.
+
+We'll need to manually define which disease labels are of interest and what metadata
+column contains the sample IDs (i.e. the IDs in the OTU table).
+
+```{r, goodrich-readdata}
+otu_path = paste0(datdir, "ob_goodrich_results/RDP/ob_goodrich.otu_table.100.denovo.rdp_assigned")
+meta_path = paste0(datdir, "ob_goodrich_results/ob_goodrich.metadata.txt")
+
+# DiseaseState labels to keep
+labels <- c("H", "OB")
+
+# Metadata column that has sample IDs
+col_label <- "X"
+
+# load OTU table and metadata
+otu <- read.table(otu_path)
+meta <- read.csv(meta_path, sep='\t')
+
+# Keep only samples with the right DiseaseState metadata
+meta <- meta %>% filter(DiseaseState %in% labels)
+
+# Keep only samples with both metadata and 16S data
+keep_samples <- intersect(colnames(otu), meta[, 1])
+otu <- otu[, keep_samples]
+meta <- meta %>% filter(get(col_label) %in% keep_samples)
+
+```
+
+
+Since we'll be using OTU-wise covariates, we shouldn't need to perform any
+filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
+(This may happen after removing shallow samples, I think.)
+However, let's make sure we get rid of any samples with too few reads. 
+We define the minimum number of reads per sample in `sample_reads`. 
+
+After we've removed any shallow samples, we'll convert the OTU table to relative
+abundances. I'll add a pseudo-count of 1e-6 to any zero entries, to avoid
+problems with taking logs.
+
+```{r, goodrich-cleandata}
+remove_shallow_smpls <- function(df, n_reads) {
+  # Removes samples with fewer than n_reads from dataframe df.
+  # df has OTUs in rows and samples in columns
+  return(df[, colSums(df) > n_reads])
+  }
+
+# Remove samples with fewer than sample_Reads reads
+sample_reads <- 100
+otu <- remove_shallow_smpls(otu, sample_reads)
+
+# Update metadata with new samples
+meta <- meta %>% filter(get(col_label) %in% colnames(otu))
+
+# Remove empty OTUs
+otu <- otu[rowSums(otu) > 0, ]
+
+# Convert to relative abundance
+abun_otu <- t(t(otu) / rowSums(t(otu)))
+
+# Add pseudo counts
+#minabun <- min(abun_otu[abun_otu > 0]) # Use this to figure out what pseudo-count value to add
+zeroabun <- 1e-6
+abun_otu <- abun_otu + zeroabun
+
+```
+
+Next, we need to calculate the pvalues, effect size, and standard error for each OTU.
+Here, we'll compare lean vs. obese. We'll put these results into a dataframe, and label 
+the columns with the standardized names for downstream use 
+(`pval`, `SE`, `effect_size`, `test_statistic`). The test statistic is the one returned 
+by `wilcox.test()`.
+
+Note that the effect here is calculated as logfold change of mean abundance in controls
+relative to cases (i.e. `log(mean_abun[controls]/mean_abun[cases])`)
+
+While we're at it, we'll also calculate the mean abundance and ubiquity (detection rate)
+of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
+for use in downstream steps.
+
+Note that OB Goodrich has ~70,000 OTUs, so this is going to take a while. There are probably
+faster ways to write this, but I don't know them.
+
+```{r}
+dim(abun_otu)
+```
+
+```{r, goodrich-pvals}
+resfile <- paste0(resdir, "goodrich_results_",
+                  nrow(abun_otu), "_OTUs.RData")
+if (!file.exists(resfile)){
+  # Get case and control indices
+  case_idx <- meta$DiseaseState %in% c("OB")
+  ctrl_idx <- meta$DiseaseState %in% c("H")
+  
+  # Calculate pvalues, effects, and stderr
+  pvals <- c()
+  teststats <- c()
+  ses <- c()
+  effs <- c()
+  mean_abuns <- c()
+  mean_abuns_present <- c()
+  ubis <- c()
+  
+  casedf <- abun_otu[, case_idx]
+  ctrldf <- abun_otu[, ctrl_idx]
+  for (o in rownames(abun_otu)) {
+    # wilcoxon p value  
+    w <- wilcox.test(casedf[o, ], 
+                     ctrldf[o, ])
+    p <- w$p.value
+    teststat <- w$statistic
+    
+    pvals <- c(pvals, p)
+    teststats <- c(teststats, teststat)
+    
+    # standard error of the OTU abundance, across all samples
+    ses <- c(ses, 
+             sd(abun_otu[o, ])/sqrt(length(abun_otu[o, ]))
+             )
+    
+    # mean OTU abundance across all samples (after removing pseudo-count)
+    mean_abuns <- c(mean_abuns, 
+                    mean(abun_otu[o, ] - zeroabun)
+                    )
+    
+    # mean OTU abundance across only samples with the OTU present
+    mean_abuns_present <- c(mean_abuns_present, 
+                            sum(abun_otu[o, ] - zeroabun) / sum(abun_otu[o, ] > zeroabun)
+                            )
+    
+    # ubiquity of OTU across all samples
+    ubis <- c(ubis, 
+              sum(abun_otu[o, ] > zeroabun) / length(abun_otu[o, ])
+              )
+    
+    # effect (logfold difference)
+    effs <- c(effs, 
+              log(mean(abun_otu[o, ctrl_idx])/mean(abun_otu[o, case_idx]))
+              )
+  
+  }
+  
+  res <- data.frame(otu = rownames(abun_otu), 
+                    pval = pvals, test_statistic = teststats,
+                    SE = ses, effect_size = effs, 
+                    mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
+                    ubiquity = ubis)
+  save(res, file=resfile)
+  
+}else{
+  load(resfile)
+}
+head(res)
+```
+
+
+Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
+
+```{r, goodrich-addphylo}
+res <- res %>% separate(otu, 
+                        c("kingdom", "phylum", "class", "order", "family", "genus", "species", "denovo"), 
+                        sep=";", remove = FALSE)
+
+```
+
+#### Check Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+##### Ubiquity
+
+```{r, goodrich-ubi, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=5, binwidth=0.05, numQ=4)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+##### Mean abundance (across non-zero samples)
+
+```{r, goodrich-abun, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=5, binwidth=0.05, numQ=4)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+##### Phylogeny?!
+
+Let's look at phylum-level stratification first. A priori, I *might* expect
+Proteobacteria to be enriched for low p-values? But I don't know if that's
+super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
+
+```{r, goodrich-phylo, fig.width=10, fig.height=6}
+#strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
+#rank_scatter(res, pvalue="pval", covariate="ubiquity")
+ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
+```
+
+Let's use `ubiquity` as our `ind_covariate`
+
+```{r, goodrich-labelcovariate}
+res <- res %>% mutate(ind_covariate = ubiquity)
+```
