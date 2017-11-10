@@ -7,14 +7,14 @@
 #' @param sbase default simulation settings to be modified.
 #' @param vparam variable parameter; should be one of: "pi0",
 #'        "esize_fixed", "esize_random_ua", "esize_random_shift",
-#'        "altnoise".
+#'        "altnoise", "allnull".
 #' @param icparam independent/informative covariate parameter; should be
 #'        one of: "uniform", "bl".
 #'
 #' @description
 #' The following simulation groups are defined:
 #' - `vparam`: variable parameter
-#'     - `pi0`: for fixed effect size, varying null prop
+#'     - `pi0`: for fixed effect size, varying null proportion.
 #'     - `esize_fixed`: varying effect size taken to be the same fixed
 #'                      value across all alternative tests.
 #'     - `esize_random_ua`: varying effect size sampled from a (mostly)
@@ -26,6 +26,8 @@
 #'     - `altnoise`: varying sampling distributions for perturbing the
 #'                   test statistics (both null and alternative)
 #'                   (shifted normal, non-central t, non-central chi-sq).
+#'     - `allnull`: similar to `altnoise` setting, but with pi0 = 1, i.e. all test
+#'                  statistics are simulated under the null distribution.
 #' - `icparam`: independent covariate structure
 #'     - `uniform`: covariate sampled from uniform (0, 1) interval AND
 #'                  no association between covariate and distribution of
@@ -39,7 +41,8 @@
 psim_settings <- function(sbase, vparam, icparam) {
 
     ## check that variable parameter is one of specified set
-    vp <- c("pi0", "esize_fixed", "esize_random_ua", "esize_random_shift", "altnoise")
+    vp <- c("pi0", "esize_fixed", "esize_random_ua", "esize_random_shift",
+            "altnoise", "allnull")
     stopifnot(vparam %in% vp)
     
     ## check that indep/inform covariate parameter is one of specified set
@@ -49,6 +52,9 @@ psim_settings <- function(sbase, vparam, icparam) {
     ## filter out unsupported setting pairs
     if (vparam == "pi0" && icparam == "bl") {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
+    }
+    if (vparam == "allnull" && icparam == "bl") {
+        stop("cant run 'allnull' simulations w/ 'bl' format indep covariate")
     }
     
     ## ##########################################################################
@@ -149,6 +155,27 @@ psim_settings <- function(sbase, vparam, icparam) {
                          "altnoise_chisq_df4_shift3sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
                                      c(0.8, rchisq_generator(1, 3^2), rchisq_perturber(4),
+                                       rchisq_pvaluer(4))))
+
+            
+    } else if (vparam == "allnull") {
+        ## varying sampling noise ###############################################
+        settings <- list("altnoise_normal_null" =
+                             replace(sbase, c("tstat", "tstat_dist", "null_dist"),
+                                     c(function(x) { 0 }, rnorm_perturber(1), rnorm_2pvaluer(1))),
+                         "altnoise_t_df5_null" =
+                             replace(sbase, c("tstat", "tstat_dist", "null_dist"),
+                                     c(function(x) { 0 }, rt_perturber(5), rt_2pvaluer(5))),
+                         "altnoise_t_df10_null" =
+                             replace(sbase, c("tstat", "tstat_dist", "null_dist"),
+                                     c(function(x) { 0 }, rt_perturber(10), rt_2pvaluer(10))),
+                         "altnoise_chisq_df1_null" =
+                             replace(sbase, c("tstat", "tstat_dist", "null_dist"),
+                                     c(function(x) { 0 }, rchisq_perturber(1),
+                                       rchisq_pvaluer(1))),
+                         "altnoise_chisq_df4_null" =
+                             replace(sbase, c("tstat", "tstat_dist", "null_dist"),
+                                     c(function(x) { 0 }, rchisq_perturber(4),
                                        rchisq_pvaluer(4))))
     }
     

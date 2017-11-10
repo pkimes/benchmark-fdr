@@ -14,7 +14,8 @@ params <- list(c("pi0", "uniform"),
                c("esize_random_shift", "uniform"),
                c("esize_random_shift", "bl"),
                c("altnoise", "uniform"),
-               c("altnoise", "bl"))
+               c("altnoise", "bl"),
+               c("allnull", "uniform"))
 
 for (ip in params) {
     cmd <- paste("sbatch",

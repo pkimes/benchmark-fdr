@@ -71,8 +71,10 @@ du_psim <- function(m, pi0, tstat, tstat_dist, null_dist, icovariate, seed = NUL
     
     ## generate set of null (0) and alternative test statistics
     ts <- rep(0, m)
-    ts[alts] <- tstat(length(alts))
-
+    if (length(alts) > 0) {
+        ts[alts] <- tstat(length(alts))
+    }
+    
     ## determine (true) SD of sampling dist used to perturb each stat
     SE <- tstat_dist(ts, se = TRUE)
 

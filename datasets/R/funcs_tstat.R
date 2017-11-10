@@ -109,18 +109,21 @@ rchisq_perturber <- function(df) {
 ## ##############################################################################
 
 ## function factory: two-sided normal p-value calculator
+## @param s standard deviation of null zero-centered normal distribution
 rnorm_2pvaluer <- function(s) {
     function(x) { 2 * (1 - pnorm(abs(x), 0, s)) }
 }
 
 
 ## function factory: two-sided t p-value calculator
+## @param df degrees of freedom of null zero-centered t-distribution
 rt_2pvaluer <- function(df) {
     function(x) { 2 * (1 - pt(abs(x), df)) }
 }
 
 
 ## function factory: chi-sq p-value calculator
+## @param df degrees of freedom of null zero-centered t-distribution
 rchisq_pvaluer <- function(df) {
     function(x) { 1 - pchisq(x, df) }
 }
