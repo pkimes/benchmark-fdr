@@ -263,5 +263,4 @@ And we'll clean up the workspace before moving on to the next dataset.
 rm(bmi)
 rm(bd)
 rm(sb)
-rm(pf)
 ```
