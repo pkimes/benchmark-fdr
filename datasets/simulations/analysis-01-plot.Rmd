@@ -20,6 +20,8 @@ library("data.table")
 library("SummarizedBenchmark")
 library("tidyverse")
 library("magrittr")
+library("viridis")
+library("cowplot")
 ```
 
 ```{r, load-helper-functions}
@@ -36,7 +38,8 @@ source("../R/strat_hist.R")
 
 ```{r}
 ## list of results from 100 replication experiments
-dl <- list.dirs("data-tsim/M1", recursive=FALSE, full.names=TRUE)
+dl <- c(list.dirs("data-tsim/M1", recursive=FALSE, full.names=TRUE),
+        list.dirs("data-psim/M1", recursive=FALSE, full.names=TRUE))        
 
 for (dd in dl) {
     fl <- list.files(dd, pattern=".rdata", full.names=TRUE)
@@ -91,10 +94,11 @@ for (dd in dl) {
 
 ```{r}
 ## list of results from 100 replication experiments
-dl <- list.dirs("data-tsim/M100", recursive=FALSE, full.names=TRUE)
+dl <- c(list.dirs("data-tsim/M100", recursive=FALSE, full.names=TRUE),
+        list.dirs("data-psim/M100", recursive=FALSE, full.names=TRUE))
 
 for (dd in dl) {
-    fl <- list.files(dd, pattern=".rds", full.names=TRUE)
+    fl <- list.files(dd, pattern="M100\\.rds", full.names=TRUE)
 
     outp <- gsub("data", "plots", dd)
     dir.create(outp, showWarnings=FALSE, recursive=TRUE)
