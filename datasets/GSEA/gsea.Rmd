@@ -126,7 +126,48 @@ rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fractio
  
  
 ```{r}
-
 plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+# Gene set size of overlaps
+
+```{r}
+
+getOverlapIndexes <- function( labs=c("lfdr", "ihw-a10"), alpha=0.1 ){
+  rowSums( assays(sGSEA)[["qvalue"]][,labs] < alpha) == length(labs) &
+  !(rowSums( assays(sGSEA)[["qvalue"]][,c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf")] < alpha, na.rm=TRUE ) > (length(labs)))
+}
+
+set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1 )
+set2 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1 )
+set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1 )
+
+table( set1 )
+table( set2 )
+
 
 ```
+
+
+# NULL comparisons
+
+```{r, eval=FALSE }
+nms <- names( genes )
+xx <- seq_len(length(nms))
+gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
+names( gns ) <- nms
+pwf <- nullp( gns, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+res <- goRes %>%
+  dplyr:::filter( numDEInCat > 0 ) %>%
+  dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(pr) <- "qvalue"
+pr <- addDefaultMetrics(pr)
+
+
+```
+
+
+
