@@ -17,6 +17,10 @@
 #' - `SE`
 #' - `test_statistic`
 #' 
+#' @param nmids an integer value passed to the 'Scott-empirical' method
+#' specifying the number of bins to use when estimating the empirical null
+#' distribution. Default 150.
+#' 
 #' @return an object of class `BenchDesign` that is initialized with the 
 #' benchmarking methods to compare FDR control. These are currently: unadjusted,
 #' Bonferroni, Benjamini-Hochberg, Storey's q-value, IHW (with 10 different 
@@ -28,7 +32,7 @@
 #' 
 #' @author Patrick Kimes
 
-initializeBenchDesign <- function() {
+initializeBenchDesign <- function(nmids=150) {
   ## ###########################################################################
   ## check for necessary packages and load them if they aren't present
   ## ###########################################################################
@@ -103,6 +107,6 @@ initializeBenchDesign <- function() {
                      z = qnorm(exp(log(pval) - log(2)), lower.tail=FALSE) * sign(test_statistic),
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'empirical',
-                     control = list(lambda = 0.01))
+                     control = list(lambda = 0.01, nmids = nmids))
   return(bd)
 }
