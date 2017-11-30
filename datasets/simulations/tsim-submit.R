@@ -8,16 +8,24 @@ ncores <- 10
 
 params <- list(c("pi0", "uniform"),
                c("pi0", "se"),
-               c("pi0", "bl"),
                c("n", "uniform"),
                c("n", "se"),
                c("n", "bl"),
+               c("n", "bl-step-less"),
+               c("n", "bl-step-more"),
+               c("n", "bl-cubic"),
                c("esize_fixed", "uniform"),
                c("esize_fixed", "se"),
                c("esize_fixed", "bl"),
+               c("esize_fixed", "bl-step-less"),
+               c("esize_fixed", "bl-step-more"),
+               c("esize_fixed", "bl-cubic"),
                c("esize_random", "uniform"),
                c("esize_random", "se"),
-               c("esize_random", "bl"))
+               c("esize_random", "bl"),
+               c("esize_random", "bl-step-less"),
+               c("esize_random", "bl-step-more"),
+               c("esize_random", "bl-cubic"))
 
 
 for (ip in params) {
