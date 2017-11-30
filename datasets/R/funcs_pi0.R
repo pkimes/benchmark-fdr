@@ -43,6 +43,7 @@ pi0_smooth2 <- function(x1, x2) {
 }
 
 ##smooth function of a single variable
+##note: assumes x in (0, 1)
 pi0_smooth1 <- function(x) {
     y1 <- pi0_f1(x)
     y2 <- pi0_f2(x)
@@ -55,3 +56,23 @@ pi0_smooth1 <- function(x) {
 ## ##############################################################################
 ## END CODE FROM EXTERNAL SOURCE
 ## ##############################################################################
+
+## ##############################################################################
+## alternative Boca-Leek style informative covariates
+## - if x ~ U(0,1), then expect 80% pi0 for all cases
+## ##############################################################################
+
+## step function (4 steps) - less informative
+pi0_4step <- function(x) {
+    0.7 + 0.05 * (x < .75) + 0.1 * (x < .5) + 0.05 * (x < .25)
+}
+
+## step function (4 steps) - more informative
+pi0_4step <- function(x) {
+    0.6 + 0.1 * (x < .75) + 0.2 * (x < .5) + 0.1 * (x < .25)
+}
+
+## shifted/stretched cubic function - smooth
+pi0_cubic <- function(x) {
+    (1-x)^(1/3) * .8 + .2
+}
