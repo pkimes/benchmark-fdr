@@ -63,12 +63,12 @@ pi0_smooth1 <- function(x) {
 ## ##############################################################################
 
 ## step function (4 steps) - less informative
-pi0_4step <- function(x) {
+pi0_4step_70to90 <- function(x) {
     0.7 + 0.05 * (x < .75) + 0.1 * (x < .5) + 0.05 * (x < .25)
 }
 
 ## step function (4 steps) - more informative
-pi0_4step <- function(x) {
+pi0_4step_60to100 <- function(x) {
     0.6 + 0.1 * (x < .75) + 0.2 * (x < .5) + 0.1 * (x < .25)
 }
 

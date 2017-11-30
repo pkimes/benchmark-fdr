@@ -26,6 +26,24 @@
 #'     - `bl`: covariate sampled from uniform (0, 1) interval AND
 #'             probability of test being null (pi0) takes a functional
 #'             form of the single covariate (as in the Boca-Leek paper).
+#'     - `bl-step-less`: covariate sampled from uniform (0, 1) interval AND
+#'                       the probability of a test being null (pi0) is given a
+#'                       functional form of the single covariate.
+#'                       The functional form is a step function taking values in
+#'                       {0.70, 0.75, 0.85, 0.90}. The step function is chosen
+#'                       so the marginal pi0 is 0.80. 
+#'     - `bl-step-more`: covariate sampled from uniform (0, 1) interval AND
+#'                       the probability of a test being null (pi0) is given a
+#'                       functional form of the single covariate.
+#'                       The functional form is a step function taking values in
+#'                       {0.6, 0.7, 0.9, 1.0}. The step function is chosen
+#'                       so the marginal pi0 is 0.80.
+#'     - `bl-cubic`: covariate sampled from uniform (0, 1) interval AND
+#'                   the probability of a test being null (pi0) is given a
+#'                   functional form of the single covariate.
+#'                   The functional form is a reflected, stretched, and shifted
+#'                   cubic function of the single covariate. The transformation
+#'                   is chosen so the marginal pi0 is 0.80.
 #' 
 #' @author Patrick Kimes
 
@@ -36,11 +54,11 @@ tsim_settings <- function(sbase, vparam, icparam) {
     stopifnot(vparam %in% vp)
     
     ## check that indep/inform covariate parameter is one of specified set
-    ic <- c("uniform", "se", "bl")
+    ic <- c("uniform", "se", "bl", "bl-step-less", "bl-step-more", "bl-cubic")
     stopifnot(icparam %in% ic)
 
     ## filter out unsupported setting pairs
-    if (vparam == "pi0" && icparam == "bl") {
+    if (vparam == "pi0" && icparam %in% c("bl", "bl-step-less", "bl-step-more", "bl-cubic")) {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
     }
     
@@ -114,7 +132,13 @@ tsim_settings <- function(sbase, vparam, icparam) {
         settings <- lapply(settings, replace, "icovariate", TRUE)
     } else if (icparam == "bl") {
         settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_smooth1, runif))
-    }
+    } else if (icparam == "bl-step-less") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_70to90, runif))
+    } else if (icparam == "bl-step-more") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_60to100, runif))
+    } else if (icparam == "bl-cubic") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic, runif))
+    } 
 
     return(settings)
 }
