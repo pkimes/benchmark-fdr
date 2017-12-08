@@ -118,10 +118,15 @@ sGSEA <- addDefaultMetrics( sGSEA )
 ```
 
 ```{r plottingResults}
-rejections_scatter( sGSEA, as_fraction=TRUE, supplementary=FALSE)
+rejections_scatter( sGSEA, as_fraction=FALSE, supplementary=FALSE)
 
 sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
-rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=TRUE, supplementary=FALSE)
+
+estimatePerformanceMetrics( sGSEA, alpha=0.1, tidy=TRUE ) %>%
+  filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+  select( blabel, value )
+
+rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=FALSE, supplementary=FALSE)
 ```
  
  
@@ -142,8 +147,18 @@ set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1 )
 set2 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1 )
 set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1 )
 
-table( set1 )
-table( set2 )
+sizesDf <- data.frame( 
+  size=c( rowData( sGSEA )$ind_covariate[which(set1)], 
+          rowData( sGSEA )$ind_covariate[which(set2)], 
+          rowData( sGSEA )$ind_covariate[which(set3)] ),
+  label=rep(c("set1", "set2", "set3"), c(sum(set1), sum(set2), sum(set3)) ) )
+
+ggplot( sizesDf, aes( label, log2(size) )) +
+  geom_boxplot()
+
+dim(goRes)
+
+goRes[set1,]
 
 
 ```
@@ -152,6 +167,7 @@ table( set2 )
 # NULL comparisons
 
 ```{r, eval=FALSE }
+
 nms <- names( genes )
 xx <- seq_len(length(nms))
 gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
@@ -164,7 +180,11 @@ res <- goRes %>%
   dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
 assayNames(pr) <- "qvalue"
-pr <- addDefaultMetrics(pr)
+pr <- addDefaultMetrics(pr, metrics="rejections")
+
+estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
+  filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+  select( blabel, value )
 
 
 ```
