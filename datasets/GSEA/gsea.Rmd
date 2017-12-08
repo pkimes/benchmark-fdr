@@ -34,7 +34,7 @@ gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
 
 dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
 dsdObject <- DESeq(dsdObject)
-res <- results( dsdObject, lfcThreshold=1 )
+res <- results( dsdObject, independentFiltering=FALSE )
 
 ```
 
@@ -58,6 +58,7 @@ if(!file.exists(file)){
 
 genes <- as.numeric( res$padj < 0.1 )
 names( genes ) <- rownames( res )
+
 
 ### getting median transcript length
 txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
@@ -102,7 +103,7 @@ library(dplyr)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 
 dplyr:::filter( goRes, numDEInCat > 0, numInCat > 15 ) %>%
-  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=11)
   
 ```
  
@@ -127,7 +128,6 @@ estimatePerformanceMetrics( sGSEA, alpha=0.1, tidy=TRUE ) %>%
   filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
   select( blabel, value )
 
-rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=FALSE, supplementary=FALSE)
 ```
  
  
@@ -139,14 +139,14 @@ plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", n
 
 ```{r}
 
-getOverlapIndexes <- function( labs=c("lfdr", "ihw-a10"), alpha=0.1 ){
-  rowSums( assays(sGSEA)[["qvalue"]][,labs] < alpha) == length(labs) &
+getOverlapIndexes <- function( labs=c("lfdr", "ihw-a10"), alpha=0.1, sGSEA ){
+  rowSums( assays(sGSEA)[["qvalue"]][,labs,drop=FALSE] < alpha) == length(labs) &
   !(rowSums( assays(sGSEA)[["qvalue"]][,c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf")] < alpha, na.rm=TRUE ) > (length(labs)))
 }
 
-set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1 )
-set2 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1 )
-set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1 )
+set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1, sGSEA=sGSEA )
+set2 <- getOverlapIndexes( c("bl-df03"), alpha=0.1, sGSEA=sGSEA )
+set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1, sGSEA=sGSEA )
 
 sizesDf <- data.frame( 
   size=c( rowData( sGSEA )$ind_covariate[which(set1)], 
@@ -157,26 +157,9 @@ sizesDf <- data.frame(
 ggplot( sizesDf, aes( label, log2(size) )) +
   geom_boxplot()
 
-dim(goRes)
-
-goRes[set1,]
-
 
 ```
 
-Plotting the methods overlap
-
-```{r}
-
-sGSEASub <- sGSEA[,!apply( is.na( assays(sGSEA)[["qvalue"]] ), 2, all )]
-sGSEASub <- sGSEASub[,-which(grepl("ihw", colData( sGSEASub )$blabel) & colData( sGSEASub )$param.alpha != 0.1)]
-sGSEASub <- sGSEASub[,-which( grepl("bl", colData( sGSEASub)$blabel) & 
-                   colData(sGSEASub)$param.smooth.df != 2L )]
-sGSEASub <- sGSEASub[,!colData(sGSEASub)$blabel %in% "unadjusted"]
-
-plotMethodsOverlap(sGSEASub, order.by = "freq", nsets=10)
-
-```
  
 # NULL comparisons
 
@@ -206,6 +189,7 @@ estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
 # Same analysis but using the HSC-MPP dataset from Nina
 
 ```{r}
+
 dsdMouse <- "dsdHSCMPP.RData"
 if( !file.exists( dsdMouse ) ){
   download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1", destfile="dsdHSCMPP.RData")
@@ -213,16 +197,70 @@ if( !file.exists( dsdMouse ) ){
 load(dsdMouse)
 dseHSCMPP <- DESeq( dseHSCMPP)
 
-res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1") )
+res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1"), independentFiltering=FALSE )
 genes <- as.numeric( res$padj < 0.1 )
 names( genes ) <- rownames( res )
 genes[is.na( genes )] <- 0
+table(genes)
 
 ### preparing gene length info and goSets ###
 library("EnsDb.Mmusculus.v75")
+txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
+geneLength <- sapply( width( txByGene ), median )
+geneLength <- geneLength[names(genes)]
 
-pwf <- nullp(genes,  )
+
+file="goSetsMm.RData"
+if(!file.exists(file)){
+  stopifnot( require( biomaRt ) )
+  mart <- useMart( "ensembl", "mmusculus_gene_ensembl" )
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
+  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
+  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
+  save(goSets, file=file)
+}else{
+  load(file)
+}
+
+pwf <- nullp(genes, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
+
+res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+res$pval <- pmin( res$pval, 1 )
+sGSEAMouse <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(sGSEAMouse) <- "qvalue"
+sGSEAMouse <- addDefaultMetrics( sGSEAMouse )
+
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
+
+library(dplyr)
+
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 20)  %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+
+rejections_scatter( sGSEAMouse, as_fraction=FALSE, supplementary=FALSE)
+
+plotFDRMethodsOverlap( sGSEAMouse, supplementary=FALSE, order.by="freq")
+
+set1 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1, sGSEA=sGSEAMouse)
+set2 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1, sGSEA=sGSEAMouse )
+set3 <- getOverlapIndexes( c("bl-df03"), alpha=0.1, sGSEA=sGSEAMouse )
+
+sizesDf <- data.frame( 
+  size=c( rowData( sGSEAMouse )$ind_covariate[which(set1)], 
+          rowData( sGSEAMouse )$ind_covariate[which(set2)], 
+          rowData( sGSEAMouse )$ind_covariate[which(set3)] ),
+  label=rep(c("set1", "set2", "set3"), c(sum(set1), sum(set2), sum(set3)) ) )
+
+ggplot( sizesDf, aes( label, log2(size) )) +
+  geom_boxplot()
+
 
 ```
  
