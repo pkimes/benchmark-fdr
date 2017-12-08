@@ -95,9 +95,6 @@ setting_base <- list(m = 20000,                        # integer: number of hypo
 
 bd <- initializeBenchDesign()
 
-## remove ash since these sims don't have SE estimates
-bd$methods <- bd$methods[-(which(names(bd$methods) == "ashs"))]
-
 
 ## ##############################################################################
 ## generate simulation settings
