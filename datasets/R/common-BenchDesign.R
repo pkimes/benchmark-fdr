@@ -17,10 +17,14 @@
 #' - `SE`
 #' - `test_statistic`
 #' 
+#' @param nmids an integer value passed to the 'Scott-empirical' method
+#' specifying the number of bins to use when estimating the empirical null
+#' distribution. Default 150.
+#' 
 #' @return an object of class `BenchDesign` that is initialized with the 
 #' benchmarking methods to compare FDR control. These are currently: unadjusted,
 #' Bonferroni, Benjamini-Hochberg, Storey's q-value, IHW (with 10 different 
-#' alpha values from 0.01 to 0.10), Stephen's ash, Boca-Leek (with 4 different
+#' alpha values from 0.01 to 0.10), Stephens' ash, Boca-Leek (with 4 different
 #' smoothing df values from 2 to 5), Cai's local FDR, and Scott's FDR regression
 #' (with two null settings, empirical and theoretical).
 #' 
@@ -28,7 +32,7 @@
 #' 
 #' @author Patrick Kimes
 
-initializeBenchDesign <- function(){
+initializeBenchDesign <- function(nmids=150) {
   ## ###########################################################################
   ## check for necessary packages and load them if they aren't present
   ## ###########################################################################
@@ -48,65 +52,61 @@ initializeBenchDesign <- function(){
   bd <- BenchDesign()
   ## unadjusted p-values
   bd %<>% addBMethod("unadjusted",
-                   function(p) { p },
-                   p = pval)
+                     function(p) { p },
+                     p = pval)
   ## Bonferonni correction
   bd %<>% addBMethod("bonf",
-                   p.adjust,
-                   p = pval, method = "bonferroni")
+                     p.adjust,
+                     p = pval, method = "bonferroni")
   ## Benjamini-Hochberg correction
   bd %<>% addBMethod("bh",
-                   p.adjust,
-                   p = pval, method = "BH")
+                     p.adjust,
+                     p = pval, method = "BH")
   ## Storey's q-value
   bd %<>% addBMethod("qvalue",
-                   qvalue::qvalue,
-                   function(x) { x$qvalues },
-                   p = pval)
+                     qvalue::qvalue,
+                     function(x) { x$qvalues },
+                     p = pval)
   ## IHW (w/ varying alpha threshold) 
   for (ia in seq(0.01, 0.10, by=0.01)) {
-      bd %<>% addBMethod(paste0("ihw-a", sprintf("%02g", ia*100)),
+    bd %<>% addBMethod(paste0("ihw-a", sprintf("%02g", ia*100)),
                        IHW::ihw,
                        IHW::adj_pvalues,
                        pvalues = pval, covariates = ind_covariate,
                        alpha =  UQ(ia))
   }
-  ## Stephen's ASH
+  ## Stephens' ASH
   bd %<>% addBMethod("ashs",
-                   ashr::ash,
-                   ashr::get_svalue,
-                   betahat = effect_size, sebetahat = SE)
+                     ashr::ash,
+                     ashr::get_svalue,
+                     betahat = effect_size, sebetahat = SE)
   ## Boca-Leek (w/ varying smoothing degrees of freedom)
   for (idf in 2:5) {
       bd %<>% addBMethod(paste0("bl-df", sprintf("%02g", idf)), 
-                       swfdr::lm_pi0,
-                       function(x) { x$pi0 * p.adjust(pval, method = "BH") },
-                       pValues = pval, X = ind_covariate,
-                       smooth.df = UQ(idf))
+                         swfdr::lm_pi0,
+                         function(x) { x$pi0 * p.adjust(pval, method = "BH") },
+                         pValues = pval, X = ind_covariate,
+                         smooth.df = UQ(idf))
   }
   ## Cai's local FDR
   bd %<>% addBMethod("lfdr",
-                   clfdr_hickswrapper,
-                   unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
+                     clfdr_hickswrapper,
+                     unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
   ## Scott's FDR regression w/ theoretical null
   bd %<>% addBMethod("scott-theoretical",
-                   scott_fdrreg_hickswrapper,
-                   zscores = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(test_statistic),
-                   filterstat = ind_covariate, df = 3, lambda = 0.01,
-                   nulltype = 'theoretical')
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = qnorm(exp(log(pval) - log(2)), lower.tail=FALSE) * sign(test_statistic),
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
   ## Scott's FDR regression w/ empirical null
   bd %<>% addBMethod("scott-empirical",
-                   scott_fdrreg_hickswrapper,
-                   zscores = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(test_statistic),
-                   filterstat = ind_covariate, df = 3, lambda = 0.01,
-                   nulltype = 'empirical')
-  ## Lei and Fithian's AdaPT 
-  bd %<>% addBMethod("adapt",
-                     AdaPT,
-                     x = order(ind_covariate), pvals = pval, 
-                     s0 = rep(0.45, length(pval)), 
-                     delta.high = 0.05, delta.low = 0.05, 
-                     B = 5, q.list = seq(0.01, 0.10, by=0.01), 
-                     quiet = TRUE)
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = qnorm(exp(log(pval) - log(2)), lower.tail=FALSE) * sign(test_statistic),
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01, nmids = nmids))
   return(bd)
 }

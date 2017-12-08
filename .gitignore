@@ -4,5 +4,8 @@
 .Rproj.user
 *.RDS
 datasets/simulations/plots
-datasets/simulations/data
+datasets/simulations/data-tsim
+datasets/simulations/data-psim
+datasets/simulations/plots-tsim
+datasets/simulations/plots-psim
 datasets/simulations/_slurmio

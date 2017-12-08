@@ -75,6 +75,7 @@ goRes <- goseq( pwf, gene2cat=goSets )
 
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+
 library(ggplot2)
 library(magrittr)
 library(cowplot)
@@ -112,20 +113,41 @@ designBen <- initializeBenchDesign()
 res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
   dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 res$pval <- pmin( res$pval, 1 )
-sGSEA <- designBen %>% buildBench( res )
+sGSEA <- designBen %>% buildBench( res, ftCols="ind_covariate")
 assayNames(sGSEA) <- "qvalue"
 sGSEA <- addDefaultMetrics( sGSEA )
 ```
 
 ```{r plottingResults}
-rejections_scatter( sGSEA, as_fraction=FALSE )
+rejections_scatter( sGSEA, as_fraction=TRUE, supplementary=FALSE)
 
-stopifnot( all(assays(sGSEA)[["qvalue"]][,"unadjusted"] == pmin(goRes$over_represented_pvalue, 1) ) )
-rowData(sGSEA)$numInCat <- goRes$numInCat
-
-rejection_scatter_bins( sGSEA, "numInCat", threshold=15, bins=4, as_fraction=TRUE )
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=TRUE, supplementary=FALSE)
+```
+ 
+ 
+```{r}
+plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
+# Gene set size of overlaps
+
+```{r}
+
+getOverlapIndexes <- function( labs=c("lfdr", "ihw-a10"), alpha=0.1 ){
+  rowSums( assays(sGSEA)[["qvalue"]][,labs] < alpha) == length(labs) &
+  !(rowSums( assays(sGSEA)[["qvalue"]][,c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf")] < alpha, na.rm=TRUE ) > (length(labs)))
+}
+
+set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1 )
+set2 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1 )
+set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1 )
+
+table( set1 )
+table( set2 )
+
+
+```
 
 Plotting the methods overlap
 
@@ -141,6 +163,25 @@ plotMethodsOverlap(sGSEASub, order.by = "freq", nsets=10)
 
 ```
  
+# NULL comparisons
+
+```{r, eval=FALSE }
+nms <- names( genes )
+xx <- seq_len(length(nms))
+gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
+names( gns ) <- nms
+pwf <- nullp( gns, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+res <- goRes %>%
+  dplyr:::filter( numDEInCat > 0 ) %>%
+  dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(pr) <- "qvalue"
+pr <- addDefaultMetrics(pr)
+
+
+```
  
 # Same analysis but using the HSC-MPP dataset from Nina
 

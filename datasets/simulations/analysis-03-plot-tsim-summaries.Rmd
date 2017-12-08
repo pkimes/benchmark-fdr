@@ -1,0 +1,846 @@
+---
+title: "Benchmarking FDR Methods - Summarizing Simulation Results"
+author: "Rafalab Journal Club Members"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: tango
+    number_sections: true
+    code_folding: hide
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, fig.width = 12, fig.height = 10)
+```
+
+<!-- ######################################################################## -->
+## Workspace Setup
+<!-- ######################################################################## -->
+
+```{r, load-libraries, message=FALSE}
+library("data.table")
+library("SummarizedBenchmark")
+library("tidyverse")
+library("magrittr")
+library("forcats")
+```
+
+```{r, load-helper-functions}
+source("../R/plotsim_standardize.R")
+```
+
+```{r, process-data, message=FALSE}
+## list of results from 100 replication experiments
+dl <- list.dirs("data-tsim/M100", recursive=FALSE, full.names=TRUE)
+
+## parse each setting-block separately and save metrics in single file
+for (dd in dl) {
+    if (!file.exists(file.path(dd, "results-performanceMetrics-alpha05.rds"))) {
+        fl <- list.files(dd, pattern=".rds", full.names=TRUE)
+        tsbl <- list()
+        for (f in fl) {
+            ## read process data
+            res <- readRDS(f)
+            tsb <- plotsim_standardize(res, alpha = 0.05)
+            tsbs <- tsb %>%
+                filter(!(blabel %in% c("bl-df02", "bl-df04", "bl-df05", 
+                                       paste0("ihw-a0", c(1:4, 6:9)), "ihw-a10")),
+                       alpha == 0.05) %>%
+                select(blabel, performanceMetric, value, rep)
+            tsbl[[gsub(".*/(.*)\\.rds", "\\1", f)]] <- tsbs
+        }
+        tsbc <- as.tibble(bind_rows(tsbl, .id = "param"))
+        saveRDS(tsbc, file.path(dd, "results-performanceMetrics-alpha05.rds"))
+    }
+}
+```
+
+<!-- ######################################################################## -->
+## Overview
+<!-- ######################################################################## -->
+
+In this analysis, we look at summarizing the results for the various simulation settings considered under the two-sample t-test setup. Each simulation included 20,000 two-sample t-tests performed over a variable number of null (group difference 0) and alternative (group difference > 0) datasets. Different simulation settings were considered to evaluate the impact of varying sample sizes, effect sizes, effect size distributions, proportions of null hypotheses, and presence or absence of an informative covariate. More details on the simulation settings considered are included in the header of the `tsim-core-settings.R` script. Each setting was replicated 100 times.
+
+In a previous analysis (`analysis-01-plot.Rmd`), each simulation setting was considered and plotted separately with performance metrics reported over a range of FDR ("alpha") thresholds. However, since the total number of settings considered is quite large, processing and interpreting these results was both cumbersome and difficult. To get a higher-level picture of the simulation results, here we consider a single FDR threshold, `alpha = 0.05`, and plot performance metrics across settings for each method. Plots for FPR and "rejectprop" (rejection proportion) include blue horizontal lines at the expected FDR level (`0.05`) and proportion of alternative hypotheses (`1 - pi0`), respectively. 
+
+For simulation settings where the effect size (expected group differece) is not varying, a fixed difference of `1.5` was used for all alternative hypotheses. For simulation settings with the uniform (un-informative) or SE informative covariate, if the proportion of null hypotheses is not varying, `80%` of hypotheses were simulated under the null. For simulation settings with the "Boca-Leek" style informative covariate, a functional relationship was first defined between the probability of a test being null and the "informative covariate". Then, the informative covariates were sampled from Uniform(0, 1) and used to randomly assign each test as null or alternative according to the predefined functional relationship. The form of the relationship used here was taken from Setting II of the Boca-Leek simulations.
+
+For easier comparison across settings, we fix the order of the methods first. The ordering is roughly based on the anti-conservative/conservative-ness of each method with covariate-aware methods included as a block.
+
+```{r}
+lab_order <- c("Bonferroni", "Benjamini-Hochberg", "q-value", "local FDR",
+               "IHW", "Boca-Leek", "FDRreg (theoretical)", "FDRreg (empirical)",
+               "ASH", "unadjusted")
+```
+
+Similarly, we define a consistent re-naming for each method for easier printing, and also add a column for differentiating covariate-aware methods from the other methods.
+
+```{r}
+re_blabel <- function(tab) {
+    tsb %>%
+        mutate(blabel = fct_recode(f = blabel, "IHW" = "ihw-a05", "ASH" = "ashs",
+                                   "Boca-Leek" = "bl-df03", "local FDR" = "lfdr",
+                                   "FDRreg (theoretical)" = "scott-theoretical",
+                                   "FDRreg (empirical)" = "scott-empirical",
+                                   "Benjamini-Hochberg" = "bh",
+                                   "Bonferroni" = "bonf", "q-value" = "qvalue"),
+               takes_cov = blabel %in%
+                   c("IHW", "ASH", "Boca-Leek", "FDRreg (theoretical)", "FDRreg (empirical)")) %>%
+        mutate(blabel = factor(blabel, levels = lab_order))
+}
+```
+
+Results are reported using the following common plotting style.
+
+```{r}
+## summarize results in plot
+gen_plot <- function(ptitle, tab, co) {
+    tab %>%
+        ggplot(aes(x = blabel, y = value, color = takes_cov)) +
+        geom_boxplot() +
+        geom_jitter(alpha = 1/10) +
+        scale_y_continuous("", labels = scales::percent) +
+        scale_color_brewer(palette = "Paired", guide = FALSE) + 
+        xlab("") + 
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+        facet_grid(performanceMetric ~ param) +
+        geom_hline(aes(yintercept = expected), data = co,
+                   color = "blue", alpha = 1/2) +
+        ggtitle(ptitle)
+}
+```
+
+
+<!-- ######################################################################## -->
+## Varying Constant Effect Size
+<!-- ######################################################################## -->
+
+<!-- ######################################################################## -->
+### Non-Informative Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-uniform/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, Non-Informative Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### SE as Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-se/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, SE as Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Boca-Leek Style Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-bl/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.074))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, Boca-Leek Style Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - Less Informative)
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-bl-step-less/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, Manual Covariate (step - less informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - More Informative)
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-bl-step-more/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, Manual Covariate (step - more informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Cubic)
+
+```{r}
+f <- "data-tsim/M100/esize_fixed-bl-cubic/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")),
+           param >= 10) %>%
+    mutate(param = paste("effect size =", sprintf("%.1f", param / 10)))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Effect Size, Manual Covariate (cubic) (100 replications)",
+         tsb, cutoffs)
+```
+
+
+<!-- ######################################################################## -->
+## Varying Null Proportion
+<!-- ######################################################################## -->
+
+<!-- ######################################################################## -->
+### Non-Informative Covariate 
+
+```{r}
+f <- "data-tsim/M100/pi0-uniform/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("null = ", param * 10, "%"),
+                          levels = paste0("null = ", seq(10, 100, 10), "%")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric =
+                          factor(c(rep("FPR", 10), rep("rejectprop", 10)),
+                                 levels=levels(tsb$performanceMetric)),
+                      param = rep(paste0("null = ", seq(10, 100, 10), "%"), 2),
+                      expected = c(rep(0.05, 10), seq(.9, 0, -.1)))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Null Proportion, Non-Informative Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### SE as Covariate
+
+```{r}
+f <- "data-tsim/M100/pi0-se/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("null = ", param * 10, "%"),
+                          levels = paste0("null = ", seq(10, 100, 10), "%")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric =
+                          factor(c(rep("FPR", 10), rep("rejectprop", 10)),
+                                 levels=levels(tsb$performanceMetric)),
+                      param = rep(paste0("null = ", seq(10, 100, 10), "%"), 2),
+                      expected = c(rep(0.05, 10), seq(.9, 0, -.1)))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Null Proportion, SE as Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+## Varying Sample Sizes
+<!-- ######################################################################## -->
+
+<!-- ######################################################################## -->
+### Non-Informative Covariate
+
+```{r}
+f <- "data-tsim/M100/n-uniform/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+## can also add default of n = 10 from alt pi0 simulation set
+## (same effect_size = 1.5, pi0 = 0.8)
+f2 <- "data-tsim/M100/pi0-uniform/results-performanceMetrics-alpha05.rds"
+tsb2 <- readRDS(f2)
+tsb2 %<>%
+    filter(param == "results-altp0_8-M100") %>%
+    mutate(param = "results-altn_10-M100")
+
+tsb <- bind_rows(tsb, tsb2)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 10, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, Non-Informative Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+
+<!-- ######################################################################## -->
+### SE as Covariate
+
+```{r}
+f <- "data-tsim/M100/n-se/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+## can also add default of n = 10 from alt pi0 simulation set
+## (same effect_size = 1.5, pi0 = 0.8)
+f2 <- "data-tsim/M100/pi0-se/results-performanceMetrics-alpha05.rds"
+tsb2 <- readRDS(f2)
+tsb2 %<>%
+    filter(param == "results-altp0_8-M100") %>%
+    mutate(param = "results-altn_10-M100")
+
+tsb <- bind_rows(tsb, tsb2)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 10, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, SE as Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Boca-Leek Style Covariate
+
+```{r}
+f <- "data-tsim/M100/n-bl/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.074))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, Boca-Leek Style Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - Less Informative)
+
+```{r}
+f <- "data-tsim/M100/n-bl-step-less/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, Manual Covariate (step - less informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - More Informative)
+
+```{r}
+f <- "data-tsim/M100/n-bl-step-more/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, Manual Covariate (step - more informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Cubic)
+
+```{r}
+f <- "data-tsim/M100/n-bl-cubic/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove rejections: scaling is off from rest (also dup'd w/ rejprop)
+## remove FWER: not informative as a boxplot
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*?)-.*", "\\1", param) %>% as.numeric,
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER"))) %>%
+    mutate(param = factor(paste0("n (per group) = ", param),
+                          levels = paste0("n (per group) = ", c(3, 6, 20))))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Sample Sizes, Manual Covariate (cubic) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+## Randomly-Sampled Effect Size
+<!-- ######################################################################## -->
+
+<!-- ######################################################################## -->
+### Non-Informative Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_random-uniform/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, Non-Informative Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### SE as Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_random-se/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, SE as Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Boca-Leek Style Covariate
+
+```{r}
+f <- "data-tsim/M100/esize_random-bl/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.074))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, Boca-Leek Style Covariate (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - Less Informative)
+
+```{r}
+f <- "data-tsim/M100/esize_random-bl-step-less/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, Manual Covariate (step - less informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Step - More Informative)
+
+```{r}
+f <- "data-tsim/M100/esize_random-bl-step-more/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, Manual Covariate (step - more informative) (100 replications)",
+         tsb, cutoffs)
+```
+
+<!-- ######################################################################## -->
+### Manual Covariate (Cubic)
+
+```{r}
+f <- "data-tsim/M100/esize_random-bl-cubic/results-performanceMetrics-alpha05.rds"
+tsb <- readRDS(f)
+
+outp <- gsub("data", "plots", dirname(f))
+dir.create(outp, showWarnings=FALSE, recursive=TRUE)
+
+## remove non-percentage metric (rejections),
+## subset on settings (effect < 1.0 not really informative)
+tsb %<>%
+    mutate(param = gsub(".*?-.*?_(.*)-.+", "\\1", param),
+           performanceMetric =
+               factor(performanceMetric,
+                      levels = c("rejections", "rejectprop", "TPR",
+                                 "TNR", "FPR", "FNR", "FWER"))) %>%
+    filter(!(performanceMetric %in% c("rejections", "FWER")))
+
+## relabel methods for easier reading
+tsb %<>% re_blabel
+
+## expected thresholds based on simulation setting
+cutoffs <- data.frame(performanceMetric = factor(c("FPR", "rejectprop"),
+                                                 levels=levels(tsb$performanceMetric)),
+                      expected = c(0.05, 0.20))
+
+## summarize results in plot
+gen_plot("Two-Sample T-Tests w/ Varying Randomly Sampled Effect, Manual Covariate (cubic) (100 replications)",
+         tsb, cutoffs)
+```
+

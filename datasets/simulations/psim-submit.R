@@ -7,14 +7,27 @@ M <- 100
 ncores <- 10
 
 params <- list(c("pi0", "uniform"),
+               c("allnull", "uniform"),
                c("esize_fixed", "uniform"),
                c("esize_fixed", "bl"),
+               c("esize_fixed", "bl-step-less"),
+               c("esize_fixed", "bl-step-more"),
+               c("esize_fixed", "bl-cubic"),
                c("esize_random_ua", "uniform"),
                c("esize_random_ua", "bl"),
+               c("esize_random_ua", "bl-step-less"),
+               c("esize_random_ua", "bl-step-more"),
+               c("esize_random_ua", "bl-cubic"),
                c("esize_random_shift", "uniform"),
                c("esize_random_shift", "bl"),
-               c("esize_random_altnoise", "uniform"),
-               c("esize_random_altnoise", "bl"))
+               c("esize_random_shift", "bl-step-less"),
+               c("esize_random_shift", "bl-step-more"),
+               c("esize_random_shift", "bl-cubic"),
+               c("altnoise", "uniform"),
+               c("altnoise", "bl"),
+               c("altnoise", "bl-step-less"),
+               c("altnoise", "bl-step-more"),
+               c("altnoise", "bl-cubic"))
 
 for (ip in params) {
     cmd <- paste("sbatch",
