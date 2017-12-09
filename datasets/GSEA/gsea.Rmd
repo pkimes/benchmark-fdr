@@ -34,7 +34,7 @@ gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
 
 dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
 dsdObject <- DESeq(dsdObject)
-res <- results( dsdObject, lfcThreshold=1 )
+res <- results( dsdObject, independentFiltering=FALSE )
 
 ```
 
@@ -58,6 +58,7 @@ if(!file.exists(file)){
 
 genes <- as.numeric( res$padj < 0.1 )
 names( genes ) <- rownames( res )
+
 
 ### getting median transcript length
 txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
@@ -87,7 +88,6 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
     ylim(0, 12) + ggtitle("Over-represented gene sets") +
     xlab( expression(log[10]~"(# of genes)")) +
     ylab( expression(-log[10]~"(p-value)") ) 
-
 ```
 
 
@@ -102,7 +102,7 @@ library(dplyr)
 under_represented_pvalue
 dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
   strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
-  
+
 ```
  
  Generating the *SummarizedBenchmark* object:
@@ -118,9 +118,10 @@ sGSEA <- addDefaultMetrics( sGSEA )
 ```
 
 ```{r plottingResults}
-rejections_scatter( sGSEA, as_fraction=TRUE, supplementary=FALSE)
+rejections_scatter( sGSEA, as_fraction=FALSE, supplementary=FALSE)
 
 sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+
 ```
  
  
@@ -141,6 +142,7 @@ plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2 )
 # NULL comparisons
 
 ```{r, eval=FALSE }
+
 nms <- names( genes )
 xx <- seq_len(length(nms))
 gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
@@ -153,14 +155,18 @@ res <- goRes %>%
   dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
 assayNames(pr) <- "qvalue"
-pr <- addDefaultMetrics(pr)
+pr <- addDefaultMetrics(pr, metrics="rejections")
 
+estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
+  filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+  select( blabel, value )
 
 ```
  
 # Same analysis but using the HSC-MPP dataset from Nina
 
 ```{r}
+
 dsdMouse <- "dsdHSCMPP.RData"
 if( !file.exists( dsdMouse ) ){
   download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1", destfile="dsdHSCMPP.RData")
@@ -168,16 +174,70 @@ if( !file.exists( dsdMouse ) ){
 load(dsdMouse)
 dseHSCMPP <- DESeq( dseHSCMPP)
 
-res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1") )
+res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1"), independentFiltering=FALSE )
 genes <- as.numeric( res$padj < 0.1 )
 names( genes ) <- rownames( res )
 genes[is.na( genes )] <- 0
+table(genes)
 
 ### preparing gene length info and goSets ###
 library("EnsDb.Mmusculus.v75")
+txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
+geneLength <- sapply( width( txByGene ), median )
+geneLength <- geneLength[names(genes)]
 
-pwf <- nullp(genes,  )
+
+file="goSetsMm.RData"
+if(!file.exists(file)){
+  stopifnot( require( biomaRt ) )
+  mart <- useMart( "ensembl", "mmusculus_gene_ensembl" )
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
+  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
+  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
+  save(goSets, file=file)
+}else{
+  load(file)
+}
+
+pwf <- nullp(genes, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
+
+res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+res$pval <- pmin( res$pval, 1 )
+sGSEAMouse <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(sGSEAMouse) <- "qvalue"
+sGSEAMouse <- addDefaultMetrics( sGSEAMouse )
+
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
+
+library(dplyr)
+
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 20)  %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+
+rejections_scatter( sGSEAMouse, as_fraction=FALSE, supplementary=FALSE)
+
+plotFDRMethodsOverlap( sGSEAMouse, supplementary=FALSE, order.by="freq")
+
+set1 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1, sGSEA=sGSEAMouse)
+set2 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1, sGSEA=sGSEAMouse )
+set3 <- getOverlapIndexes( c("bl-df03"), alpha=0.1, sGSEA=sGSEAMouse )
+
+sizesDf <- data.frame( 
+  size=c( rowData( sGSEAMouse )$ind_covariate[which(set1)], 
+          rowData( sGSEAMouse )$ind_covariate[which(set2)], 
+          rowData( sGSEAMouse )$ind_covariate[which(set3)] ),
+  label=rep(c("set1", "set2", "set3"), c(sum(set1), sum(set2), sum(set3)) ) )
+
+ggplot( sizesDf, aes( label, log2(size) )) +
+  geom_boxplot()
+
 
 ```
  
