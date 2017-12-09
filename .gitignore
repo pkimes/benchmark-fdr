@@ -9,3 +9,4 @@ datasets/simulations/data-psim
 datasets/simulations/plots-tsim
 datasets/simulations/plots-psim
 datasets/simulations/_slurmio
+datasets/RNA-Seq/dsdObjects.RData
