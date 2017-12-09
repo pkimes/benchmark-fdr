@@ -65,8 +65,6 @@ geneLength <- sapply( width( txByGene ), median )
 geneLength <- geneLength[names(genes)]
 genes[is.na( genes )] <- 0
 
-any( is.na(genes) )
-stopifnot(!any(is.na(genes)))
 pwf <- nullp(genes, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
 
@@ -101,8 +99,9 @@ library(dplyr)
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 
-dplyr:::filter( goRes, numDEInCat > 0, numInCat > 15 ) %>%
-  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+under_represented_pvalue
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
   
 ```
  
@@ -122,7 +121,6 @@ sGSEA <- addDefaultMetrics( sGSEA )
 rejections_scatter( sGSEA, as_fraction=TRUE, supplementary=FALSE)
 
 sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
-rejection_scatter_bins( sGSEA, "ind_covariate", threshold=15, bins=4, as_fraction=TRUE, supplementary=FALSE)
 ```
  
  
@@ -134,34 +132,11 @@ plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", n
 
 ```{r}
 
-getOverlapIndexes <- function( labs=c("lfdr", "ihw-a10"), alpha=0.1 ){
-  rowSums( assays(sGSEA)[["qvalue"]][,labs] < alpha) == length(labs) &
-  !(rowSums( assays(sGSEA)[["qvalue"]][,c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf")] < alpha, na.rm=TRUE ) > (length(labs)))
-}
-
-set1 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1 )
-set2 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh"), alpha=0.1 )
-set3 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1 )
-
-table( set1 )
-table( set2 )
-
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2 )
 
 ```
 
-Plotting the methods overlap
-
-```{r}
-
-sGSEASub <- sGSEA[,!apply( is.na( assays(sGSEA)[["qvalue"]] ), 2, all )]
-sGSEASub <- sGSEASub[,-which(grepl("ihw", colData( sGSEASub )$blabel) & colData( sGSEASub )$param.alpha != 0.1)]
-sGSEASub <- sGSEASub[,-which( grepl("bl", colData( sGSEASub)$blabel) & 
-                   colData(sGSEASub)$param.smooth.df != 2L )]
-sGSEASub <- sGSEASub[,!colData(sGSEASub)$blabel %in% "unadjusted"]
-
-plotMethodsOverlap(sGSEASub, order.by = "freq", nsets=10)
-
-```
  
 # NULL comparisons
 
