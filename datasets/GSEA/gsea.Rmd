@@ -88,6 +88,7 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
     ylim(0, 12) + ggtitle("Over-represented gene sets") +
     xlab( expression(log[10]~"(# of genes)")) +
     ylab( expression(-log[10]~"(p-value)") ) 
+
 ```
 
 
@@ -99,7 +100,6 @@ library(dplyr)
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 
-under_represented_pvalue
 dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
   strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
 
@@ -225,18 +225,9 @@ rejections_scatter( sGSEAMouse, as_fraction=FALSE, supplementary=FALSE)
 
 plotFDRMethodsOverlap( sGSEAMouse, supplementary=FALSE, order.by="freq")
 
-set1 <- getOverlapIndexes( c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf"), alpha=0.1, sGSEA=sGSEAMouse)
-set2 <- getOverlapIndexes( c("lfdr", "ihw-a10"), alpha=0.1, sGSEA=sGSEAMouse )
-set3 <- getOverlapIndexes( c("bl-df03"), alpha=0.1, sGSEA=sGSEAMouse )
+plotCovariateBoxplots( sGSEAMouse, alpha=0.1, nsets=4, methods=methods, trans=log2, maxNum=5)
 
-sizesDf <- data.frame( 
-  size=c( rowData( sGSEAMouse )$ind_covariate[which(set1)], 
-          rowData( sGSEAMouse )$ind_covariate[which(set2)], 
-          rowData( sGSEAMouse )$ind_covariate[which(set3)] ),
-  label=rep(c("set1", "set2", "set3"), c(sum(set1), sum(set2), sum(set3)) ) )
-
-ggplot( sizesDf, aes( label, log2(size) )) +
-  geom_boxplot()
+plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
 
 
 ```
