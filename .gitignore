@@ -6,7 +6,9 @@
 datasets/simulations/plots
 datasets/simulations/data-tsim
 datasets/simulations/data-psim
+datasets/simulations/data-psim-noash
 datasets/simulations/plots-tsim
 datasets/simulations/plots-psim
+datasets/simulations/plots-psim-noash
 datasets/simulations/_slurmio
 datasets/RNA-Seq/dsdObjects.RData
