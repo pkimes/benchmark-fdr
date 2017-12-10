@@ -38,6 +38,7 @@ dl <- list.dirs("data-tsim/M100", recursive=FALSE, full.names=TRUE)
 ## parse each setting-block separately and save metrics in single file
 for (dd in dl) {
     if (!file.exists(file.path(dd, "results-performanceMetrics-alpha05.rds"))) {
+        print(paste0("running: ", basename(dd))) 
         fl <- list.files(dd, pattern=".rds", full.names=TRUE)
         tsbl <- list()
         for (f in fl) {
@@ -52,7 +53,11 @@ for (dd in dl) {
             tsbl[[gsub(".*/(.*)\\.rds", "\\1", f)]] <- tsbs
         }
         tsbc <- as.tibble(bind_rows(tsbl, .id = "param"))
+        print(paste0("saving: ", basename(dd))) 
         saveRDS(tsbc, file.path(dd, "results-performanceMetrics-alpha05.rds"))
+        print(paste0("done: ", basename(dd))) 
+    } else {
+        print(paste0("skipping: ", basename(dd)))
     }
 }
 ```
@@ -65,7 +70,7 @@ In this analysis, we look at summarizing the results for the various simulation 
 
 In a previous analysis (`analysis-01-plot.Rmd`), each simulation setting was considered and plotted separately with performance metrics reported over a range of FDR ("alpha") thresholds. However, since the total number of settings considered is quite large, processing and interpreting these results was both cumbersome and difficult. To get a higher-level picture of the simulation results, here we consider a single FDR threshold, `alpha = 0.05`, and plot performance metrics across settings for each method. Plots for FPR and "rejectprop" (rejection proportion) include blue horizontal lines at the expected FDR level (`0.05`) and proportion of alternative hypotheses (`1 - pi0`), respectively. 
 
-For simulation settings where the effect size (expected group differece) is not varying, a fixed difference of `1.5` was used for all alternative hypotheses. For simulation settings with the uniform (un-informative) or SE informative covariate, if the proportion of null hypotheses is not varying, `80%` of hypotheses were simulated under the null. For simulation settings with the "Boca-Leek" style informative covariate, a functional relationship was first defined between the probability of a test being null and the "informative covariate". Then, the informative covariates were sampled from Uniform(0, 1) and used to randomly assign each test as null or alternative according to the predefined functional relationship. The form of the relationship used here was taken from Setting II of the Boca-Leek simulations.
+For simulation settings where the effect size (expected group differece) is not varying, a fixed difference of `1.5` was used for all alternative hypotheses. For simulation settings with the uniform (uninformative) or SE (informative) covariate, if the proportion of null hypotheses is not varying, `80%` of hypotheses were simulated under the null. For simulation settings with the "Boca-Leek" style informative covariate, a functional relationship was first defined between the probability of a test being null and the "informative covariate". Then, the informative covariates were sampled from Uniform(0, 1) and used to randomly assign each test as null or alternative according to the predefined functional relationship. The form of the relationship used here was taken from Setting II of the Boca-Leek simulations. The marginal proportion of null hypothses is approximately `92.6%`. For the Manual Covariates, as with the Boca-Leek style covariate, a functional relationship was defined between the randomly sampled covariate and the probability of a hypothesis being null or alternative. Three functional relationships were tested: "step (less)", "step (more)", and "cubic". The first two specified a piecewise constant relationship of varying informativeness (more or less), and the third was a (continuous) scaled and shifted cubic function. The three variations on the manual covariate were chosen to have a marginal proportion of null hypotheses of `80%`. By definition, the ASH method makes use of the standard error (SE) for each hypothesis test, and does not accept any other additional information. The results for the ASH method are therefore **always** based on using the SE as the "informative covariate."
 
 For easier comparison across settings, we fix the order of the methods first. The ordering is roughly based on the anti-conservative/conservative-ness of each method with covariate-aware methods included as a block.
 
@@ -87,7 +92,8 @@ re_blabel <- function(tab) {
                                    "Benjamini-Hochberg" = "bh",
                                    "Bonferroni" = "bonf", "q-value" = "qvalue"),
                takes_cov = blabel %in%
-                   c("IHW", "ASH", "Boca-Leek", "FDRreg (theoretical)", "FDRreg (empirical)")) %>%
+                   c("IHW", "ASH", "Boca-Leek", "local FDR", 
+                     "FDRreg (theoretical)", "FDRreg (empirical)")) %>%
         mutate(blabel = factor(blabel, levels = lab_order))
 }
 ```
