@@ -1,0 +1,260 @@
+---
+title: "Exploration into microbiome qvalues"
+author: "Claire Duvallet"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+In this notebook, I want to see what's going on with all the different methods for three microbiome datasets.
+It seems that the two datasets I've used so far (ob_goodrich, with ~70,000 OTUs but very few true differentially abundant OTUs, and cdi_schubert, with ~18,000 OTUs and very many true differentially abundant OTUs) are getting weird results in different ways and with different methods.
+
+My hypotheses so far are that:
+
+- ash is rejecting all hypotheses
+  - True
+- lfdr is also being affected by the `nmids`/`df` [error](https://github.com/pkimes/benchmark-fdr/issues/16#issuecomment-345844180)
+  - probably not a problem
+- decreasing nmids doesn't fix the error/problem with Scott (FDRreg)
+  - True
+
+To look into these, I'll run SummarizedBenchmark for each value of nmids (5, 50, 150) for each dataset, and plot histograms of the resulting q values for each method.
+
+Note that I ran SummarizedBenchmark for different values of nmids in `microbiome-SummarizedBenchmark.Rmd` and saved the results to files.
+
+```{r, load-wkspc, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+
+library(SummarizedBenchmark) 
+
+setwd("/Users/claire/github/benchmark-fdr/datasets/microbiome/")
+datdir <- "/Users/claire/github/benchmark-fdr/datasets/microbiome/DATA/"
+resdir <- "/Users/claire/github/benchmark-fdr/datasets/microbiome/RESULTS/"
+
+```
+
+# CDI Schubert
+
+```{r, cdi-schubert}
+dflst = list()
+i <- 1
+for (nmids in c(5, 50, 150)){
+  print(nmids)
+  resfile <- paste0(resdir, "schubert_summarizedBenchmark_",
+                    "18703", "_nmids_", nmids, ".RData")
+  load(resfile)
+  
+  # Extract qvalues and melt into tidy dataframe
+  qvals <- assay(sb) %>% as.data.frame %>% gather("method", "qval")
+  qvals$nmids <- nmids
+  
+  # TO DO: add/concatenate to other things?
+  dflst[[i]] <- qvals
+  i <- i + 1
+}
+allres <- bind_rows(dflst)
+```
+```{r, nmids-effect}
+nmids_qvals <- c()
+# First, check which methods are affected by nmids
+for (met in unique(allres$method)){
+  n5 <- allres %>% filter(method == met) %>% filter(nmids == 5)
+  n50 <- allres %>% filter(method == met) %>% filter(nmids == 50)
+  n150 <- allres %>% filter(method == met) %>% filter(nmids == 150)
+  if (!(n5$qval == n50$qval && n50$qval == n150$qval) | is.na(n5$qval == n50$qval && n50$qval == n150$qval)){
+    nmids_qvals <- c(nmids_qvals, met)
+  }
+}
+nmids_qvals
+```
+## scott and lfdr (are messed up)
+
+LFDR seems to work okay (though its values do depend on nmids), but Scott either returns all NaN's or all zeros...
+
+```{r, plot-qvals}
+allres %>% 
+  filter(method %in% nmids_qvals) %>% 
+  #mutate(logqval = log10(qval)) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(nmids ~ method)
+```
+
+```{r}
+## Look at number of NaN q-values for each method
+allres %>% filter(method %in% c(nmids_qvals, "ashs")) %>% group_by(method, nmids) %>% summarize(n_nan = sum(is.na(qval)))
+
+```
+
+### ashs (return all q-values = 0)
+
+And one final note: all ashs qvalues are basically 0...
+
+```{r}
+allres %>% filter(method == "ashs") %>% group_by(nmids) %>% summarize(min = min(qval), max = max(qval))
+```
+
+### All other methods (seem OK)
+
+Let's also plot the q-value distributions for all methods.
+
+```{r}
+allres %>% 
+  filter(!method %in% nmids_qvals) %>% 
+  filter(!method == "ashs") %>%
+  #filter(!method == "unadjusted") %>%
+  group_by(method, qval) %>% filter(row_number() == 1) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(method ~ .) + theme(strip.text.y = element_text(angle = 0))
+
+```
+
+
+# OB Goodrich
+
+```{r, ob-goodrich}
+dflst = list()
+i <- 1
+for (nmids in c(5, 50, 150)){
+  print(nmids)
+  resfile <- paste0(resdir, "goodrich_summarizedBenchmark_",
+                    "71710", "_nmids_", nmids, ".RData")
+  load(resfile)
+  
+  # Extract qvalues and melt into tidy dataframe
+  qvals <- assay(sb) %>% as.data.frame %>% gather("method", "qval")
+  qvals$nmids <- nmids
+  
+  # TO DO: add/concatenate to other things?
+  dflst[[i]] <- qvals
+  i <- i + 1
+}
+allres <- bind_rows(dflst)
+```
+```{r, nmids-effect-goodrich}
+nmids_qvals <- c()
+# First, check which methods are affected by nmids
+for (met in unique(allres$method)){
+  n5 <- allres %>% filter(method == met) %>% filter(nmids == 5)
+  n50 <- allres %>% filter(method == met) %>% filter(nmids == 50)
+  n150 <- allres %>% filter(method == met) %>% filter(nmids == 150)
+  if (!(n5$qval == n50$qval && n50$qval == n150$qval) | is.na(n5$qval == n50$qval && n50$qval == n150$qval)){
+    nmids_qvals <- c(nmids_qvals, met)
+  }
+}
+nmids_qvals
+```
+
+## scott and lfdr (are messed up)
+
+LFDR seems to work okay (though its values do depend on nmids), but Scott either returns all NaN's or all zeros...
+
+```{r, plot-qvals-goodrich}
+allres %>% 
+  filter(method %in% nmids_qvals) %>% 
+  #mutate(logqval = log10(qval)) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(nmids ~ method)
+```
+```{r}
+## Look at number of NaN q-values for each method
+allres %>% filter(method %in% c(nmids_qvals, "ashs")) %>% group_by(method, nmids) %>% summarize(n_nan = sum(is.na(qval)))
+
+```
+
+### ashs (return all q-values = 0)
+
+And one final note: all ashs qvalues are basically 0...
+
+```{r}
+allres %>% filter(method == "ashs") %>% group_by(nmids) %>% summarize(min = min(qval), max = max(qval))
+```
+
+### All other methods (seem OK)
+
+Let's also plot the q-value distributions for all methods.
+
+```{r}
+allres %>% 
+  filter(!method %in% nmids_qvals) %>% 
+  filter(!method == "ashs") %>%
+  #filter(!method == "unadjusted") %>%
+  group_by(method, qval) %>% filter(row_number() == 1) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(method ~ .) + theme(strip.text.y = element_text(angle = 0))
+
+```
+
+# CRC Baxter
+
+```{r, crc-baxter}
+dflst = list()
+i <- 1
+for (nmids in c(5, 50, 150)){
+  print(nmids)
+  resfile <- paste0(resdir, "baxter_summarizedBenchmark_",
+                    "91843", "_nmids_", nmids, ".RData")
+  load(resfile)
+  
+  # Extract qvalues and melt into tidy dataframe
+  qvals <- assay(sb) %>% as.data.frame %>% gather("method", "qval")
+  qvals$nmids <- nmids
+  
+  # TO DO: add/concatenate to other things?
+  dflst[[i]] <- qvals
+  i <- i + 1
+}
+allres <- bind_rows(dflst)
+```
+
+```{r, nmids-effect-baxter}
+nmids_qvals <- c()
+# First, check which methods are affected by nmids
+for (met in unique(allres$method)){
+  n5 <- allres %>% filter(method == met) %>% filter(nmids == 5)
+  n50 <- allres %>% filter(method == met) %>% filter(nmids == 50)
+  n150 <- allres %>% filter(method == met) %>% filter(nmids == 150)
+  if (!(n5$qval == n50$qval && n50$qval == n150$qval) | is.na(n5$qval == n50$qval && n50$qval == n150$qval)){
+    nmids_qvals <- c(nmids_qvals, met)
+  }
+}
+nmids_qvals
+```
+
+## scott and lfdr
+
+LFDR seems to work okay (though its values do depend on nmids), but Scott either returns all NaN's or all zeros...
+
+```{r, plot-qvals-baxter}
+allres %>% 
+  filter(method %in% nmids_qvals) %>% 
+  #mutate(logqval = log10(qval)) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(nmids ~ method)
+```
+```{r}
+## Look at number of NaN q-values for each method
+allres %>% filter(method %in% c(nmids_qvals, "ashs")) %>% group_by(method, nmids) %>% summarize(n_nan = sum(is.na(qval)))
+
+```
+
+### ashs
+
+And one final note: all ashs qvalues are basically 0...
+
+```{r}
+allres %>% filter(method == "ashs") %>% group_by(nmids) %>% summarize(min = min(qval), max = max(qval))
+```
+
+### All other methods 
+
+Let's also plot the q-value distributions for all methods.
+
+```{r}
+allres %>% 
+  filter(!method %in% nmids_qvals) %>% 
+  filter(!method == "ashs") %>%
+  #filter(!method == "unadjusted") %>%
+  group_by(method, qval) %>% filter(row_number() == 1) %>%
+  ggplot(aes(x=qval)) + geom_histogram() + facet_grid(method ~ .) + theme(strip.text.y = element_text(angle = 0))
+
+```
+
+# Conclusions:
+
+- not sure what's going on with the scott-empirical and scott-theoretical. Seems like the same df error is being thrown, but it does run to completion *but also* all the q-values are zero (or NaN).
+- ashs is also returning every q-value = 0. This is the one that needs stderr, right? Maybe I am calculating this wrong. Should check with Keegan/Patrick.
