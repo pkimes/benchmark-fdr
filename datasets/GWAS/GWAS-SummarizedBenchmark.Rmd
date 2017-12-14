@@ -1,11 +1,11 @@
 ---
-  title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
+title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
 author: "Keegan Korthauer"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: html_document
 ---
   
-  ```{r setup, include=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = "/n/irizarryfs01_backed_up/kkorthauer/FDR")
 ```
@@ -195,14 +195,14 @@ Here we look to see if the covariates do indeed look informative. First we look 
 the sample size covariate.
 
 ```{r, GWAS1-diag, fig.width=10, fig.height=3.5}
-strat_hist(bmi, pvalue="pval", covariate="ind_covar_N", maxy=3)
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_N", maxy=2)
 rank_scatter(bmi, pvalue="pval", covariate="ind_covar_N")
 ```
 
 Next we look at the allele frequency covariate.
 
 ```{r, GWAS1-diag2, fig.width=10, fig.height=3.5}
-strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=3)
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=2)
 rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF")
 ```
 
@@ -337,7 +337,7 @@ supplementary=FALSE)
 # properties of method-exclusive discoveries
 methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 mcols(sb)$ind_covariate <- abs(mcols(sb)$ind_covar_AF-0.5)
-plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=5)
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, maxNum=5)
 
 ```
 
