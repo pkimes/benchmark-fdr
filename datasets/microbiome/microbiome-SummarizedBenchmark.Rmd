@@ -73,7 +73,7 @@ Next, we'll read in the unzipped OTU table and metadata files into R.
 We'll need to manually define which disease labels are of interest and what metadata
 column contains the sample IDs (i.e. the IDs in the OTU table).
 
-```{r, schubert-readdata}
+```{r, schubert-readdata, eval=TRUE}
 otu_path = paste0(datdir, "cdi_schubert_results/RDP/cdi_schubert.otu_table.100.denovo.rdp_assigned")
 meta_path = paste0(datdir, "cdi_schubert_results/cdi_schubert.metadata.txt")
 
@@ -107,7 +107,7 @@ After we've removed any shallow samples, we'll convert the OTU table to relative
 abundances. I'll add a pseudo-count of 1e-6 to any zero entries, to avoid
 problems with taking logs.
 
-```{r, schubert-cleandata}
+```{r, schubert-cleandata, eval=TRUE}
 remove_shallow_smpls <- function(df, n_reads) {
   # Removes samples with fewer than n_reads from dataframe df.
   # df has OTUs in rows and samples in columns
@@ -136,7 +136,7 @@ abun_otu <- t(t(otu) / rowSums(t(otu)))
 
 # Add pseudo counts
 #minabun <- min(abun_otu[abun_otu > 0]) # Use this to figure out what pseudo-count value to add
-zeroabun <- 1e-6
+zeroabun <- 0
 abun_otu <- abun_otu + zeroabun
 
 ```
@@ -154,7 +154,7 @@ While we're at it, we'll also calculate the mean abundance and ubiquity (detecti
 of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
 for use in downstream steps.
 
-```{r, schubert-pvals}
+```{r, schubert-pvals, eval=TRUE}
 resfile <- paste0(resdir, "schubert_results_",
                   nrow(abun_otu), "_OTUs.RData")
 if (!file.exists(resfile)){
@@ -211,10 +211,13 @@ if (!file.exists(resfile)){
   }
   
   res <- data.frame(otu = rownames(abun_otu), 
-                    pval = pvals, test_statistic = teststats,
+                    pval = pvals, wilcox_teststat = teststats,
                     SE = ses, effect_size = effs, 
                     mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
                     ubiquity = ubis)
+  res <- res %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size))
+
   save(res, file=resfile)
   
 }else{
@@ -225,7 +228,7 @@ head(res)
 
 Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
 
-```{r, schubert-addphylo}
+```{r, schubert-addphylo, eval=TRUE}
 res <- res %>% separate(otu, 
                         c("kingdom", "phylum", "class", "order", "family", "genus", "species", "denovo"), 
                         sep=";", remove = FALSE)
@@ -238,14 +241,14 @@ Here we look to see if the covariates do indeed look informative.
 
 ##### Ubiquity
 
-```{r, schubert-ubi, fig.width=10, fig.height=3.5}
+```{r, schubert-ubi, fig.width=10, fig.height=3.5, eval=TRUE}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=20, binwidth=0.05)
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
 ##### Mean abundance (across non-zero samples)
 
-```{r, schubert-abun, fig.width=10, fig.height=3.5}
+```{r, schubert-abun, fig.width=10, fig.height=3.5, eval=TRUE}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
@@ -256,7 +259,7 @@ Let's look at phylum-level stratification first. A priori, I *might* expect
 Proteobacteria to be enriched for low p-values? But I don't know if that's
 super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
 
-```{r, schubert-phylo, fig.width=10, fig.height=6}
+```{r, schubert-phylo, fig.width=10, fig.height=6, eval=TRUE}
 #strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
 #rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
@@ -264,8 +267,16 @@ ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free
 
 Let's use `ubiquity` as our `ind_covariate`
 
-```{r, schubert-labelcovariate}
+```{r, schubert-labelcovariate, eval=TRUE}
 res <- res %>% mutate(ind_covariate = ubiquity)
+```
+
+Also (hacky), remove test_statistic so that ash doesn't run.
+
+```{r, schubert-rm-ash, eval=TRUE}
+res <- res %>% 
+  mutate(test_statistic = NA) %>%
+  mutate(effect_size = NA)
 ```
 
 #### Set up BenchDesign object 
@@ -278,7 +289,7 @@ Then, we'll construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
-```{r, schubert-sb, results="hide", message=FALSE, eval=FALSE}
+```{r, schubert-sb, results="hide", message=FALSE, eval=TRUE}
 for (nmids in c(5, 50, 150)){
   print(nmids)
   bd <- initializeBenchDesign(nmids=nmids)
@@ -323,7 +334,7 @@ if(!is.na(duration)){
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
 
-```{r, schubert-metrics, eval=FALSE}
+```{r, schubert-metrics, eval=TRUE}
 # rename assay to qvalue
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
@@ -333,28 +344,13 @@ Now, we'll plot the results.
 
 Debugging note: to look at the matrix of qvalues, run `assays(sb)[["qvalue"]]`
 
-```{r, schubert-plot, results="hide", width=15, height=15, eval=FALSE}
-# don't plot scott theoretical for now
-rmv.scott <- which(grepl("scott", colnames(sb)))
+```{r, schubert-plot, width=15, height=15, eval=TRUE}
 
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 
-rejection_scatter_bins(sb, covariate="ind_covariate", bins=4, supplementary=FALSE)
-  
-# upset plot (only plot IHW for the plotted alpha)
-rmv.ihw <- which(grepl("ihw", colnames(sb)) &
-                              colData(sb)$param.alpha != 0.05)
-rmv.cols <- c(rmv.ihw, rmv.scott)
-
-plotMethodsOverlap(sb[,-rmv.cols], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.cols),
-                   order.by="freq", decreasing=TRUE)
-
-# upset plot excluding "unadjusted"
-plotMethodsOverlap(sb[,-c(1,rmv.cols)], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.cols)-1,
-                   order.by="freq", decreasing=TRUE)
 ```
 
 Hm, now the code runs. However, there are clearly still some issues:
@@ -363,16 +359,18 @@ Hm, now the code runs. However, there are clearly still some issues:
 
 
 ```{r, eval=FALSE}
-assays(sb)[["qvalue"]][ , 15] %>% max()
-sum(is.na(assays(sb)[["qvalue"]][ , 22]))
-sum(is.na(assays(sb)[["qvalue"]][ , 20]))
+assays(sb)[["qvalue"]]["ashs"] %>% max()
+sum(is.na(assays(sb)[["qvalue"]]["lfdr"]))
+sum(is.na(assays(sb)[["qvalue"]]["scott-empirical"]))
+sum(is.na(assays(sb)[["qvalue"]]["scott-theoretical"]))
 ```
 
-Rather than de-bug this dataset (which might be weird), let's try instead to work with the obesity dataset and see if I get the same problems.
+Plotting methods are giving errors for some reason. Let's try to use Alejandro's code instead.
+
 
 And we'll clean up the workspace before moving on to the next dataset.
 
-```{r, schubert-cleanup}
+```{r, schubert-cleanup, eval=FALSE}
 rm(res)
 rm(bd)
 rm(sb)
@@ -458,7 +456,7 @@ abun_otu <- t(t(otu) / rowSums(t(otu)))
 
 # Add pseudo counts
 #minabun <- min(abun_otu[abun_otu > 0]) # Use this to figure out what pseudo-count value to add
-zeroabun <- 1e-6
+zeroabun <- 0
 abun_otu <- abun_otu + zeroabun
 
 ```
@@ -544,6 +542,9 @@ if (!file.exists(resfile)){
                     SE = ses, effect_size = effs, 
                     mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
                     ubiquity = ubis)
+  res <- res %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size))
+  
   save(res, file=resfile)
   
 }else{
@@ -598,6 +599,14 @@ Let's use `ubiquity` as our `ind_covariate`
 res <- res %>% mutate(ind_covariate = ubiquity)
 ```
 
+Also (hacky), remove test_statistic so that ash doesn't run.
+
+```{r, goodrich-rm-ash}
+res <- res %>% 
+  mutate(test_statistic = NA) %>%
+  mutate(effect_size = NA)
+```
+
 #### Set up BenchDesign object 
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
@@ -607,7 +616,7 @@ Next, we'll construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
-```{r, goodrich-sb, results="hide", message=FALSE, eval=FALSE}
+```{r, goodrich-sb, results="hide", message=FALSE, eval=TRUE}
 for (nmids in c(5, 50, 150)){
   print(nmids)
   bd <- initializeBenchDesign(nmids=nmids)
@@ -696,7 +705,7 @@ if(!is.na(duration)){
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
 
-```{r, goodrich-metrics, eval=FALSE}
+```{r, goodrich-metrics, eval=TRUE}
 # rename assay to qvalue
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
@@ -706,29 +715,14 @@ Now, we'll plot the results.
 
 Debugging note: to look at the matrix of qvalues, run `assays(sb)[["qvalue"]]`
 
-```{r, goodrich-plot, results="hide", width=15, height=15, eval=FALSE}
-
+```{r, goodrich-plot, width=15, height=15, eval=TRUE}
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
-
-rejection_scatter_bins(sb, covariate="ind_covariate", bins=4, supplementary=FALSE)
-  
-# upset plot (only plot IHW for the plotted alpha)
-rmv.ihw <- which(grepl("ihw", colnames(sb)) &
-                              colData(sb)$param.alpha != 0.05)
-
-plotMethodsOverlap(sb[,-rmv.ihw], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw),
-                   order.by="freq", decreasing=TRUE)
-
-# upset plot excluding "unadjusted"
-plotMethodsOverlap(sb[,-c(1,rmv.ihw)], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.ihw)-1,
-                   order.by="freq", decreasing=TRUE)
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+#plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE )
 ```
 
-Hm, looks like all of the methods run without giving NaN's with nmids = 150 or lower...
-But the results still aren't right.
+There is no upsetR plot for OB Goodrich for now because only lfdr is returning any rejections.
 
 ```{r, eval=FALSE}
 assays(sb)[["qvalue"]][, "ashs"] %>% max()
@@ -823,7 +817,7 @@ abun_otu <- t(t(otu) / rowSums(t(otu)))
 
 # Add pseudo counts
 #minabun <- min(abun_otu[abun_otu > 0]) # Use this to figure out what pseudo-count value to add
-zeroabun <- 1e-7
+zeroabun <- 0
 abun_otu <- abun_otu + zeroabun
 
 ```
@@ -902,6 +896,9 @@ if (!file.exists(resfile)){
                     SE = ses, effect_size = effs, 
                     mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
                     ubiquity = ubis)
+  res <- res %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size))
+  
   save(res, file=resfile)
   
 }else{
@@ -960,6 +957,14 @@ Let's use `ubiquity` as our `ind_covariate`
 res <- res %>% mutate(ind_covariate = ubiquity)
 ```
 
+Also (hacky), remove test_statistic so that ash doesn't run.
+
+```{r, baxter-rm-ash}
+res <- res %>% 
+  mutate(test_statistic = NA) %>%
+  mutate(effect_size = NA)
+```
+
 #### Set up BenchDesign object 
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
@@ -970,7 +975,7 @@ Then, we'll construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
-```{r, baxter-sb, results="hide", message=FALSE, eval=FALSE}
+```{r, baxter-sb, results="hide", message=FALSE, eval=TRUE}
 for (nmids in c(5, 50, 150)){
   print(nmids)
   bd <- initializeBenchDesign(nmids=nmids)
@@ -1043,7 +1048,7 @@ if(!is.na(duration)){
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
 
-```{r, baxter-metrics, eval=FALSE}
+```{r, baxter-metrics, eval=TRUE}
 # rename assay to qvalue
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
@@ -1053,28 +1058,11 @@ Now, we'll plot the results.
 
 Debugging note: to look at the matrix of qvalues, run `assays(sb)[["qvalue"]]`
 
-```{r, baxter-plot, results="hide", width=15, height=15, eval=FALSE}
-# don't plot scott theoretical for now
-rmv.scott <- which(grepl("scott", colnames(sb)))
-
+```{r, baxter-plot, width=15, height=15, eval=TRUE}
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
-
-rejection_scatter_bins(sb, covariate="ind_covariate", bins=4, supplementary=FALSE)
-  
-# upset plot (only plot IHW for the plotted alpha)
-rmv.ihw <- which(grepl("ihw", colnames(sb)) &
-                              colData(sb)$param.alpha != 0.05)
-rmv.cols <- c(rmv.ihw, rmv.scott)
-
-plotMethodsOverlap(sb[,-rmv.cols], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.cols),
-                   order.by="freq", decreasing=TRUE)
-
-# upset plot excluding "unadjusted"
-plotMethodsOverlap(sb[,-c(1,rmv.cols)], 
-                   alpha=0.05, nsets=ncol(sb)-length(rmv.cols)-1,
-                   order.by="freq", decreasing=TRUE)
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+#plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
 ```{r, eval=FALSE}
