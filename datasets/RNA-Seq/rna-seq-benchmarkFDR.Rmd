@@ -22,7 +22,7 @@ library(FDRreg)
 
 # comparison tools/functions
 library(SummarizedBenchmark)
-sourceDirectory("~/Downloads/benchmark-fdr/datasets/R/")
+sourceDirectory("~/Documents/Research/benchmark-fdr/datasets/R/")
 
 # set up parallel backend
 library(BiocParallel)
@@ -34,25 +34,27 @@ multicoreParam <- MulticoreParam(workers = cores)
 
 ```{r}
 #Load expression data
-load('~/Downloads/dsdObjects.RData')
+load('~/Documents/Research/benchmark-fdr/datasets/RNA-Seq/dsdObjects.RData')
 
 #Filter to include samples from only 2 tissuesdsd
 filteredDsd1 <- dsd1[,colData(dsd1)$tissue %in% c('Brain - Nucleus accumbens (basal ganglia)','Brain - Putamen (basal ganglia)')]
 filteredDsd1$tissue <- droplevels(filteredDsd1$tissue)
 
 #Buid DESeq object and run DESeq2
-dds <- DESeq(filteredDsd1, parallel = T)
+dds <- DESeq(filteredDsd1, parallel = T) # This step can take a few minutes since we have many samples
 res <- results(dds, independentFiltering = F)
 
 #Build input data frame for summarized benchmark
 #Important to not change col names since SB is strict about that
-geneExp <- data.frame(geneName=rownames(res), pval=res$pvalue, SE=res$lfcSE, 
-                      ind_covariate = res$baseMean, effect_size=res$log2FoldChange, test_statistic=res$stat)
+geneExp <- tbl_df(data.frame(geneName=rownames(res), pval=res$pvalue, SE=res$lfcSE, 
+                      ind_covariate = res$baseMean, effect_size=res$log2FoldChange, test_statistic=res$stat))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
 
 ```
 
 ```{r}
-strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=10)
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=25)
 ```
 
 ```{r}
