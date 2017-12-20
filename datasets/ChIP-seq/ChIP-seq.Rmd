@@ -30,12 +30,13 @@ insights with a unique data structure which has been widely utilized in modern g
 
 
 ### Testing differential ChIP-seq signals between two cell lines (K562 *vs.* Gm12878)
-These two cell lines hold the largest sequencing datasets on ENCODE project. 
+
+These two cell lines hold the largest sequencing datasets in ENCODE project. 
 We chose histone H3K4Me3 ChIP-seq data for our analysis here. 
 
 #### Data Download
 
-We download the bam files directly from UCSC ENCODE protal.
+We downloaded the bam files directly from UCSC ENCODE protal.
 
 ```{bash, encode-download, eval=FALSE}
 wget -N -P data http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeBroadHistone/wgEncodeBroadHistoneGm12878H3k4me3StdAlnRep1.bam
@@ -57,6 +58,18 @@ wget -N -P data http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncod
 ```
 
 #### Workspace Setup
+
+Here, we first load in all R-packages needed in the analysis. As 
+mentioned above, classical differential analysis pipeline would 
+involve peak calling as the first step. In that case, differential 
+testing is performed on a filtered set of genomic regions after 
+peak calling. However, this will result in limited null tests since 
+regions are chosen with significance at least in one condition. 
+To address this issue, we selected ChIP-seq data of H3K4Me3 which is 
+an active marker of gene expression. We focus our analysis on 
+promoter regions of all genes for this histone marker. This helps 
+avoid limited null tests with peak calling by not losing
+most interesting regions for this histone marker.    
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 datdir <- "data"
@@ -97,6 +110,9 @@ meta <- data.frame(cellline=cells,lab=labs,file=bamfiles)
 
 #### Generating Benchmarking Inputs
 
+Basically, we count sequencing reads for all promoter regions here.
+We chose the average coverage across conditions and replicates as the covariate.
+
 ```{r count, results='hide', message=FALSE, warning=FALSE}
 if(file.exists('h3k4me3.rda')){
     load('h3k4me3.rda')
@@ -119,6 +135,13 @@ dat <- dat[!is.na(dat[,2]),]
 ```
 #### Check Covariate Diagnostics
 
+Here, we can see that the covariant variable is actually informative.
+As we know, ChIP-seq data always involves two sets of regions: 
+signal and background. Sometimes, there are a few regions with 
+signal coverage between signal and background. In this example, 
+we see that p-values are differently distributed under low, 
+median and high coverage. 
+
 ```{r, chipseq-diag, fig.width=10, fig.height=3.5}
 strat_hist(dat, pvalue="pval", covariate="ind_covariate", maxy=2)
 rank_scatter(dat, pvalue="pval", covariate="ind_covariate")
@@ -134,8 +157,7 @@ bd <- initializeBenchDesign()
 #### Run buildBench for the coverage covariate and examine results
 
 Now, we're ready to construct the `SummarizedBenchmark` object, which will run
-the functions specified in each method (these are actually sourced in from the
-                                        helper scripts). 
+the functions specified in each method.
 
 ```{r, chipseq-sb, results="hide", message=FALSE}
 resN <- paste0(resdir, "/chipseq_summarizedBenchmark_",
