@@ -272,9 +272,10 @@ plotFDRMethodsOverlap(sb,
                       supplementary=FALSE)
 
 # properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
 mcols(sb)$ind_covariate <- mcols(sb)$ind_covar_N
-plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=5)
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3)
 
 ```
 
@@ -335,9 +336,10 @@ order.by="freq", decreasing=TRUE,
 supplementary=FALSE)
 
 # properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
 mcols(sb)$ind_covariate <- abs(mcols(sb)$ind_covar_AF-0.5)
-plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, maxNum=5)
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, maxNum=3)
 
 ```
 
