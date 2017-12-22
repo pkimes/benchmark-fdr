@@ -139,6 +139,7 @@ plotFDRMethodsOverlap <- function( object, supplementary=TRUE, alpha=0.1, ... ){
 #' to the number of rejections specific to the sets of methods.
 #' @param methods A character vector of methods to consider (must be a level of colData(object)$blabel).
 #' @param trans A function to transform the y-axis of the boxplot
+#' @param maxNum An integer that represents the maximum number of methods per set
 #'        
 #' @return an ggplot2 boxplot
 #' 
