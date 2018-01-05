@@ -1,0 +1,125 @@
+---
+title: "Simulation study using RNA-Seq counts with Polyester"
+author: "Rafalab Journal Club Members"
+date: "`r Sys.Date()`"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+        code_folding: hide
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages needed to simulate RNA-seq counts with polyester
+library(zebrafishRNASeq) 
+library(genefilter)
+library(limma)
+library(polyester)
+
+# Differential testing
+library(DESeq2)
+
+# Load supporting packages for data analyses
+library(data.table)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(R.utils)
+library(cowplot)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)
+
+# load helper functions
+working_dir <- list(project_home = normalizePath(getwd()))
+sourceDirectory(file.path(working_dir$project_home,"datasets/R/"))
+
+
+# set up parallel backend
+library(BiocParallel)
+cores <- 4
+multicoreParam <- MulticoreParam(workers = cores)
+```
+
+### Simulate RNA-Seq counts using polyester
+
+We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. We start with the [zebrafish](https://bioconductor.org/packages/release/data/experiment/html/zebrafishRNASeq.html) Bioconductor data package. 
+
+```{r simulate-data}
+data(zfGenes)
+filter <- apply(zfGenes, 1, function(x) length(x[x>5])>=2)
+counts <- zfGenes[filter,]
+
+## Estimate the zero inflated negative binomial parameters
+params = get_params(counts)
+
+plot(rowMeans(log(counts+1)), rowVars(log(counts+1)), 
+     pch=19, main="zebrafish data w/fit")
+lines(params$fit, col = 2)
+
+## Create some data from the model
+dat0 = create_read_numbers(params$mu, params$fit, params$p0,
+                           m=dim(counts)[1], n=dim(counts)[2])
+```
+
+
+### Build DESeq2 object and run DESeq2
+
+```{r run-deseq2}
+group = factor(rep(c(0,1), each=3))
+design = model.matrix(~group)
+
+## Buid DESeq object and run DESeq2
+dds <- DESeqDataSetFromMatrix(countData=dat0, colData = DataFrame(group), design=~group)
+dds <- DESeq(dds) 
+res <- results(dds, independentFiltering = F)
+```
+
+### Create SummarizedBenchmark object
+
+```{r create-summarizedbenchmark-object}
+# Build input data frame for SummarizedBenchmark object
+# Important to not change col names since SB is strict about that
+geneExp <- tbl_df(data.frame(geneName=rownames(zfGenes)[filter], pval=res$pvalue, SE=res$lfcSE, 
+                      ind_covariate = res$baseMean, effect_size=res$log2FoldChange, test_statistic=res$stat))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+```
+
+```{r plot-strat-hist}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=2)
+```
+
+```{r plot-rank-scatter}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+
+```
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+```
