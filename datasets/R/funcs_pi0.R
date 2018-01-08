@@ -59,20 +59,44 @@ pi0_smooth1 <- function(x) {
 
 ## ##############################################################################
 ## alternative Boca-Leek style informative covariates
-## - if x ~ U(0,1), then expect 80% pi0 for all cases
+## - if x ~ U(0,1), then expect 80%, 90%, 95% pi0 for all cases
 ## ##############################################################################
 
-## step function (4 steps) - less informative
-pi0_4step_70to90 <- function(x) {
+## step function (4 steps) - 80% pi0; less informative
+pi0_step_less <- function(x) {
     0.7 + 0.05 * (x < .75) + 0.1 * (x < .5) + 0.05 * (x < .25)
 }
 
-## step function (4 steps) - more informative
-pi0_4step_60to100 <- function(x) {
+## step function (4 steps) - 80% pi0; more informative
+pi0_step_more <- function(x) {
     0.6 + 0.1 * (x < .75) + 0.2 * (x < .5) + 0.1 * (x < .25)
 }
 
-## shifted/stretched cubic function - smooth
+
+## step function (4 steps) - 90% pi0
+pi0_step90 <- function(x) {
+    0.85 + 0.025 * (x < .75) + 0.05 * (x < .5) + 0.025 * (x < .25)
+}
+
+## step function (4 steps) - 95% pi0
+pi0_step95 <- function(x) {
+    0.91 + 0.02 * (x < .75) + 0.04 * (x < .5) + 0.02 * (x < .25)
+}
+
+
+## shifted/stretched cubic function - 80% pi0; smooth
 pi0_cubic <- function(x) {
     (1-x)^(1/3) * .8 + .2
 }
+
+## shifted/stretched cubic function - 90% pi0; smooth
+pi0_cubic90 <- function(x) {
+    (1-x)^(1/3) * .4 + .6
+}
+
+## shifted/stretched cubic function - 95% pi0; smooth
+pi0_cubic95 <- function(x) {
+    (1-x)^(1/3) * .2 + .8
+}
+
+

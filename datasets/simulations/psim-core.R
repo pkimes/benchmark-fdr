@@ -21,6 +21,12 @@ ncores <- as.integer(args[2])
 setting_vparam <- args[3]
 setting_icparam <- args[4]
 
+if (length(args) > 4) {
+    setting_base_pi0 <- as.numeric(args[5])
+} else {
+    setting_base_pi0 <- 0.8
+}
+
 ## ##############################################################################
 ## install packages
 ## ##############################################################################
@@ -100,7 +106,8 @@ bd <- initializeBenchDesign()
 ## generate simulation settings
 ## ##############################################################################
 
-settings <- psim_settings(setting_base, setting_vparam, setting_icparam)
+settings <- psim_settings(setting_base, setting_vparam, setting_icparam,
+                          setting_base_pi0)
 
 
 ## ##############################################################################
@@ -114,7 +121,8 @@ if (M == 1) {
         iset <- settings[[idx]]
 
         ## check if sim already run
-        outf <- paste0("data-psim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-psim/M", M, "/",
+                       setting_vparam, "-", setting_icparam, "-", setting_base_pi0, "/",
                        "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
@@ -150,7 +158,8 @@ if (M == 1) {
         iset <- settings[[idx]]
         
         ## check if sim already run
-        outf <- paste0("data-psim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-psim/M", M, "/",
+                       setting_vparam, "-", setting_icparam, "-", setting_base_pi0, "/",
                        "results-", names(settings)[idx], "-M", M, ".rds")
         if (file.exists(outf)) {
             next

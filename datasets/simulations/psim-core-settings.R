@@ -10,7 +10,11 @@
 #'        "altnoise", "allnull".
 #' @param icparam independent/informative covariate parameter; should be
 #'        one of: "uniform", "bl".
-#'
+#' @param base_pi0 pi0 value to use for simulations if `vparam` is one
+#'        of: "esize_fixed", "esize_random_ua", "esize_random_shift",
+#'        "altnoise". If `vparam` is either of `pi0` or `allnull`, then
+#'        the value is ignored. (default = 0.8)
+#' 
 #' @description
 #' The following simulation groups are defined:
 #' - `vparam`: variable parameter
@@ -53,10 +57,14 @@
 #'                   The functional form is a reflected, stretched, and shifted
 #'                   cubic function of the single covariate. The transformation
 #'                   is chosen so the marginal pi0 is 0.80.
+#'     - `bl-step-90`: same as `bl-step-less` but marginal pi0 of 0.90.
+#'     - `bl-step-95`: same as `bl-step-less` but marginal pi0 of 0.95.
+#'     - `bl-cubic-90`: same as `bl-cubic` but marginal pi0 of 0.90.
+#'     - `bl-cubic-95`: same as `bl-cubic` but marginal pi0 of 0.95.
 #' 
 #' @author Patrick Kimes
 
-psim_settings <- function(sbase, vparam, icparam) {
+psim_settings <- function(sbase, vparam, icparam, base_pi0 = 0.8) {
 
     ## check that variable parameter is one of specified set
     vp <- c("pi0", "esize_fixed", "esize_random_ua", "esize_random_shift",
@@ -64,14 +72,15 @@ psim_settings <- function(sbase, vparam, icparam) {
     stopifnot(vparam %in% vp)
     
     ## check that indep/inform covariate parameter is one of specified set
-    ic <- c("uniform", "bl", "bl-step-less", "bl-step-more", "bl-cubic")
+    ic <- c("uniform", "bl", "bl-step-less", "bl-step-more", "bl-cubic",
+            "bl-step-90", "bl-step-95", "bl-cubic-90", "bl-cubic-95")
     stopifnot(icparam %in% ic)
-
+    
     ## filter out unsupported setting pairs
-    if (vparam == "pi0" && icparam %in% c("bl", "bl-step-less", "bl-step-more", "bl-cubic")) {
+    if (vparam == "pi0" && grepl("^bl", icparam)) {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
     }
-    if (vparam == "allnull" && icparam %in% c("bl", "bl-step-less", "bl-step-more", "bl-cubic")) {
+    if (vparam == "allnull" && grepl("^bl", icparam)) {
         stop("cant run 'allnull' simulations w/ 'bl' format indep covariate")
     }
     
@@ -92,7 +101,7 @@ psim_settings <- function(sbase, vparam, icparam) {
         settings <- lapply(seq(0, 5, by=.5),
                            function(x) { replace(sbase,
                                                  c("pi0", "tstat"),
-                                                 c(0.8, function(zz) { x }))
+                                                 c(base_pi0, function(zz) { x }))
                            })
         names(settings) <- paste0("alteff_", seq(0, 50, by=5))
         
@@ -100,81 +109,80 @@ psim_settings <- function(sbase, vparam, icparam) {
         ## varying effect size (stochastic/UA) ##################################
         settings <- list("alteff_spiky" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_spiky)),
+                                     c(base_pi0, sampler_spiky)),
                          "alteff_skew" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_skew)),
+                                     c(base_pi0, sampler_skew)),
                          "alteff_bignormal" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_bignormal)),
+                                     c(base_pi0, sampler_bignormal)),
                          "alteff_bimodal" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_bimodal)),
+                                     c(base_pi0, sampler_bimodal)),
                          "alteff_flat_top" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_flat_top)),
+                                     c(base_pi0, sampler_flat_top)),
                          "alteff_near_normal" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, sampler_near_normal)))
+                                     c(base_pi0, sampler_near_normal)))
         
     } else if (vparam == "esize_random_shift") {
         ## varying effect size (mean shifted distributions) #####################
         settings <- list("alteff_normal_shift1" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rnorm_generator(1))),
+                                     c(base_pi0, rnorm_generator(1))),
                          "alteff_normal_shift2" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rnorm_generator(2))),
+                                     c(base_pi0, rnorm_generator(2))),
                          "alteff_normal_shift3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rnorm_generator(3))),
+                                     c(base_pi0, rnorm_generator(3))),
                          "alteff_t_shift1_df10" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rt_generator(10, 1))),
+                                     c(base_pi0, rt_generator(10, 1))),
                          "alteff_t_shift2_df10" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rt_generator(10, 2))),
+                                     c(base_pi0, rt_generator(10, 2))),
                          "alteff_t_shift3_df10" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rt_generator(10, 3))),
+                                     c(base_pi0, rt_generator(10, 3))),
                          "alteff_chisq_shift0_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 0))),
+                                     c(base_pi0, rchisq_generator(3, 0))),
                          "alteff_chisq_shift1_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 1))),
+                                     c(base_pi0, rchisq_generator(3, 1))),
                          "alteff_chisq_shift2_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 2))),
+                                     c(base_pi0, rchisq_generator(3, 2))),
                          "alteff_chisq_shift3_df3" =
                              replace(sbase, c("pi0", "tstat"),
-                                     c(0.8, rchisq_generator(3, 3))))
+                                     c(base_pi0, rchisq_generator(3, 3))))
         
     } else if (vparam == "altnoise") {
         ## varying sampling noise ###############################################
         settings <- list("altnoise_t_df5_bimodal" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, sampler_bimodal, rt_perturber(5), rt_2pvaluer(5))),
+                                     c(base_pi0, sampler_bimodal, rt_perturber(5), rt_2pvaluer(5))),
                          "altnoise_t_df10_bimodal" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, sampler_bimodal, rt_perturber(10), rt_2pvaluer(10))),
+                                     c(base_pi0, sampler_bimodal, rt_perturber(10), rt_2pvaluer(10))),
                          "altnoise_chisq_df1_shift2sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 2^2), rchisq_perturber(1),
+                                     c(base_pi0, rchisq_generator(1, 2^2), rchisq_perturber(1),
                                        rchisq_pvaluer(1))),
                          "altnoise_chisq_df4_shift2sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 2^2), rchisq_perturber(4),
+                                     c(base_pi0, rchisq_generator(1, 2^2), rchisq_perturber(4),
                                        rchisq_pvaluer(4))),
                          "altnoise_chisq_df1_shift3sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 3^2), rchisq_perturber(1),
+                                     c(base_pi0, rchisq_generator(1, 3^2), rchisq_perturber(1),
                                        rchisq_pvaluer(1))),
                          "altnoise_chisq_df4_shift3sq" =
                              replace(sbase, c("pi0", "tstat", "tstat_dist", "null_dist"),
-                                     c(0.8, rchisq_generator(1, 3^2), rchisq_perturber(4),
+                                     c(base_pi0, rchisq_generator(1, 3^2), rchisq_perturber(4),
                                        rchisq_pvaluer(4))))
-
             
     } else if (vparam == "allnull") {
         ## varying sampling noise ###############################################
@@ -205,11 +213,20 @@ psim_settings <- function(sbase, vparam, icparam) {
     } else if (icparam == "bl") {
         settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_smooth1, runif))
     } else if (icparam == "bl-step-less") {
-        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_70to90, runif))
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step_less, runif))
     } else if (icparam == "bl-step-more") {
-        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_60to100, runif))
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step_more, runif))
     } else if (icparam == "bl-cubic") {
         settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic, runif))
+
+    } else if (icparam == "bl-step-90") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step90, runif))
+    } else if (icparam == "bl-step-95") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step95, runif))
+    } else if (icparam == "bl-cubic-90") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic90, runif))
+    } else if (icparam == "bl-cubic-95") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic95, runif))
     } 
     
     return(settings)
