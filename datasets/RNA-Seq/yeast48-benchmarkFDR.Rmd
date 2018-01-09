@@ -1,0 +1,200 @@
+---
+title: "Yeast RNA-seq 48 sample comparison"
+author: "Keegan Korthauer"
+date: "1/9/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introduction
+
+This is an analysis of the yeast data with 48 biological replicates in each of 
+two conditions (analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/)). 
+We chose this experiment because of the large number of biological replicates, which
+will allow us to (1) implement null comparisons on random subsets of samples within
+one condition, (2) compare FDR approaches on their ability to discover 'true positive' 
+DE genes using subsets of the full dataset, where 'true positive' is defined as a 
+gene detected as DE using all 48 samples in each condition, and (3) start with a null
+comparison and add in artificial differences to a subset of genes to define
+'true positives'. 
+
+Processed count table is made available by the authors in their paper codebase 
+[GitHub repository](https://github.com/bartongroup/profDGE48). 
+
+### Set up workspace
+
+```{r, results='hide'}
+# Load packages and source benchmark FDR
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(magrittr)
+library(R.utils)
+library(cowplot)
+library(purrr)
+library(DESeq2)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)
+sourceDirectory("../R/")
+
+# set up parallel backend
+library(BiocParallel)
+cores <- 4
+multicoreParam <- MulticoreParam(workers = cores)
+```
+
+### Data download
+
+First, we download the processed count data from GitHub. There is one file for the 
+Snf2 condition and one file for the wild type condition. The Snf2 condition is a yeast
+strain that has the transcriptional regulator gene Snf2 knocked out. Each of these
+files is a compressed `tar.gz` archive that contains a 
+single bam file for each replicate in each condition, which we'll place in a subdirectory
+called `data`.
+
+```{r, download}
+system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz")
+system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/WT_countdata.tar.gz")
+system("mkdir yeast48-data")
+system("tar -xvf WT_countdata.tar.gz -C ./yeast48-data")
+system("tar -xvf Snf2_countdata.tar.gz -C ./yeast48-data")
+system("rm *.tar.gz")
+```
+
+Each of the data files contains two columns, one with a gene/feature name, and one
+with the count value.
+
+### Read data into R and create a count table
+
+Here we make use of the map and map2 functions in the `purrr` package, to swiftly 
+apply the `read_tsv` function from `readr` to read in all of the 96 sample tables, 
+as well as add in the sample name (derived from the file name) to each subtable.
+Finally, the `reduce` function is used to join all the replicates together.
+
+```{r, readin}
+files <- dir(path = "./data/", pattern = "*.bam.gbgout", full.names = TRUE)
+sample_names <- sapply(strsplit(dir(path = "./data/", pattern = "*.bam.gbgout"), "_MID"),
+                       function(x) x[[1]])
+
+counts <- files %>%
+  map(read_tsv, col_names = FALSE) %>% # read in all the files individually
+  map2(sample_names, ~ dplyr:::rename(.x, !! .y := X2, feature = X1) ) %>% # add sample names
+  purrr::reduce(left_join, by = "feature") # reduce with rbind into one dataframe
+```
+
+### Analysis with DESeq2
+
+Now, we're ready to construct a DESeq2 object. First we pull out the feature names and
+add them as rownames for the count table, and next we construct a column data object
+that houses the sample names, replicate numbers, and condition factor (WT versus
+Snf2 knockout). 
+
+```{r, deseq}
+feats <- (counts %>% select(1))$feature
+counts <- as.matrix(counts %>% select(-1))
+rownames(counts) <- feats
+
+coldat <- tibble(sample=colnames(counts)) %>% 
+  separate(sample, sep="_", into=c("condition", "replicate"), remove=FALSE) %>%
+  mutate(condition = factor(condition))
+
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = coldat,
+                              design= ~ condition)
+
+# results on full set
+dds <- DESeq(dds)
+resultsNames(dds) # lists the coefficients
+resFULL <- results(dds, name="condition_WT_vs_Snf2")
+
+head(resFULL)
+
+sum(resFULL$padj < 0.05, na.rm=T, independentFiltering = F)
+```
+
+There are many thousand genes detected using the full set.
+
+### Null Comparison
+
+```{r, null}
+# select a random subset of 20 WT samples
+set.seed(85873)
+dds_null <- dds[,colData(dds)$condition == "WT"]
+dds_null <- dds_null[,sample(1:ncol(dds_null), 20)]
+
+# add a fake condition column to coldat
+colData(dds_null)$fake <-  factor(c(rep("WT", 10), rep("TRT", 10))[sample(1:20, 20)])
+design(dds_null) <- ~fake
+ 
+# results on full set
+dds_null <- DESeq(dds_null)
+resultsNames(dds_null) # lists the coefficients
+resNULL <- results(dds_null, name="fake_WT_vs_TRT", independentFiltering = F)
+
+head(resNULL)
+
+sum(resNULL$padj < 0.05, na.rm=T)
+```
+
+### FDR Benchmark 
+
+Build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resNULL), pval=resNULL$pvalue, SE=resNULL$lfcSE, 
+                      ind_covariate = resNULL$baseMean, effect_size=resNULL$log2FoldChange, 
+                      test_statistic=resNULL$stat))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+
+```
+
+Look at covariate diagnostic plots.
+
+```{r}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=2)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+Run benchmark methods.
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+```
+
+### Session information
+
+```{r}
+sessionInfo()
+```
