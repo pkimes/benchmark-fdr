@@ -38,6 +38,11 @@ ncores <- as.integer(args[2])
 setting_vparam <- args[3]
 setting_icparam <- args[4]
 
+if (length(args) > 4) {
+    setting_base_pi0 <- as.numeric(args[5])
+} else {
+    setting_base_pi0 <- 0.8
+}
 
 ## ##############################################################################
 ## install packages
@@ -113,11 +118,13 @@ setting_base <- list(m = 20000,          # number of hypothesis tests
 
 bd <- initializeBenchDesign()
 
+
 ## ##############################################################################
 ## generate simulation settings
 ## ##############################################################################
 
-settings <- tsim_settings(setting_base, setting_vparam, setting_icparam)
+settings <- tsim_settings(setting_base, setting_vparam, setting_icparam,
+                          setting_base_pi0)
 
 
 ## ##############################################################################
@@ -131,7 +138,8 @@ if (M == 1) {
         iset <- settings[[idx]]
 
         ## check if sim already run
-        outf <- paste0("data-tsim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-tsim/M", M, "/",
+                       setting_vparam, "-", setting_icparam, "-", setting_base_pi0, "/",
                        "results-", names(settings)[idx], "-M", M, ".rdata")
         if (file.exists(outf)) {
             next
@@ -167,7 +175,8 @@ if (M == 1) {
         iset <- settings[[idx]]
         
         ## check if sim already run
-        outf <- paste0("data-tsim/M", M, "/", setting_vparam, "-", setting_icparam, "/",
+        outf <- paste0("data-tsim/M", M, "/",
+                       setting_vparam, "-", setting_icparam, "-", setting_base_pi0, "/",
                        "results-", names(settings)[idx], "-M", M, ".rds")
         if (file.exists(outf)) {
             next
@@ -183,8 +192,12 @@ if (M == 1) {
             sim_df <- do.call(du_tsim, iset)
             names(sim_df)[which(names(sim_df) == "H")] <- "qvalue"
 
-            ## calc data digest
-            sim_digest <- digest::sha1(sim_df)
+            ## calc data digest::sha1 (truncated) - or use digest::digest (full if truncate fails)
+            sim_digest <- tryCatch({ digest::sha1(sim_df) },
+                                   error = function(e) {
+                                       message("!! error at digest::sha1, using digest::digest !!")
+                                       return(digest(sim_df))
+                                   })
 
             ## create SummarizedBenchmark
             sb <- buildBench(bd, sim_df, truthCol = "qvalue", ptabular = TRUE)

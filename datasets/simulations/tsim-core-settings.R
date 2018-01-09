@@ -9,6 +9,10 @@
 #'        "esize_fixed", "esize_random".
 #' @param icparam independent/informative covariate parameter; should be
 #'        one of: "uniform", "se", "bl".
+#' @param base_pi0 pi0 value to use for simulations if `vparam` is one
+#'        of: "esize_fixed", "esize_random_ua", "esize_random_shift",
+#'        "altnoise". If `vparam` is either of `pi0` or `allnull`, then
+#'        the value is ignored. (default = 0.8)
 #'
 #' @details
 #' The following simulation groups are defined:
@@ -44,21 +48,26 @@
 #'                   The functional form is a reflected, stretched, and shifted
 #'                   cubic function of the single covariate. The transformation
 #'                   is chosen so the marginal pi0 is 0.80.
+#'     - `bl-step-90`: same as `bl-step-less` but marginal pi0 of 0.90.
+#'     - `bl-step-95`: same as `bl-step-less` but marginal pi0 of 0.95.
+#'     - `bl-cubic-90`: same as `bl-cubic` but marginal pi0 of 0.90.
+#'     - `bl-cubic-95`: same as `bl-cubic` but marginal pi0 of 0.95.
 #' 
 #' @author Patrick Kimes
 
-tsim_settings <- function(sbase, vparam, icparam) {
+tsim_settings <- function(sbase, vparam, icparam, base_pi0 = 0.8) {
 
     ## check that variable parameter is one of specified set
     vp <- c("pi0", "n", "esize_fixed", "esize_random")
     stopifnot(vparam %in% vp)
     
     ## check that indep/inform covariate parameter is one of specified set
-    ic <- c("uniform", "se", "bl", "bl-step-less", "bl-step-more", "bl-cubic")
+    ic <- c("uniform", "se", "bl", "bl-step-less", "bl-step-more", "bl-cubic",
+            "bl-step-90", "bl-step-95", "bl-cubic-90", "bl-cubic-95")
     stopifnot(icparam %in% ic)
 
     ## filter out unsupported setting pairs
-    if (vparam == "pi0" && icparam %in% c("bl", "bl-step-less", "bl-step-more", "bl-cubic")) {
+    if (vparam == "pi0" && grepl("^bl", icparam)) {
         stop("cant run 'pi0' simulations w/ 'bl' format indep covariate")
     }
     
@@ -79,7 +88,7 @@ tsim_settings <- function(sbase, vparam, icparam) {
         settings <- lapply(seq(0, 2, by=.2),
                            function(x) { replace(sbase,
                                                  c("pi0", "effect_size"),
-                                                 c(0.8, x))
+                                                 c(base_pi0, x))
                            })
         names(settings) <- paste0("alteff_", seq(0, 20, by=2))
 
@@ -87,38 +96,38 @@ tsim_settings <- function(sbase, vparam, icparam) {
         ## varying sample size ##################################################
         settings <- list("altn_3" =
                              replace(sbase, c("n_samples", "pi0", "effect_size"),
-                                     c(3, 0.8, 1.5)),
+                                     c(3, base_pi0, 1.5)),
                          "altn_6" =
                              replace(sbase, c("n_samples", "pi0", "effect_size"),
-                                     c(6, 0.8, 1.5)),
+                                     c(6, base_pi0, 1.5)),
                          "altn_20" =
                              replace(sbase, c("n_samples", "pi0", "effect_size"),
-                                     c(20, 0.8, 1.5)),
+                                     c(20, base_pi0, 1.5)),
                          "altn_6_12" =
                              replace(sbase, c("n_samples", "pi0", "effect_size"),
-                                     c(c(6, 12), 0.8, 1.5))
+                                     c(c(6, 12), base_pi0, 1.5))
                          )
         
     } else if (vparam == "esize_random") {
         ## varying effect size (stochastic/UA) ##################################
         settings <- list("alteff_spiky" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_spiky)),
+                                     c(base_pi0, sampler_spiky)),
                          "alteff_skew" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_skew)),
+                                     c(base_pi0, sampler_skew)),
                          "alteff_bignormal" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_bignormal)),
+                                     c(base_pi0, sampler_bignormal)),
                          "alteff_bimodal" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_bimodal)),
+                                     c(base_pi0, sampler_bimodal)),
                          "alteff_flat_top" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_flat_top)),
+                                     c(base_pi0, sampler_flat_top)),
                          "alteff_near_normal" =
                              replace(sbase, c("pi0", "effect_size"),
-                                     c(0.8, sampler_near_normal))
+                                     c(base_pi0, sampler_near_normal))
                          )
     }
         
@@ -133,13 +142,22 @@ tsim_settings <- function(sbase, vparam, icparam) {
     } else if (icparam == "bl") {
         settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_smooth1, runif))
     } else if (icparam == "bl-step-less") {
-        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_70to90, runif))
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step_less, runif))
     } else if (icparam == "bl-step-more") {
-        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_4step_60to100, runif))
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step_more, runif))
     } else if (icparam == "bl-cubic") {
         settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic, runif))
-    } 
 
+    } else if (icparam == "bl-step-90") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step90, runif))
+    } else if (icparam == "bl-step-95") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_step95, runif))
+    } else if (icparam == "bl-cubic-90") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic90, runif))
+    } else if (icparam == "bl-cubic-95") {
+        settings <- lapply(settings, replace, c("pi0", "icovariate"), c(pi0_cubic95, runif))
+    } 
+    
     return(settings)
 }
 

@@ -6,7 +6,40 @@
 M <- 100
 ncores <- 10
 
-params <- list(c("pi0", "uniform"),
+params <- list(c("n", "uniform", "0.90"),
+               c("n", "uniform", "0.95"),
+               c("n", "uniform", "0.99"),
+               c("n", "se", "0.90"),
+               c("n", "se", "0.95"),
+               c("n", "se", "0.99"),
+               c("n", "bl-step-90"),
+               c("n", "bl-step-95"),
+               c("n", "bl-cubic-90"),
+               c("n", "bl-cubic-95"),
+
+               c("esize_fixed", "uniform", "0.90"),
+               c("esize_fixed", "uniform", "0.95"),
+               c("esize_fixed", "uniform", "0.99"),
+               c("esize_fixed", "se", "0.90"),
+               c("esize_fixed", "se", "0.95"),
+               c("esize_fixed", "se", "0.99"),
+               c("esize_fixed", "bl-step-90"),
+               c("esize_fixed", "bl-step-95"),
+               c("esize_fixed", "bl-cubic-90"),
+               c("esize_fixed", "bl-cubic-95"),
+
+               c("esize_random", "uniform", "0.90"),
+               c("esize_random", "uniform", "0.95"),
+               c("esize_random", "uniform", "0.99"),
+               c("esize_random", "se", "0.90"),
+               c("esize_random", "se", "0.95"),
+               c("esize_random", "se", "0.99"),
+               c("esize_random", "bl-step-90"),
+               c("esize_random", "bl-step-95"),
+               c("esize_random", "bl-cubic-90"),
+               c("esize_random", "bl-cubic-95"),
+               
+               c("pi0", "uniform"),
                c("pi0", "se"),
                c("n", "uniform"),
                c("n", "se"),
@@ -30,14 +63,15 @@ params <- list(c("pi0", "uniform"),
 
 for (ip in params) {
     cmd <- paste("sbatch",
-                 "-p", "irizarry",
+                 "-p", "shared",
                  "-N", "1",
                  "-n", ncores + 1,
                  "--mem", "64G",
                  "-t", "4-00:00",
                  "-o", "_slurmio/slurm.%x.%j-%a.out",
                  "-e", "_slurmio/slurm.%x.%j-%a.err",
-                 "--wrap=\"Rscript tsim-core.R", M, ncores, ip[1], ip[2], "\"")
+                 "--wrap=\"Rscript tsim-core.R", M, ncores,
+                 paste(ip, collapse = ' '), "\"")
     system(cmd)
 }
 
