@@ -1,15 +1,19 @@
 ---
 title: "Yeast RNA-seq 48 sample comparison"
 author: "Keegan Korthauer"
-date: "1/9/2018"
-output: html_document
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### Introduction
+## Introduction
 
 This is an analysis of the yeast data with 48 biological replicates in each of 
 two conditions (analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/)). 
@@ -24,9 +28,9 @@ comparison and add in artificial differences to a subset of genes to define
 Processed count table is made available by the authors in their paper codebase 
 [GitHub repository](https://github.com/bartongroup/profDGE48). 
 
-### Set up workspace
+## Set up workspace
 
-```{r, results='hide'}
+```{r, results='hide', message=FALSE}
 # Load packages and source benchmark FDR
 library(data.table)
 library(tidyr)
@@ -38,6 +42,7 @@ library(R.utils)
 library(cowplot)
 library(purrr)
 library(DESeq2)
+library(truncnorm)
 
 # benchmark methods
 library(IHW)
@@ -57,7 +62,7 @@ cores <- 4
 multicoreParam <- MulticoreParam(workers = cores)
 ```
 
-### Data download
+## Data download
 
 First, we download the processed count data from GitHub. There is one file for the 
 Snf2 condition and one file for the wild type condition. The Snf2 condition is a yeast
@@ -85,9 +90,9 @@ apply the `read_tsv` function from `readr` to read in all of the 96 sample table
 as well as add in the sample name (derived from the file name) to each subtable.
 Finally, the `reduce` function is used to join all the replicates together.
 
-```{r, readin}
-files <- dir(path = "./data/", pattern = "*.bam.gbgout", full.names = TRUE)
-sample_names <- sapply(strsplit(dir(path = "./data/", pattern = "*.bam.gbgout"), "_MID"),
+```{r, readin, results='hide', message=FALSE}
+files <- dir(path = "./yeast48-data/", pattern = "*.bam.gbgout", full.names = TRUE)
+sample_names <- sapply(strsplit(dir(path = "./yeast48-data/", pattern = "*.bam.gbgout"), "_MID"),
                        function(x) x[[1]])
 
 counts <- files %>%
@@ -96,12 +101,14 @@ counts <- files %>%
   purrr::reduce(left_join, by = "feature") # reduce with rbind into one dataframe
 ```
 
-### Analysis with DESeq2
+## Analysis with DESeq2 & FDR Benchmarking
 
 Now, we're ready to construct a DESeq2 object. First we pull out the feature names and
 add them as rownames for the count table, and next we construct a column data object
 that houses the sample names, replicate numbers, and condition factor (WT versus
 Snf2 knockout). 
+
+### Full analysis (48 vs 48 non-null)
 
 ```{r, deseq}
 feats <- (counts %>% select(1))$feature
@@ -111,6 +118,9 @@ rownames(counts) <- feats
 coldat <- tibble(sample=colnames(counts)) %>% 
   separate(sample, sep="_", into=c("condition", "replicate"), remove=FALSE) %>%
   mutate(condition = factor(condition))
+
+# filter low count genes
+counts <- counts[rowMeans(counts) > 1,]
 
 dds <- DESeqDataSetFromMatrix(countData = counts,
                               colData = coldat,
@@ -126,31 +136,74 @@ head(resFULL)
 sum(resFULL$padj < 0.05, na.rm=T, independentFiltering = F)
 ```
 
-There are many thousand genes detected using the full set.
+There are many thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
 
-### Null Comparison
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resFULL), pval=resFULL$pvalue, SE=resFULL$lfcSE, 
+                      ind_covariate = resFULL$baseMean, effect_size=resFULL$log2FoldChange, 
+                      test_statistic=resFULL$stat))
 
-```{r, null}
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+
+```
+
+Look at covariate diagnostic plots.
+
+```{r, width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=32)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+Run benchmark methods.
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+
+```
+
+To do: compare this to results using a subset of samples from each condition.
+
+### Null Comparison (10 versus 10)
+
+Here we'll repeat the above, but for a null comparison 10 versus 10 Snf2 samples,
+where the groups are selected randomly.
+
+```{r}
 # select a random subset of 20 WT samples
-set.seed(85873)
-dds_null <- dds[,colData(dds)$condition == "WT"]
+set.seed(8373)
+dds_null <- dds[,colData(dds)$condition == "Snf2"]
 dds_null <- dds_null[,sample(1:ncol(dds_null), 20)]
 
 # add a fake condition column to coldat
-colData(dds_null)$fake <-  factor(c(rep("WT", 10), rep("TRT", 10))[sample(1:20, 20)])
+colData(dds_null)$fake <-  factor(c(rep("A", 10), rep("B", 10))[sample(1:20, 20)])
 design(dds_null) <- ~fake
  
-# results on full set
+# results 
 dds_null <- DESeq(dds_null)
 resultsNames(dds_null) # lists the coefficients
-resNULL <- results(dds_null, name="fake_WT_vs_TRT", independentFiltering = F)
+resNULL <- results(dds_null, name="fake_B_vs_A", independentFiltering = F)
 
 head(resNULL)
 
 sum(resNULL$padj < 0.05, na.rm=T)
 ```
-
-### FDR Benchmark 
 
 Build input data frame for summarized benchmark.
 
@@ -159,13 +212,13 @@ geneExp <- tbl_df(data.frame(geneName=rownames(resNULL), pval=resNULL$pvalue, SE
                       ind_covariate = resNULL$baseMean, effect_size=resNULL$log2FoldChange, 
                       test_statistic=resNULL$stat))
 
-geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=0)
 
 ```
 
 Look at covariate diagnostic plots.
 
-```{r}
+```{r, width=15, height=15}
 strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=2)
 ```
 
@@ -181,6 +234,239 @@ sb <- bd %>% buildBench(data=geneExp, parallel = T)
 
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+
+### Non-null Comparison (10 versus 10 null with spike-in)
+
+```{r}
+nDE <- 500
+
+# pick random set of nDE genes to add signal to
+DE <- sample(1:nrow(dds_null), nDE)
+truth <- rep(FALSE, nrow(dds_null))
+truth[DE] <- TRUE
+names(truth) <- rownames(dds_null)
+ 
+# randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
+log2FC <- rep(0, nrow(dds_null))
+log2FC[DE] <- rtruncnorm(nDE, 0.5, sd=0.5) * sample(c(1,-1), size=nDE, replace=TRUE)
+counts_new <- counts(dds_null)
+counts_new[,colData(dds_null)$fake=="A"] <- counts(dds_null)[,colData(dds_null)$fake=="A"] * 2^log2FC
+counts_new <- apply(counts_new, 2, as.integer)
+counts(dds_null) <- counts_new
+  
+# results 
+dds_null <- DESeq(dds_null)
+resultsNames(dds_null) # lists the coefficients
+resNULL <- results(dds_null, name="fake_B_vs_A", independentFiltering = F)
+
+head(resNULL)
+
+sum(resNULL$padj < 0.05, na.rm=T)
+```
+
+Build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resNULL), pval=resNULL$pvalue, SE=resNULL$lfcSE, 
+                      ind_covariate = resNULL$baseMean, effect_size=resNULL$log2FoldChange, 
+                      test_statistic=resNULL$stat,
+                      qvalue=truth))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=0)
+
+```
+
+Look at covariate diagnostic plots.
+
+```{r, width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=4)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+Run benchmark methods and examine ROC curve.
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T, truthCols = "qvalue")
+
+sb <- addDefaultMetrics(sb)
+pf <- estimatePerformanceMetrics(sb, alpha = c(0.001, 0.01, 0.025, 0.05, 0.1, 0.2), tidy=TRUE) 
+tpr <- pf %>% filter(performanceMetric == "TPR") %>% 
+  mutate(TPR=value) %>% 
+  select(blabel, alpha, TPR)
+fpr <- pf %>% filter(performanceMetric == "FPR") %>% 
+  mutate(FPR=value) %>% 
+  select(blabel, alpha, FPR)
+roc <- left_join(tpr, fpr) %>%
+  filter(blabel %in% c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical"))
+
+ggplot(data=roc,aes(FPR, TPR, color=blabel)) +
+  geom_point() +
+  geom_line() +
+  xlim(0,0.2)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+
+```
+
+### Null Comparison (5 versus 5)
+
+Again we'll look at a null comparison of wild type samples in artifical groups, but
+for a smaller sample size (5 versus 5).
+
+```{r}
+# select a random subset of 10 WT samples
+dds_null <- dds[,colData(dds)$condition == "Snf2"]
+dds_null <- dds_null[,sample(1:ncol(dds_null), 10)]
+
+# add a fake condition column to coldat
+colData(dds_null)$fake <-  factor(c(rep("A", 5), rep("B", 5))[sample(1:10, 10)])
+design(dds_null) <- ~fake
+ 
+# results
+dds_null <- DESeq(dds_null)
+resultsNames(dds_null) # lists the coefficients
+resNULL <- results(dds_null, name="fake_B_vs_A", independentFiltering = F)
+
+head(resNULL)
+
+sum(resNULL$padj < 0.05, na.rm=T)
+```
+
+Build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resNULL), pval=resNULL$pvalue, SE=resNULL$lfcSE, 
+                      ind_covariate = resNULL$baseMean, effect_size=resNULL$log2FoldChange, 
+                      test_statistic=resNULL$stat))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+
+```
+
+Look at covariate diagnostic plots.
+
+```{r, width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=3)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+Run benchmark methods.
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+#plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+```
+
+### Non-null Comparison (5 versus 5 null with spike-in)
+
+```{r}
+nDE <- 500
+
+# pick random set of nDE genes to add signal to
+DE <- sample(1:nrow(dds_null), nDE)
+truth <- rep(FALSE, nrow(dds_null))
+truth[DE] <- TRUE
+names(truth) <- rownames(dds_null)
+ 
+# randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
+log2FC <- rep(0, nrow(dds_null))
+log2FC[DE] <- rtruncnorm(nDE, 0.5, sd=0.5) * sample(c(1,-1), size=nDE, replace=TRUE)
+counts_new <- counts(dds_null)
+counts_new[,colData(dds_null)$fake=="A"] <- counts(dds_null)[,colData(dds_null)$fake=="A"] * 2^log2FC
+counts_new <- apply(counts_new, 2, as.integer)
+counts(dds_null) <- counts_new
+  
+# results 
+dds_null <- DESeq(dds_null)
+resultsNames(dds_null) # lists the coefficients
+resNULL <- results(dds_null, name="fake_B_vs_A", independentFiltering = F)
+
+head(resNULL)
+
+sum(resNULL$padj < 0.05, na.rm=T)
+```
+
+Build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resNULL), pval=resNULL$pvalue, SE=resNULL$lfcSE, 
+                      ind_covariate = resNULL$baseMean, effect_size=resNULL$log2FoldChange, 
+                      test_statistic=resNULL$stat,
+                      qvalue=truth))
+
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(ind_covariate>=1)
+
+```
+
+Look at covariate diagnostic plots.
+
+```{r,width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=4)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+Run benchmark methods and examine ROC curve.
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = T, truthCols = "qvalue")
+
+sb <- addDefaultMetrics(sb)
+pf <- estimatePerformanceMetrics(sb, alpha = c(0.001, 0.01, 0.025, 0.05, 0.1, 0.2), tidy=TRUE) 
+tpr <- pf %>% filter(performanceMetric == "TPR") %>% 
+  mutate(TPR=value) %>% 
+  select(blabel, alpha, TPR)
+fpr <- pf %>% filter(performanceMetric == "FPR") %>% 
+  mutate(FPR=value) %>% 
+  select(blabel, alpha, FPR)
+roc <- left_join(tpr, fpr) %>%
+  filter(blabel %in% c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical"))
+
+ggplot(data=roc,aes(FPR, TPR, color=blabel)) +
+  geom_point() +
+  geom_line() + 
+  xlim(0,0.2)
 ```
 
 Plot results.
