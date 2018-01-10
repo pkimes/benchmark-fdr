@@ -12,3 +12,5 @@ datasets/simulations/plots-psim
 datasets/simulations/plots-psim-noash
 datasets/simulations/_slurmio
 datasets/RNA-Seq/dsdObjects.RData
+datasets/RNA-Seq/*.err
+datasets/RNA-Seq/*.out
