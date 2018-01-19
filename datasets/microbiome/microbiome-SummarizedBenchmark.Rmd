@@ -357,6 +357,11 @@ Hm, now the code runs. However, there are clearly still some issues:
 - ashs rejects all hypotheses (all q-values are essentially 0).
 - lfdr and scott-empirical are all NaN (I think this is likely related to the df error)
 
+```{r, schubert-genus-covariates}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots( sb, alpha=0.1, nsets=6, methods=methods)
+```
+
 
 ```{r, eval=FALSE}
 assays(sb)[["qvalue"]]["ashs"] %>% max()
@@ -942,6 +947,10 @@ Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
 ```{r, goodrich-genus-overlap}
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
+```{r, goodrich-genus-covariates}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots( sb, alpha=0.1, nsets=6, methods=methods)
+```
 
 ### CRC Baxter - colorectal cancer
 
@@ -1487,4 +1496,8 @@ Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
 
 ```{r, baxter-genus-overlap}
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots( sb, alpha=0.1, nsets=6, methods=methods)
 ```
