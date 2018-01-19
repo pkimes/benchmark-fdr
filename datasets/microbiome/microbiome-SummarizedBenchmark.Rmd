@@ -118,8 +118,8 @@ remove_shallow_otus <- function(df, n_reads){
   return(df[rowSums(df) > n_reads, ])
   }
 
-## Remove OTUs with fewere than 10 reads
-#otu <- remove_shallow_otus(otu, 10)
+## Remove OTUs with fewer than 10 reads
+otu <- remove_shallow_otus(otu, 10)
 
 # Remove samples with fewer than sample_Reads reads
 sample_reads <- 100
@@ -253,13 +253,13 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-##### Phylogeny?!
+##### Phylogeny
 
 Let's look at phylum-level stratification first. A priori, I *might* expect
 Proteobacteria to be enriched for low p-values? But I don't know if that's
 super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
 
-```{r, schubert-phylo, fig.width=10, fig.height=6, eval=TRUE}
+```{r, schubert-phylo, fig.width=10, fig.height=6, eval=FALSE}
 #strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
 #rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
@@ -439,9 +439,24 @@ remove_shallow_smpls <- function(df, n_reads) {
   # Removes samples with fewer than n_reads from dataframe df.
   # df has OTUs in rows and samples in columns
   return(df[, colSums(df) > n_reads])
-  }
+}
 
-# Remove samples with fewer than sample_Reads reads
+remove_shallow_otus <- function(df, n_reads){
+  return(df[rowSums(df) > n_reads, ])
+}
+
+remove_rare_otus <- function(df, perc_samples){
+  return(df[rowSums(df > 0) / dim(df)[2] > perc_samples, ])
+}
+
+## Remove OTUs with fewer than 10 reads
+otu <- remove_shallow_otus(otu, 10)
+print(dim(otu))
+## Remove OTUs in fewer than 1% of samples
+otu <- remove_rare_otus(otu, 0.01)
+print(dim(otu))
+
+# Remove samples with fewer than sample_reads reads
 sample_reads <- 100
 otu <- remove_shallow_smpls(otu, sample_reads)
 
@@ -581,13 +596,13 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=5, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-##### Phylogeny?!
+##### Phylogeny
 
 Let's look at phylum-level stratification first. A priori, I *might* expect
 Proteobacteria to be enriched for low p-values? But I don't know if that's
 super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
 
-```{r, goodrich-phylo, fig.width=10, fig.height=6}
+```{r, goodrich-phylo, fig.width=10, fig.height=6, eval=FALSE}
 #strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
 #rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
@@ -731,6 +746,203 @@ sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 
 ```
 
+
+## Goodrich, genus-level analysis
+
+```{r, goodrich-genus}
+## Collapse baxter OTU table to genus level
+
+# Add column with otu names
+genus_df <- as.data.frame(abun_otu)
+genus_df$otu <- rownames(genus_df)
+# Melt into tidy format
+genus_df <- genus_df %>% melt(id.var="otu", variable.name="sample", value.name="abun")
+# Split into separate taxonomic levels
+genus_df <- genus_df %>% 
+  separate(otu, c("kingdom", "phylum", "class", "order", "family", "genus", "species", "denovo"), 
+           sep=";", remove = FALSE)
+
+# Get rid of unannoated genera, and sum abundances for genera
+genus_df <- genus_df %>% 
+  filter(genus != "g__") %>% 
+  group_by(genus, sample) %>% 
+  summarise(total_abun = sum(abun)) 
+
+# Convert back to longform
+genus_df <- genus_df %>% spread(genus, total_abun) %>% as.data.frame
+rownames(genus_df) <- genus_df$sample
+genus_df <- genus_df %>% select(-sample) %>% t
+
+# And re-order columns to match metadata
+genus_df <- genus_df[, match(meta$X, colnames(genus_df))]
+```
+
+
+```{r, goodrich-genus-pvals}
+resfile <- paste0(resdir, "goodrich_results_",
+                  nrow(genus_df), "_genera.RData")
+if (!file.exists(resfile)){
+  # Get case and control indices
+  case_idx <- meta$DiseaseState %in% c("OB")
+  ctrl_idx <- meta$DiseaseState %in% c("H")
+  
+  # Calculate pvalues, effects, and stderr
+  pvals <- c()
+  teststats <- c()
+  ses <- c()
+  effs <- c()
+  mean_abuns <- c()
+  mean_abuns_present <- c()
+  ubis <- c()
+  
+  casedf <- genus_df[, case_idx]
+  ctrldf <- genus_df[, ctrl_idx]
+  for (o in rownames(genus_df)) {
+    # wilcoxon p value  
+    w <- wilcox.test(casedf[o, ], 
+                     ctrldf[o, ])
+    p <- w$p.value
+    teststat <- w$statistic
+    
+    pvals <- c(pvals, p)
+    teststats <- c(teststats, teststat)
+    
+    # standard error of the OTU abundance, across all samples
+    ses <- c(ses, 
+             sd(genus_df[o, ])/sqrt(length(genus_df[o, ]))
+             )
+    
+    # mean OTU abundance across all samples (after removing pseudo-count)
+    mean_abuns <- c(mean_abuns, 
+                    mean(genus_df[o, ] - zeroabun)
+                    )
+    
+    # mean OTU abundance across only samples with the OTU present
+    mean_abuns_present <- c(mean_abuns_present, 
+                            sum(genus_df[o, ] - zeroabun) / sum(genus_df[o, ] > zeroabun)
+                            )
+    
+    # ubiquity of OTU across all samples
+    ubis <- c(ubis, 
+              sum(genus_df[o, ] > zeroabun) / length(genus_df[o, ])
+              )
+    
+    # effect (logfold difference)
+    effs <- c(effs, 
+              log(mean(genus_df[o, ctrl_idx])/mean(genus_df[o, case_idx]))
+              )
+  
+  }
+  
+  res <- data.frame(otu = rownames(genus_df), 
+                    pval = pvals, test_statistic = teststats,
+                    SE = ses, effect_size = effs, 
+                    mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
+                    ubiquity = ubis)
+  res <- res %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size))
+  
+  save(res, file=resfile)
+  
+}else{
+  load(resfile)
+}
+```
+
+#### Check Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+##### Ubiquity
+
+```{r, goodrich-genus-ubi, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+Something weird is happening with p=0.20 and p=0.40 - maybe this has something to do with ties?
+Either way, ubiquity looks to be a bit informative (from the scatter plot, but not really the histograms...)
+
+##### Mean abundance (across non-zero samples)
+
+```{r, goodrich-genus-abun, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+Let's use `ubiquity` as our `ind_covariate`
+
+```{r, goodrich-genus-labelcovariate}
+res <- res %>% mutate(ind_covariate = ubiquity)
+```
+
+Also (hacky), remove test_statistic so that ash doesn't run.
+
+```{r, goodrich-genus-rm-ash}
+res <- res %>% 
+  mutate(test_statistic = NA) %>%
+  mutate(effect_size = NA)
+```
+
+#### Set up BenchDesign object 
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, goodrich-genus-sb, results="hide", message=FALSE, eval=TRUE}
+for (nmids in c(5, 50, 150)){
+  print(nmids)
+  bd <- initializeBenchDesign(nmids=nmids)
+  
+  resfile <- paste0(resdir, "goodrich_summarizedBenchmark_",
+                    nrow(res), "_genera_nmids_", nmids, ".RData")
+  duration <- NA
+  if (!file.exists(resfile)){
+    t1 <- proc.time()
+    sb <- bd %>% buildBench(data=res, ftCols = "ind_covariate")
+                            #parallel=TRUE, BPPARAM=multicoreParam)
+    metadata(sb)$data_download_link <- "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    save(sb, file=resfile)
+    duration <- round((proc.time()-t1)[3]/60,1)
+  }else{
+    load(resfile)
+  }
+}
+
+```
+
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, goodrich-genus-metrics, eval=TRUE}
+# rename assay to qvalue
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+Debugging note: to look at the matrix of qvalues, run `assays(sb)[["qvalue"]]`
+
+```{r, goodrich-genus-plot, width=15, height=15, eval=TRUE}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+#plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, goodrich-genus-overlap}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
 ### CRC Baxter - colorectal cancer
 
 Next, I'll look at the CRC Baxter dataset. For colorectal cancer, we do expect some amount of truly differentially abundant OTUs, but not as many as in diarrhea. This dataset will hopefully provide an intermediate non-extreme case study.
@@ -778,6 +990,12 @@ meta <- meta %>% filter(get(col_label) %in% keep_samples)
 
 ```
 
+A brief aside: what's the count distribution of these OTUs?
+
+```{r, eval=FALSE}
+otu %>% colSums %>% hist()
+```
+
 Since we'll be using OTU-wise covariates, we shouldn't need to perform any
 filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
 (This may happen after removing shallow samples, I think.)
@@ -792,25 +1010,35 @@ problems with taking logs.
 remove_shallow_smpls <- function(df, n_reads) {
   # Removes samples with fewer than n_reads from dataframe df.
   # df has OTUs in rows and samples in columns
-  return(df[, colSums(df) > n_reads])
+  return(df[, colSums(df) >= n_reads])
   }
 
 remove_shallow_otus <- function(df, n_reads){
   return(df[rowSums(df) > n_reads, ])
   }
 
-## Remove OTUs with fewere than 10 reads
-#otu <- remove_shallow_otus(otu, 10)
+remove_rare_otus <- function(df, perc_samples){
+  return(df[rowSums(df > 0) / dim(df)[2] > perc_samples, ])
+}
+
+## Remove OTUs with fewer than 10 reads
+otu <- remove_shallow_otus(otu, 10)
+print(dim(otu))
+## Remove OTUs in fewer than 1% of samples
+otu <- remove_rare_otus(otu, 0.01)
+print(dim(otu))
 
 # Remove samples with fewer than sample_Reads reads
 sample_reads <- 100
 otu <- remove_shallow_smpls(otu, sample_reads)
+print(dim(otu))
 
 # Update metadata with new samples
 meta <- meta %>% filter(get(col_label) %in% colnames(otu))
 
 # Remove empty OTUs
 otu <- otu[rowSums(otu) > 0, ]
+print(dim(otu))
 
 # Convert to relative abundance
 abun_otu <- t(t(otu) / rowSums(t(otu)))
@@ -937,13 +1165,13 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-##### Phylogeny?!
+##### Phylogeny
 
 Let's look at phylum-level stratification first. A priori, I *might* expect
 Proteobacteria to be enriched for low p-values? But I don't know if that's
 super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
 
-```{r, baxter-phylo, fig.width=10, fig.height=6}
+```{r, baxter-phylo, fig.width=10, fig.height=6, eval=FALSE}
 #strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
 #rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
@@ -1038,13 +1266,6 @@ Objective fn: 90882.9  Extrapolation: 0  Steplength: 1
 Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !Censored sample for null model estimation has only size 0 !f(z) misfit = -15.9.  Rerun with increased df.f(z) misfit = 8.3.  Rerun with increased df.f(z) misfit = -10.8.  Rerun with increased df.f(z) misfit = -18.1.  Rerun with increased df.f(z) misfit = -24.6.  Rerun with increased df.f(z) misfit = -27.1.  Rerun with increased df.f(z) misfit = -24.6.  Rerun with increased df.f(z) misfit = -18.8.  Rerun with increased df.f(z) misfit = -21.4.  Rerun with increased df.f(z) misfit = 279.5.  Rerun with increased df.f(z) misfit = 83.1.  Rerun with increased df.f(z) misfit = -27.4.  Rerun with increased df.f(z) misfit = -28.3.  Rerun with increased df.f(z) misfit = -7.4.  Rerun with increased df.f(z) misfit = 11.6.  Rerun with increased df.f(z) misfit = -18.2.  Rerun with increased df.f(z) misfit = -23.  Rerun with increased df.f(z) misfit = -16.7.  Rerun with increased df.f(z) misfit = -24.1.  Rerun with increased df.f(z) misfit = -23.2.  Rerun with increased df.f(z) misfit = -24.4.  Rerun with increased df.f(z) misfit = -26.6.  Rerun with increase... <truncated>> 
 ```
 
-```{r, echo=FALSE, eval=FALSE}
-if(!is.na(duration)){
-  message("This step took ", duration, " minutes for ", nrow(res), " OTUs using ",
-        cores, " cores.")
-}
-```
-
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
 
@@ -1072,4 +1293,198 @@ sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 
 ```
 
+## Baxter, genus-level analysis
 
+```{r, baxter-genus}
+## Collapse baxter OTU table to genus level
+
+# Add column with otu names
+genus_df <- as.data.frame(abun_otu)
+genus_df$otu <- rownames(genus_df)
+# Melt into tidy format
+genus_df <- genus_df %>% melt(id.var="otu", variable.name="sample", value.name="abun")
+# Split into separate taxonomic levels
+genus_df <- genus_df %>% 
+  separate(otu, c("kingdom", "phylum", "class", "order", "family", "genus", "species", "denovo"), 
+           sep=";", remove = FALSE)
+
+# Get rid of unannoated genera, and sum abundances for genera
+genus_df <- genus_df %>% 
+  filter(genus != "g__") %>% 
+  group_by(genus, sample) %>% 
+  summarise(total_abun = sum(abun)) 
+
+# Convert back to longform
+genus_df <- genus_df %>% spread(genus, total_abun) %>% as.data.frame
+rownames(genus_df) <- genus_df$sample
+genus_df <- genus_df %>% select(-sample) %>% t
+
+# And re-order columns to match metadata
+genus_df <- genus_df[, match(meta$Sample_Name_s, colnames(genus_df))]
+```
+
+```{r, baxter-genus-pvals}
+resfile <- paste0(resdir, "baxter_results_",
+                  nrow(genus_df), "_genera.RData")
+if (!file.exists(resfile)){
+  # Get case and control indices
+  case_idx <- meta$DiseaseState %in% c("CRC")
+  ctrl_idx <- meta$DiseaseState %in% c("H")
+  
+  # Calculate pvalues, effects, and stderr
+  pvals <- c()
+  teststats <- c()
+  ses <- c()
+  effs <- c()
+  mean_abuns <- c()
+  mean_abuns_present <- c()
+  ubis <- c()
+  
+  casedf <- genus_df[, case_idx]
+  ctrldf <- genus_df[, ctrl_idx]
+  for (o in rownames(genus_df)) {
+    # wilcoxon p value  
+    w <- wilcox.test(casedf[o, ], 
+                     ctrldf[o, ])
+    #w <- kruskal.test(list(casedf[o, ], ctrldf[o, ]))
+    p <- w$p.value
+    teststat <- w$statistic
+    
+    pvals <- c(pvals, p)
+    teststats <- c(teststats, teststat)
+    
+    # standard error of the OTU abundance, across all samples
+    ses <- c(ses, 
+             sd(genus_df[o, ])/sqrt(length(genus_df[o, ]))
+             )
+    
+    # mean OTU abundance across all samples (after removing pseudo-count)
+    mean_abuns <- c(mean_abuns, 
+                    mean(genus_df[o, ] - zeroabun)
+                    )
+    
+    # mean OTU abundance across only samples with the OTU present
+    mean_abuns_present <- c(mean_abuns_present, 
+                            sum(genus_df[o, ] - zeroabun) / sum(genus_df[o, ] > zeroabun)
+                            )
+    
+    # ubiquity of OTU across all samples
+    ubis <- c(ubis, 
+              sum(genus_df[o, ] > zeroabun) / length(genus_df[o, ])
+              )
+    
+    # effect (logfold difference)
+    effs <- c(effs, 
+              log(mean(genus_df[o, ctrl_idx])/mean(genus_df[o, case_idx]))
+              )
+  
+  }
+  
+  res <- data.frame(otu = rownames(genus_df), 
+                    pval = pvals, test_statistic = teststats,
+                    SE = ses, effect_size = effs, 
+                    mean_abun = mean_abuns, mean_abun_present = mean_abuns_present,
+                    ubiquity = ubis)
+  res <- res %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size))
+  
+  save(res, file=resfile)
+  
+}else{
+  load(resfile)
+}
+```
+
+#### Check Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+##### Ubiquity
+
+```{r, baxter-genus-ubi, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+Something weird is happening with p=0.20 and p=0.40 - maybe this has something to do with ties?
+Either way, ubiquity looks to be a bit informative (from the scatter plot, but not really the histograms...)
+
+##### Mean abundance (across non-zero samples)
+
+```{r, baxter-genus-abun, fig.width=10, fig.height=3.5}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+Let's use `ubiquity` as our `ind_covariate`
+
+```{r, baxter-genus-labelcovariate}
+res <- res %>% mutate(ind_covariate = ubiquity)
+```
+
+Also (hacky), remove test_statistic so that ash doesn't run.
+
+```{r, baxter-genus-rm-ash}
+res <- res %>% 
+  mutate(test_statistic = NA) %>%
+  mutate(effect_size = NA)
+```
+
+#### Set up BenchDesign object 
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-genus-sb, results="hide", message=FALSE, eval=TRUE}
+for (nmids in c(5, 50, 150)){
+  print(nmids)
+  bd <- initializeBenchDesign(nmids=nmids)
+  
+  resfile <- paste0(resdir, "baxter_summarizedBenchmark_",
+                    nrow(res), "_genera_nmids_", nmids, ".RData")
+  duration <- NA
+  if (!file.exists(resfile)){
+    t1 <- proc.time()
+    sb <- bd %>% buildBench(data=res, ftCols = "ind_covariate")
+                            #parallel=TRUE, BPPARAM=multicoreParam)
+    metadata(sb)$data_download_link <- "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    save(sb, file=resfile)
+    duration <- round((proc.time()-t1)[3]/60,1)
+  }else{
+    load(resfile)
+  }
+}
+
+```
+
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, baxter-genus-metrics, eval=TRUE}
+# rename assay to qvalue
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+Debugging note: to look at the matrix of qvalues, run `assays(sb)[["qvalue"]]`
+
+```{r, baxter-genus-plot, width=15, height=15, eval=TRUE}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+#plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, baxter-genus-overlap}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
