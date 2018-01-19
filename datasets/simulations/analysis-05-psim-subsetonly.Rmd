@@ -318,14 +318,14 @@ Also looking at varying pi0s (only showing FPR/TPR).
     myplot() + 
     ggtitle("Distribution: normal, pi0: 80% (100 replications)")
 
-"M100/esize_fixed-bl-uniform-0.95/results-alteff_30-M100.rds" %>%
+"M100/esize_fixed-uniform-0.95/results-alteff_30-M100.rds" %>%
     file.path("data-psim-parsed", .) %>%
     readRDS() %>%
     preclean() %>%
     myplot() + 
     ggtitle("Distribution: normal, pi0: 95% (100 replications)")
 
-"M100/esize_fixed-bl-uniform-0.99/results-alteff_30-M100.rds" %>%
+"M100/esize_fixed-uniform-0.99/results-alteff_30-M100.rds" %>%
     file.path("data-psim-parsed", .) %>%
     readRDS() %>%
     preclean() %>%
