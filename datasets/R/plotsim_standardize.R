@@ -10,7 +10,7 @@
 #'        calculated. (default = seq(0.01, 0.10, 0.01))
 #' 
 #' @return
-#' a data.table of the following performance metrics:
+#' a tibble of the following performance metrics:
 #' 'rejections', 'TPR', 'TNR', 'FPR', 'FNR', 'FWER'.
 #' 
 #' @author Patrick Kimes
@@ -32,5 +32,6 @@ plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
     tsb <- lapply(sbl, estimatePerformanceMetrics,
                   alpha = alpha, tidy = TRUE)
     
-    rbindlist(tsb, idcol = "rep")
+    tsb <- bind_rows(tsb, .id = "rep")
+    as.tibble(tsb)
 }
