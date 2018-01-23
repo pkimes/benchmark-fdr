@@ -110,3 +110,11 @@ initializeBenchDesign <- function(nmids=150) {
                      control = list(lambda = 0.01, nmids = nmids))
   return(bd)
 }
+
+
+## wrapper to make up for function removed from SummarizedBenchmark package
+addDefaultMetrics <- function(sb) {
+    sb <- addPerformanceMetric(sb, evalMetric = c("TPR", "FPR", "TNR", "FNR", "rejections"),
+                               assay = "qvalue")
+    return(sb)
+}
