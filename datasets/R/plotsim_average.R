@@ -20,18 +20,21 @@
 #'        following labels, else method labels will not be changed: 'ashs',
 #'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'scott-empirical',
 #'        'scott-theoretical'. (default = FALSE)
+#' @param errorBars logical indicating whether to include error bars 
 #'
 #' @return
 #' a ggplot object.
 #' 
 #' @author Patrick Kimes
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
-                            clean_names = FALSE) {
+                            clean_names = FALSE, errorBars=FALSE) {
 
     ## cacluate mean over replications
     tsba <- tsb %>%
         group_by(blabel, performanceMetric, alpha, param.alpha, key) %>%
-        summarize(value = mean(value), n = n())
+        summarize(n = n(),
+                  se = sd(value)/sqrt(n),
+                  value = mean(value))
 
     ## remove methods if any specified
     if (!is.null(filter_set)) {
@@ -75,6 +78,10 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
               legend.justification = c("left", "top"),
               legend.background = element_rect(fill=scales::alpha("gray90", 1/3),
                                                color="black"))
+    if(errorBars){
+      gp <- gp + geom_errorbar(width=0.0025, alpha=1/3,
+                               aes(ymin=value-se, ymax=value+se))
+    }
 
     ## use percentage on y-axis labels when appropriate
     if (met %in% c("FPR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) {
