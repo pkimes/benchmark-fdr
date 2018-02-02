@@ -1,0 +1,494 @@
+---
+title: "Yeast RNA-seq 48 sample simulation study"
+author: "Keegan Korthauer"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This is an analysis of the yeast data with 48 biological replicates in each of 
+two conditions (analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/)). 
+We chose this experiment because of the large number of biological replicates, which
+will allow us to (1) implement null comparisons on random subsets of samples within
+one condition, (2) compare FDR approaches on their ability to discover 'true positive' 
+DE genes using subsets of the full dataset, where 'true positive' is defined as a 
+gene detected as DE using all 48 samples in each condition, and (3) start with a null
+comparison and add in artificial differences to a subset of genes to define
+'true positives'. 
+
+Processed count table is made available by the authors in their paper codebase 
+[GitHub repository](https://github.com/bartongroup/profDGE48). 
+
+In this Rmd we will carry out the steps in `yeast48-benchmarkFDR.Rmd` for multiple
+replicates, and plot results averaging over the replications.
+
+# Set up workspace
+
+```{r, results='hide', message=FALSE}
+# Load packages and source benchmark FDR
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(magrittr)
+library(R.utils)
+library(cowplot)
+library(purrr)
+library(DESeq2)
+library(tibble)
+library(ggthemes)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)
+sourceDirectory("../R/")
+
+# set up parallel backend
+library(parallel)
+cores <- 20
+```
+
+# Data download
+
+First, we download the processed count data from GitHub. There is one file for the 
+Snf2 condition and one file for the wild type condition. The Snf2 condition is a yeast
+strain that has the transcriptional regulator gene Snf2 knocked out. Each of these
+files is a compressed `tar.gz` archive that contains a 
+single bam file for each replicate in each condition, which we'll place in a subdirectory
+called `data`.
+
+```{r, download}
+system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz")
+system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/WT_countdata.tar.gz")
+system("mkdir yeast48-data")
+system("tar -xvf WT_countdata.tar.gz -C ./yeast48-data")
+system("tar -xvf Snf2_countdata.tar.gz -C ./yeast48-data")
+system("rm *.tar.gz")
+```
+
+Each of the data files contains two columns, one with a gene/feature name, and one
+with the count value.
+
+## Read data into R and create a count table
+
+Here we make use of the map and map2 functions in the `purrr` package, to swiftly 
+apply the `read_tsv` function from `readr` to read in all of the 96 sample tables, 
+as well as add in the sample name (derived from the file name) to each subtable.
+Finally, the `reduce` function is used to join all the replicates together.
+
+```{r, readin, results='hide', message=FALSE}
+files <- dir(path = "./yeast48-data/", pattern = "*.bam.gbgout", full.names = TRUE)
+sample_names <- sapply(strsplit(dir(path = "./yeast48-data/", pattern = "*.bam.gbgout"), "_MID"),
+                       function(x) x[[1]])
+
+counts <- files %>%
+  purrr::map(read_tsv, col_names = FALSE) %>% # read in all the files individually
+  purrr::map2(sample_names, ~ dplyr:::rename(.x, !! .y := X2, feature = X1) ) %>% # add sample names
+  purrr::reduce(left_join, by = "feature") # reduce with rbind into one dataframe
+```
+
+# Analysis of full 48v48 (non-null)
+
+Here we'll carry out an analysis of the full dataset, comparing the controls to the
+knowckout samples. The fold changes observed in this comparison will be used when 
+generating the non-null simulated data in the following sections.
+
+We're ready to construct a DESeq2 object. First we pull out the feature names and
+add them as rownames for the count table, and next we construct a column data object
+that houses the sample names, replicate numbers, and condition factor (WT versus
+Snf2 knockout). 
+
+## Set up DESeq2 object 
+
+```{r, deseq}
+feats <- (counts %>% select(1))$feature
+counts <- as.matrix(counts %>% select(-1))
+rownames(counts) <- feats
+
+coldat <- tibble(sample=colnames(counts)) %>% 
+  separate(sample, sep="_", into=c("condition", "replicate"), remove=FALSE) %>%
+  mutate(condition = factor(condition))
+
+# filter low count genes
+counts <- counts[rowMeans(counts) > 1,]
+
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = coldat,
+                              design= ~ condition)
+
+# results on full set
+dds <- DESeq(dds)
+resultsNames(dds) # lists the coefficients
+resFULL <- results(dds, name="condition_WT_vs_Snf2")
+
+head(resFULL)
+
+sum(resFULL$padj < 0.05, na.rm=T, independentFiltering = F)
+```
+
+## Check assumptions
+
+There are many thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(resFULL), 
+                             pval=resFULL$pvalue, 
+                             SE=resFULL$lfcSE,
+                             ind_covariate = resFULL$baseMean, 
+                             effect_size=resFULL$log2FoldChange, 
+                             test_statistic=resFULL$stat,
+                             pzero=rowSums(counts(dds)==0)/ncol(counts(dds))))
+
+# filter NAs and those with less than 50% expressed 
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+```
+
+Check unimodal assumption (for ash).
+
+```{r}
+ggplot(data=geneExp, aes(test_statistic)) +
+  geom_histogram(bins=30)
+```
+
+Look at covariate diagnostic plots.
+
+```{r, width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=32)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+## FDR benchmarking
+
+Run benchmark methods. 
+
+```{r}
+bd <- initializeBenchDesign()
+sb <- bd %>% buildBench(data=geneExp, parallel = F)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+
+```
+
+# Simulation set up
+
+Next, we'll analyze random splits of one condition, both with and without the 
+addition of simulated DE genes. Here we'll create a function that we can use to 
+run one replicate given sample size and number of DE gene settings. This will be
+looped over many replications and results averaged over them.
+
+```{r}
+#' @param X simnumber
+#' @param seed random seed
+#' @param dds is the full DESeq2 dataset
+#' @param resFULL is the results object from running DESeq2 on dds (used in
+#'   to obtain the fold change effect sizes when adding non-null genes)
+#' @param sampleSize is the number of samples in each condition
+#' @param nDE is the number of DE genes
+#' @param bd is the bench design object
+simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize, bd){
+  
+  # set random seed
+  set.seed(as.numeric(X)*as.numeric(rseed))
+  
+  # select a random subset of 20 WT samples
+  dds_test <- dds[,colData(dds)$condition == "Snf2"]
+  dds_test <- dds_test[,sample(1:ncol(dds_test), sampleSize*2)]
+
+  # add a fake condition column to coldat
+  colData(dds_test)$fake <-  factor(c(rep("A", sampleSize), 
+                                      rep("B", sampleSize))[sample(1:(sampleSize*2), 
+                                                                   sampleSize*2)])
+  design(dds_test) <- ~fake
+  truth <- rep(FALSE, nrow(dds_test))
+  
+  if(nDE > 0){
+    # pick random set of nDE genes to add signal to
+    DE <- sample(1:nrow(dds_test), nDE)
+    truth <- rep(FALSE, nrow(dds_test))
+    truth[DE] <- TRUE
+    names(truth) <- rownames(dds_test)
+ 
+    # randomly sample a log2FC from original FCs (without regard to DE)
+    log2FC <- rep(0, nrow(dds_test))
+    log2FC[DE] <- resFULL$log2FoldChange[DE]
+
+    counts_new <- counts(dds_test)
+    counts_new[,colData(dds_test)$fake=="A"] <- counts(dds_test)[,colData(dds_test)$fake=="A"] * 2^log2FC
+    counts_new <- apply(counts_new, 2, as.integer)
+    counts(dds_test) <- counts_new
+  }
+  
+  dds_test <- DESeq(dds_test)
+  resultsNames(dds_test) # lists the coefficients
+  resTEST <- results(dds_test, name="fake_B_vs_A", independentFiltering = F)
+
+ 
+  geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
+                               pval=resTEST$pvalue, 
+                               SE=resTEST$lfcSE, 
+                               ind_covariate = resTEST$baseMean,
+                               effect_size = resTEST$log2FoldChange, 
+                               test_statistic = resTEST$stat,
+                               qvalue = truth,
+                               pzero = rowSums(counts(dds_test)==0)/
+                                       ncol(counts(dds_test))  ))
+  
+  # filter NAs and those with less than 50% expressed 
+  geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+
+  sb <- bd %>% buildBench(data=geneExp, parallel = F, truthCols = "qvalue")
+
+  return(sb)
+}
+ 
+```
+
+We'll also set some parameters that will be common to all simulations. These
+include the number of replications, the bench design object, the set of 
+methods to exclude in the results plots, and the alpha cutoff level to 
+be used when plotting the aggregated Upset results.
+
+```{r}
+B <- 100
+bd <- initializeBenchDesign() # only needs to be done once
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+Here's a helper function to return the number of methods with rejections at
+a particular alpha level (this helps us determine whether or not to plot the
+aggregated upset plot - if there aren't at least 2 methods it will throw an
+error, which is a problem for the null simulations).
+
+```{r}
+#' @param res standardized metric data.table generated using
+#'        standardize_results.
+#' @param alpha alpha cutoff
+#' @param filterSet which methods to exclude from consideration 
+numberMethodsReject <- function(res, alphacutoff, filterSet){
+  res <- res %>% 
+    filter(is.na(param.alpha) | (param.alpha == alphacutoff)) %>%
+    filter(!(blabel %in% filterSet)) %>%
+    filter(alpha == alphacutoff) %>%
+    filter(performanceMetric == "rejections") %>%
+    select(blabel, performanceMetric, value) %>%
+    group_by(blabel) %>%
+    summarize(mean_value = mean(value)) %>%
+    filter(mean_value > 0)
+  return(nrow(res))
+}
+
+```
+
+
+# Sim N5: Null Comparison 5v5
+
+Here we'll repeat the above, but for a null comparison 5 versus 5 Snf2 samples,
+where the groups are selected randomly. This will be done for 100 random splits.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+rseed <- 225
+sampleSize <- 5
+nDE <- 0
+
+null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   mc.cores=cores)
+```
+
+## Plot average results over replications
+
+Plot results. 
+
+```{r}
+res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res5, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+# Sim N10: Null Comparison 10v10
+
+Here we'll repeat the above, but for a null comparison 10 versus 10 Snf2 samples,
+where the groups are selected randomly. This will be done for 100 random splits.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+rseed <- 837
+sampleSize <- 10
+nDE <- 0
+
+null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   mc.cores=cores)
+```
+
+## Plot average results over replications
+
+Plot results.
+
+```{r}
+res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res10, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+
+
+# Sim D5: DE Comparison 5v5
+
+Here we'll repeat the above, but for a DE comparison 5 versus 5 Snf2 samples,
+where the groups are selected randomly and 500 DE genes are added. 
+This will be done for 100 random splits.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+rseed <- 198
+sampleSize <- 5
+nDE <- 500
+
+de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   mc.cores=cores)
+```
+
+## Plot average results over replications
+
+Plot results. 
+
+```{r}
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="FPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+# Sim D10: DE Comparison 10v10
+
+Here we'll repeat the above, but for a DE comparison 10 versus 10 Snf2 samples,
+where the groups are selected randomly and 500 DE genes are added.
+This will be done for 100 random splits.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+rseed <- 961
+sampleSize <- 10
+nDE <- 500
+
+de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   mc.cores=cores)
+```
+
+## Plot average results over replications
+
+Plot results.
+
+```{r}
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res10d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="FPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+# Save results objects
+
+```{r}
+system("mkdir -p yeast48-results")
+saveRDS(null5, file="yeast48-results/null5.rds")
+saveRDS(null10, file="yeast48-results/null10.rds")
+saveRDS(de5, file="yeast48-results/de5.rds")
+saveRDS(de10, file="yeast48-results/de10.rds")
+```
+
+
+# Session information
+
+```{r}
+sessionInfo()
+```
