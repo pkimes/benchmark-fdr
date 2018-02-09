@@ -1,0 +1,422 @@
+---
+title: "scRNAseq"
+author: "Ayshwarya Subramanian"
+date: "9/15/2017"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache=TRUE)
+
+```
+## scRNAseq datasets
+
+For the application of differential gene expression, we look at scRNAseq and bulk RNAseq data. Here we discuss the analyses of scRNAseq.
+
+```{r echo=FALSE, results='asis'}
+library(knitr)
+df=data.frame(datasets=c("GSE63818-GPL16791","GSE45719"),organism=c("human","mouse"),technology=c("smart-seq","smart-seq"))
+kable(df,caption="scRNAseq Datasets")
+df1=data.frame(DE_method=c("Wilcoxon-rank sum","ScDD","MAST"),input=c("tpm","count","tpm"),output=c("p-val","p-val","p-val"))
+kable(df1,caption="DE methods")
+
+```
+
+We selected two datasets, one each from mouse and human spp, from the `Conquer` (Soneson et al., 2017) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors use `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+
+We also select two droplet-based datasets from the `10x` website:4k PBMC and 4k T cells, both from healthy donors.  
+
+## Data Download
+
+We first download the data in our working directory. First, let's download the Human data:GSE63818-GPL16791 
+
+```{bash, humandata-download, eval=FALSE}
+# all data and results are on the wd: /net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/fdrbenchmark-scrnaseq
+
+#these look well separated on the tsne plots on the conquer manuscript supplement
+wget http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE63818-GPL16791.rds
+# qc report: 
+wget http://imlspenticton.uzh.ch/robinson_lab/conquer/report-multiqc/GSE63818-GPL16791_multiqc_report.html
+# scater report
+wget http://imlspenticton.uzh.ch/robinson_lab/conquer/report-scater/GSE63818-GPL16791_scater.html
+```
+
+Next, we download the Mouse data:GSE45719
+
+```{bash, mousedata-download, eval=FALSE}
+#another well-separated dataset on tsne: GSE60749−GPL13112
+wget http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE45719.rds
+```
+
+We directly download the cell-ranger processed filtered expression matrices [4k PBMC cells](https://support.10xgenomics.com/single-cell-gene-expression/datasets/2.1.0/pbmc4k) and [4k T-cells](https://support.10xgenomics.com/single-cell-gene-expression/datasets/2.1.0/t_4k) from the 10x website.
+
+## R workspace setup
+
+The downloaded plate data are stored in R objects called `MultiAssayExperiment`; this package requires BioConductor release 3.5 and R version 3.4 or greater for installation. 
+
+```{r, workspace-setup, eval=FALSE}
+#installation
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("swfdr")
+# biocLite("IHW")
+# biocLite("qvalue")
+# install.packages("ashr")
+# install.packages("fdrtool")
+# biocLite("edgeR")
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("scran")
+#  Samseq installation
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("impute") 
+# install.packages("samr")
+# source("https://bioconductor.org/biocLite.R")
+#biocLite("MultiAssayExperiment")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("SummarizedExperiment")
+#biocLite("BiocGenerics")
+#biocLite("S4Vectors")
+#biocLite("BiocParallel")
+#install_github("areyesq89/SummarizedBenchmark")
+#biocLite("EBSeq")
+#biocLite("scDD")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("SingleCellExperiment")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("MAST")
+
+# packages for data analyses
+library(MultiAssayExperiment)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(UpSetR)
+library(hexbin)
+
+# packages for differential expression testing
+library(impute)
+#library(samr)
+library(scDD)
+library(EBSeq)
+library(edgeR)
+library(MAST)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+
+# summarizebenchmark
+library(SummarizedBenchmark)
+library(SingleCellExperiment)
+source("/Users/subraman/Documents/research/fdr_jc/code/fdr-benchmark-scrnaseq-helper.R")
+
+```
+
+## Data processing and filtering
+
+For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons, and  select the maximal size defined as the smallest number of cells in either group as the group-level sample size for the DE analyses. 
+
+First, we get the human data for the two groups of interest.
+
+We look at results with and without prefiltering genes (keeping genes with TPM > 1 in atleast 25% of cells)
+
+```{r, dataload, eval=FALSE}
+setwd("/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/fdrbenchmark-scrnaseq")
+setwd("/Users/subraman/Documents/research/fdr_jc/data/")
+#load compressed mae
+humandata=readRDS("GSE63818-GPL16791.rds")
+#get gene-level data
+genes=experiments(humandata)[1]
+#TPMS
+#get tpms
+tpms=assays(genes$gene)[1]
+#get tpm dataframe
+human_tpms=tpms$TPM
+# get column data/metadata for sample
+cdata=colData(humandata)
+cdata=as.data.frame(cdata)
+# select groups of interest
+g1 = cdata%>%subset(source_name_ch1=="Somatic Cells" & characteristics_ch1=="developmental stage: 7 week gestation")
+g2 = cdata%>%subset(source_name_ch1=="Primordial Germ Cells" & characteristics_ch1=="developmental stage: 7 week gestation")
+# select maximal sample size
+sample_size = c(dim(g1)[1],dim(g2)[1])
+ssize = which.min(sample_size)
+g1_ids=sample.int(dim(g1)[1], size = sample_size[ssize], replace = FALSE)
+g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
+# get group data of maximal size
+g1_data=human_tpms[,colnames(human_tpms)%in%g1$geo_accession[g1_ids]]
+g2_data=human_tpms[,colnames(human_tpms)%in%g2$geo_accession[g2_ids]]
+#save data
+saveRDS(g1_data,"h_g1_data.rds")
+saveRDS(g2_data,"h_g2_data.rds")
+#COUNTS
+#get counts
+count=assays(genes$gene)[2]
+#get count dataframe
+human_count=count$count
+# get column data/metadata for sample
+cdata=colData(humandata)
+cdata=as.data.frame(cdata)
+# get group data of maximal size
+g1_cdata=human_count[,colnames(human_count)%in%g1$geo_accession[g1_ids]]
+g2_cdata=human_count[,colnames(human_count)%in%g2$geo_accession[g2_ids]]
+#save data
+saveRDS(g1_cdata,"h_g1_cdata.rds")
+saveRDS(g2_cdata,"h_g2_cdata.rds")
+
+```
+
+For the human data, each group has 26 cells and 65218 genes. We merge the data and remove all genes which have 0s in all samples
+
+```{r, nofilter, eval=FALSE}
+g_data=cbind(g1_data,g2_data)
+g_data_sub=g_data[rowSums(g_data==0)!=52,] # 0.25*52=13
+saveRDS(g_data_sub,"h_g_nofilter_subdata.rds") # removing rows with all zeros reduces the number of genes to 33169
+
+g_cdata=cbind(g1_cdata,g2_cdata)
+g_cdata_sub=g_cdata[rowSums(g_cdata==0)!=52,]
+saveRDS(g_cdata_sub,"h_g_nofilter_subcdata.rds") # removing rows with all zeros reduces the number of genes to 33169
+
+saveRDS(g1_ids,"g1_ids.rds")
+saveRDS(g2_ids,"g2_ids.rds")
+```
+
+```{r,mouse}
+##mouse data
+mousedata=readRDS("GSE45719.rds")
+#get gene-level data
+genes=experiments(mousedata)[1]
+#TPMS
+#get tpms
+tpms=assays(genes$gene)[1]
+#get tpm dataframe
+mouse_tpms=tpms$TPM
+# get column data/metadata for sample
+cdata=colData(mousedata)
+cdata=as.data.frame(cdata)
+# select groups of interest
+g1 = cdata%>%subset(source_name_ch1=="16-cell stage blastomere")
+g2 = cdata%>%subset(source_name_ch1=="Mid blastocyst cell (92-94h post-fertilization)")
+# select maximal sample size
+sample_size = c(dim(g1)[1],dim(g2)[1])
+ssize = which.min(sample_size)
+g1_ids=sample.int(dim(g1)[1], size = sample_size[ssize], replace = FALSE)
+g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
+# get group data of maximal size
+g1_data=mouse_tpms[,colnames(mouse_tpms)%in%g1$geo_accession[g1_ids]]
+g2_data=mouse_tpms[,colnames(mouse_tpms)%in%g2$geo_accession[g2_ids]]
+#save data
+saveRDS(g1_data,"m_g1_data.rds")
+saveRDS(g2_data,"m_g2_data.rds")
+#COUNTS
+#get counts
+count=assays(genes$gene)[2]
+#get count dataframe
+mouse_count=count$count
+# get column data/metadata for sample
+cdata=colData(mousedata)
+cdata=as.data.frame(cdata)
+# get group data of maximal size
+g1_cdata=mouse_count[,colnames(mouse_count)%in%g1$geo_accession[g1_ids]]
+g2_cdata=mouse_count[,colnames(mouse_count)%in%g2$geo_accession[g2_ids]]
+#save data
+saveRDS(g1_cdata,"m_g1_cdata.rds")
+saveRDS(g2_cdata,"m_g2_cdata.rds")
+
+```
+
+For the mouse data, each group has 50 cells and 45686 genes. We merge the data and remove all genes which have 0s in all samples
+
+```{r, nofilter, eval=FALSE}
+g_data=cbind(g1_data,g2_data)
+g_data_sub=g_data[rowSums(g_data==0)!=dim(g_data)[2],] # 0.25*52=13
+saveRDS(g_data_sub,"m_g_nofilter_subdata.rds") # removing rows with all zeros reduces the number of genes to 33169
+
+g_cdata=cbind(g1_cdata,g2_cdata)
+g_cdata_sub=g_cdata[rowSums(g_cdata==0)!=dim(g_data)[2],]
+saveRDS(g_cdata_sub,"m_g_nofilter_subcdata.rds") # removing rows with all zeros reduces the number of genes to 33169
+
+saveRDS(g1_ids,"m_g1_ids.rds")
+saveRDS(g2_ids,"m_g2_ids.rds")
+```
+
+
+## Differential expression testing
+
+We perform differential expression testing using 3 methods on the unfiltered data:
+
+### Wilcoxon rank-sum test
+
+Per `Conquer`, we run TMM normalization to the TPM units before running Wilcoxon.
+```{r, wilcoxon, eval=FALSE}
+g_data_sub=readRDS("h_g_nofilter_subdata.rds")
+groups=c(rep(1,26),rep(2,26))
+compute_wilcoxde_sc(g_data_sub,"h_data_wilcox_p.rds",groups)
+
+g_data_sub=readRDS("m_g_nofilter_subdata.rds")
+groups=c(rep(1,50),rep(2,50))
+compute_wilcoxde_sc(g_data_sub,"m_data_wilcox_p.rds",groups)
+## warnings:
+## In wilcox.test.default(x = structure(c(0, 0, 14.2107316559397,  ... :
+## cannot compute exact p-value with ties
+
+```
+
+### Differences in distributions of gene expression in the 2 conditions
+
+We apply scDD to log-transformed counts as below:
+
+```{r, scdd, eval=FALSE}
+# library(SummarizedExperiment)
+# condition=c(rep(1,26),rep(2,26))
+# rownames(ng_cdata_sub) <- paste0(rownames(ng_cdata_sub), 1:nrow(ng_cdata_sub), sep="")
+# colnames(ng_cdata_sub) <- names(condition) <- paste0("Sample",
+# 1:ncol(ng_cdata_sub), sep="")
+# SDSumExp <- SummarizedExperiment(assays=list("NormCounts"=ng_cdata_sub),
+# colData=data.frame(condition))
+#saveRDS(SDSumExp,"data_sumexp.rds")
+
+## human data
+compute_scdd_sc(g_cdata_sub,"h_sizefactors.rds","h_data_sce.rds","humanplate_scDatEx_ks.rds")
+##Notice: 16096 genes have less than 3 nonzero cells per condition.  Skipping these genes.
+##Clustering observed expression data for each gene
+##Setting up parallel back-end using 6 cores
+# perm=1000
+# scDatExperm <- scDD(SDSumExp, prior_param=prior_param, param=param, permutations=1000,testZeroes=FALSE)
+# saveRDS(scDatExperm,"/net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/fdrbenchmark-scrnaseq/scDatExperm.rds")
+
+## mouse data
+compute_scdd_sc(g_cdata_sub,"m_sizefactors.rds","m_data_sce.rds","mouseplate_scDatEx_ks.rds")
+# Notice: 10246 genes have less than 3 nonzero cells per condition.  Skipping these genes.
+# Clustering observed expression data for each gene
+# Setting up parallel back-end using 6 cores
+# Notice: Number of permutations is set to zero; using 
+#             Kolmogorov-Smirnov to test for differences in distributions
+#             instead of the Bayes Factor permutation test
+# Classifying significant genes into patterns
+
+
+```
+
+
+### MAST
+
+```{r, MAST}
+names(groups)=colnames(g_cdata_sub)
+compute_MASTtpmde(g_data_sub,groups,"mouseplate_masttpm.rds")
+
+
+g_data_sub=readRDS("h_g_nofilter_subdata.rds")
+groups=c(rep(1,26),rep(2,26))
+names(groups)=colnames(g_data_sub)
+compute_MASTtpmde(g_data_sub,groups,"humanplate_masttpm.rds")
+```
+
+## Covariate Diagnostics
+
+We could use a few different covariates: strength of the signal defined as the median gene expression unit for the gene, detection rate or a combination of the two. 
+
+```{r,cov,eval=TRUE}
+sourceDirectory("/Users/subraman/Documents/research/fdr_jc/src/benchmark-fdr/datasets/R")
+source("/Users/subraman/Documents/research/fdr_jc/src/benchmark-fdr/datasets/R/strat_hist.R")
+h_cov=compute_covariates_scrnaseq("h_g_nofilter_subdata.rds")
+wilcox=readRDS("h_data_wilcox_p.rds")
+h_wilcox_cov=data.frame(genes=names(wilcox),pvalue=wilcox)
+h_wilcox_cov=h_wilcox_cov%>%left_join(h_cov,by=c("genes"))
+dat=data.frame(pvalue=h_wilcox_cov$pvalue,covariate=h_wilcox_cov$median_exp)
+p=strat_hist(h_wilcox_cov,pvalue="pvalue",covariate="median_exp",numQ=5)
+
+hmast=readRDS("humanplate_masttpm.rds")
+h_mast_cov=
+h_scdd_cov=
+p=strat_hist()
+scdd_m=metadata(scDatEx)
+scdd_p_df=data.frame(genes=scdd_m$Genes$gene,scdd_pval=matrix(scdd_m$Genes$nonzero.pvalue))
+wilcox_p_df=data.frame(genes=names(wilcox_p),wilcox_pval=matrix(wilcox_p))
+
+
+
+```
+
+
+
+## Benchmarking covariate adjusted FDR tools for application
+
+```{r, benchmarking, eval=FALSE}
+g_cdata_sub_se=apply(g_cdata_sub,1,function(x) sd(x)/sqrt(length(x))) #standard error
+g_cdata_sub_es=apply(g_cdata_sub,1,function(x) mean(x[1:26])-mean(x[27:52])) #difference of means
+
+b_dat=data.frame(pval=dat$wilcox_pval, ind_covariate=dat$mean_exp,effect_size=matrix(g_cdata_sub_es),SE=matrix(g_cdata_sub_se))
+b_dat=b_dat%>%mutate(zscore = effect_size/SE)
+saveRDS(b_dat,"wilcox_meanexp.RDS")
+cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
+resfile <- paste0(getwd(), "/scrnaseqhuman_wilcox_meanexp_results_",
+                  nrow(b_dat), ".RData")
+library(devtools)
+source("https://install-github.me/mangothecat/callr")
+source("https://install-github.me/r-lib/remotes")
+remotes::install_github('jgscott/FDRreg', subdir="R_pkg/")
+
+source("benchmark-fdr/datasets/R/evaluation-helpers_mod.R")
+if (!file.exists(resfile)){
+  t1 <- proc.time()
+  b_dat_results <- run_benchmarks_mod(dat=b_dat, alphas=cutoffs, pvals=TRUE)
+  save(b_dat_results, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(b_dat), " genes"))
+}else{
+  load(resfile)
+}
+
+# plot N rejects vs FDR cutoff
+
+pdf("scrnaseq_wilcox_results.pdf",width=20,height=10)
+p <- ggplot(b_dat_results$stats, aes(alpha, n_rejects, color=method)) +
+  geom_point() +
+  geom_line() +
+  xlab("FDR cutoff") + ylab("Number of rejections") +
+  ggtitle("scRNAseq with Mean gene expression Covariate, wilcox") +
+  theme_classic()
+print(p)
+
+# log-scale y axis
+print(p + scale_y_continuous(trans="log2") + 
+        ylab("Number of rejections (log2 scale)"))
+dev.off()
+
+b_dat=data.frame(pval=dat$scdd_pval, ind_covariate=dat$mean_exp,effect_size=matrix(g_cdata_sub_es),SE=matrix(g_cdata_sub_se))
+b_dat=b_dat%>%mutate(zscore = effect_size/SE)
+saveRDS(b_dat,"wilcox_meanexp.RDS")
+
+resfile <- paste0(getwd(), "/scrnaseqhuman_scdd_meanexp_results_",
+                  nrow(b_dat), ".RData")
+if (!file.exists(resfile)){
+  t1 <- proc.time()
+  b_dat_results <- run_benchmarks_mod(dat=b_dat%>%filter(!is.na(pval)), alphas=cutoffs, pvals=TRUE)
+  save(b_dat_results, file=resfile)
+  message(paste0("Took ", round((proc.time()-t1)[3],1),
+                 " seconds for ", nrow(b_dat), " genes"))
+}else{
+  load(resfile)
+}
+
+# plot N rejects vs FDR cutoff
+
+pdf("scrnaseq_scdd_results.pdf",width=20,height=10)
+p <- ggplot(b_dat_results$stats, aes(alpha, n_rejects, color=method)) +
+  geom_point() +
+  geom_line() +
+  xlab("FDR cutoff") + ylab("Number of rejections") +
+  ggtitle("scRNAseq with Mean gene expression Covariate, scdd") +
+  theme_classic()
+print(p)
+
+# log-scale y axis
+print(p + scale_y_continuous(trans="log2") + 
+        ylab("Number of rejections (log2 scale)"))
+dev.off()
+
+
+```
+
