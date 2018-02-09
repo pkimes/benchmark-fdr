@@ -57,7 +57,7 @@ strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3){
       gglist[[q]] <- plotOne( dat, pvalue=pvalue, covariate=covariate, title="All" )
     }else{
       dat.strat <- dat %>% 
-        filter(rank(get(covariate), ties="first") <= quantile(rank(get(covariate), ties="first"), q/numQ) &
+        dplyr::filter(rank(get(covariate), ties="first") <= quantile(rank(get(covariate), ties="first"), q/numQ) &
                rank(get(covariate), ties="first") >= quantile(rank(get(covariate), ties="first"), (q-1)/numQ) )
       gglist[[q]] <- plotOne(dat.strat, pvalue=pvalue, covariate=covariate, title=paste0("Covariate group ", q))
     }
