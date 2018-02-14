@@ -102,3 +102,29 @@ plot_cov_diagnosis <- function(cov_data,fname){
   print(p)
   dev.off()
 }
+
+print_plot_cov_diagnosis <- function(cov_data,fname){
+  print("median_exp\n")
+  p=strat_hist(cov_data,pvalue ="pval",covariate="median_exp",numQ=5)
+  print(p)
+  p=strat_hist(cov_data,pvalue ="pval",covariate="median_exp",numQ=3)
+  print(p)
+  p=rank_scatter(cov_data,pvalue ="pval",covariate="median_exp")
+  print(p)
+  
+  print("mean_exp\n")
+  p=strat_hist(cov_data,pvalue ="pval",covariate="mean_exp",numQ=5)
+  print(p)
+  p=strat_hist(cov_data,pvalue ="pval",covariate="mean_exp",numQ=3)
+  print(p)
+  p=rank_scatter(cov_data,pvalue ="pval",covariate="mean_exp")
+  print(p)
+  
+  print("detection_rate\n")
+  p=strat_hist(cov_data,pvalue ="pval",covariate="detection_rate",numQ=5)
+  print(p)
+  p=strat_hist(cov_data,pvalue ="pval",covariate="detection_rate",numQ=3)
+  print(p)
+  p=rank_scatter(cov_data,pvalue ="pval",covariate="detection_rate")
+  print(p)
+}
