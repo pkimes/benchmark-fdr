@@ -267,8 +267,10 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize, bd){
   # filter NAs and those with less than 50% expressed 
   geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
 
-  sb <- bd %>% buildBench(data=geneExp, parallel = F, truthCols = "qvalue")
-
+  sb <- bd %>% buildBench(data=geneExp, parallel = F, 
+                          truthCols = "qvalue")
+  rowData(sb)$log2FC <- geneExp$effect_size
+  
   return(sb)
 }
  
@@ -324,9 +326,17 @@ rseed <- 225
 sampleSize <- 5
 nDE <- 0
 
-null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+system("mkdir -p yeast48-results")
+
+if (!file.exists("yeast48-results/null5.rds")){
+  null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
+  saveRDS(null5, file="yeast48-results/null5.rds")
+}else{
+  null5 <- readRDS(file="yeast48-results/null5.rds")
+}
+
 ```
 
 ## Plot average results over replications
@@ -336,7 +346,6 @@ Plot results.
 ```{r}
 res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res5, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
@@ -363,9 +372,15 @@ rseed <- 837
 sampleSize <- 10
 nDE <- 0
 
-null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+if (!file.exists("yeast48-results/null10.rds")){
+  null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
+  saveRDS(null10, file="yeast48-results/null10.rds")
+}else{
+  null10 <- readRDS(file="yeast48-results/null10.rds")
+}
+
 ```
 
 ## Plot average results over replications
@@ -375,7 +390,6 @@ Plot results.
 ```{r}
 res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
@@ -405,9 +419,14 @@ rseed <- 198
 sampleSize <- 5
 nDE <- 500
 
-de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+if (!file.exists("yeast48-results/de5.rds")){
+  de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
+  saveRDS(de5, file="yeast48-results/de5.rds")
+}else{
+  de5 <- readRDS(file="yeast48-results/de5.rds")
+}
 ```
 
 ## Plot average results over replications
@@ -415,9 +434,21 @@ de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds,
 Plot results. 
 
 ```{r}
+  mat <- ( assays( de5[[1]] )[["qvalue"]] < 0.1 )
+  dfCov <- data.frame(
+    covariate = sizesAll,
+    methods=factor( rep( names( allLenghts ), sapply( allLenghts, length ) ), 
+                    levels=names(allLenghts)  ) )
+  pl <- ggplot( dfCov, aes( methods, trans(covariate), col=methods) ) +
+    geom_boxplot( ) + theme(legend.position="top", 
+                            axis.text.x=element_blank(), 
+                            legend.direction="vertical") +
+    labs(col="", y="Covariate", x="") + guides(color=guide_legend(ncol=2))
+  pl
+}
+
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="FPR",filter_set = excludeSet,
@@ -427,6 +458,8 @@ plotsim_average(res5d, met="TPR",filter_set = excludeSet,
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+  
+  
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
           "; skipping upset plot")
@@ -447,9 +480,14 @@ rseed <- 961
 sampleSize <- 10
 nDE <- 500
 
-de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+if(!file.exists("yeast48-results/de10.rds")){
+  de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
+  saveRDS(de10, file="yeast48-results/de10.rds")
+}else{
+  de10 <- readRDS(file="yeast48-results/de10.rds")
+}
 ```
 
 ## Plot average results over replications
@@ -475,17 +513,6 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 }
 
 ```
-
-# Save results objects
-
-```{r}
-system("mkdir -p yeast48-results")
-saveRDS(null5, file="yeast48-results/null5.rds")
-saveRDS(null10, file="yeast48-results/null10.rds")
-saveRDS(de5, file="yeast48-results/de5.rds")
-saveRDS(de10, file="yeast48-results/de10.rds")
-```
-
 
 # Session information
 
