@@ -82,6 +82,7 @@ The downloaded plate data are stored in R objects called `MultiAssayExperiment`;
 #biocLite("SingleCellExperiment")
 #source("https://bioconductor.org/biocLite.R")
 #biocLite("MAST")
+#install.packages("FDRreg")
 
 # packages for data analyses
 library(MultiAssayExperiment)
@@ -105,6 +106,7 @@ library(ashr)
 library(qvalue)
 library(swfdr)
 library(fdrtool)
+library(FDRreg)
 
 # summarizebenchmark
 library(SummarizedBenchmark)
@@ -299,10 +301,11 @@ compute_scdd_sc(g_cdata_sub,"m_sizefactors.rds","m_data_sce.rds","mouseplate_scD
 
 ```
 
-
 ### MAST
 
 ```{r, MAST}
+g_data_sub=readRDS("m_g_nofilter_subdata.rds")
+groups=c(rep(1,50),rep(2,50))
 names(groups)=colnames(g_cdata_sub)
 compute_MASTtpmde(g_data_sub,groups,"mouseplate_masttpm.rds")
 
@@ -320,103 +323,58 @@ We could use a few different covariates: strength of the signal defined as the m
 ```{r,cov,eval=TRUE}
 sourceDirectory("/Users/subraman/Documents/research/fdr_jc/src/benchmark-fdr/datasets/R")
 source("/Users/subraman/Documents/research/fdr_jc/src/benchmark-fdr/datasets/R/strat_hist.R")
+
 h_cov=compute_covariates_scrnaseq("h_g_nofilter_subdata.rds")
+
 wilcox=readRDS("h_data_wilcox_p.rds")
-h_wilcox_cov=data.frame(genes=names(wilcox),pvalue=wilcox)
+h_wilcox_cov=data.frame(genes=names(wilcox),pval=wilcox)
 h_wilcox_cov=h_wilcox_cov%>%left_join(h_cov,by=c("genes"))
-dat=data.frame(pvalue=h_wilcox_cov$pvalue,covariate=h_wilcox_cov$median_exp)
-p=strat_hist(h_wilcox_cov,pvalue="pvalue",covariate="median_exp",numQ=5)
+
+plot_cov_diagnosis(h_wilcox_cov,"humanplate_wilcox")
+plot_cov_diagnosis(h_wilcox_cov%>%subset(detection_rate>=0.25),"humanplate_wilcox_filter")
 
 hmast=readRDS("humanplate_masttpm.rds")
-h_mast_cov=
-h_scdd_cov=
-p=strat_hist()
-scdd_m=metadata(scDatEx)
-scdd_p_df=data.frame(genes=scdd_m$Genes$gene,scdd_pval=matrix(scdd_m$Genes$nonzero.pvalue))
-wilcox_p_df=data.frame(genes=names(wilcox_p),wilcox_pval=matrix(wilcox_p))
+h_mast_cov=data.frame(genes=rownames(hmast),pval=hmast$pval)
+h_mast_cov=h_mast_cov%>%left_join(h_cov,by=c("genes"))
+plot_cov_diagnosis(h_mast_cov,"humanplate_mast")
+plot_cov_diagnosis(h_mast_cov%>%subset(detection_rate>=0.25),"humanplate_mast_filter")
+
+h_scdd=readRDS("humanplate_scDatEx_ks.rds")
+h_scdd_cov=data.frame(genes=rownames(metadata(h_scdd)$Genes),pval=metadata(h_scdd)$Genes$nonzero.pvalue)
+h_scdd_cov$genes=h_cov$genes #scdd changes gene names by appending numeric indices 
+h_scdd_cov=h_scdd_cov%>%subset(!is.na(pval))
+h_scdd_cov=h_scdd_cov%>%left_join(h_cov,by=c("genes"))
+plot_cov_diagnosis(h_scdd_cov,"humanplate_scdd")
+plot_cov_diagnosis(h_scdd_cov%>%subset(detection_rate>=0.25),"humanplate_scdd_filter")
+
+m_cov=compute_covariates_scrnaseq("m_g_nofilter_subdata.rds")
+
+wilcox=readRDS("./mouse_plate/m_data_wilcox_p.rds")
+m_wilcox_cov=data.frame(genes=names(wilcox),pval=wilcox)
+m_wilcox_cov=m_wilcox_cov%>%left_join(m_cov,by=c("genes"))
+
+plot_cov_diagnosis(m_wilcox_cov,"mouseplate_wilcox")
+
+m_wilcox_cov=m_wilcox_cov%>%subset(detection_rate>=0.25)
+plot_cov_diagnosis(m_wilcox_cov,"mouseplate_wilcox_filter")
+
+mmast=readRDS("./mouse_plate/mouseplate_masttpm.rds")
+m_mast_cov=data.frame(genes=rownames(mmast),pval=mmast$pval)
+m_mast_cov=m_mast_cov%>%left_join(m_cov,by=c("genes"))
+plot_cov_diagnosis(m_mast_cov,"mouseplate_mast")
+
+m_mast_cov=m_mast_cov%>%subset(detection_rate>=0.25)
+plot_cov_diagnosis(m_mast_cov,"mouseplate_mast_filter")
 
 
-
-```
-
-
-
-## Benchmarking covariate adjusted FDR tools for application
-
-```{r, benchmarking, eval=FALSE}
-g_cdata_sub_se=apply(g_cdata_sub,1,function(x) sd(x)/sqrt(length(x))) #standard error
-g_cdata_sub_es=apply(g_cdata_sub,1,function(x) mean(x[1:26])-mean(x[27:52])) #difference of means
-
-b_dat=data.frame(pval=dat$wilcox_pval, ind_covariate=dat$mean_exp,effect_size=matrix(g_cdata_sub_es),SE=matrix(g_cdata_sub_se))
-b_dat=b_dat%>%mutate(zscore = effect_size/SE)
-saveRDS(b_dat,"wilcox_meanexp.RDS")
-cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
-resfile <- paste0(getwd(), "/scrnaseqhuman_wilcox_meanexp_results_",
-                  nrow(b_dat), ".RData")
-library(devtools)
-source("https://install-github.me/mangothecat/callr")
-source("https://install-github.me/r-lib/remotes")
-remotes::install_github('jgscott/FDRreg', subdir="R_pkg/")
-
-source("benchmark-fdr/datasets/R/evaluation-helpers_mod.R")
-if (!file.exists(resfile)){
-  t1 <- proc.time()
-  b_dat_results <- run_benchmarks_mod(dat=b_dat, alphas=cutoffs, pvals=TRUE)
-  save(b_dat_results, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(b_dat), " genes"))
-}else{
-  load(resfile)
-}
-
-# plot N rejects vs FDR cutoff
-
-pdf("scrnaseq_wilcox_results.pdf",width=20,height=10)
-p <- ggplot(b_dat_results$stats, aes(alpha, n_rejects, color=method)) +
-  geom_point() +
-  geom_line() +
-  xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("scRNAseq with Mean gene expression Covariate, wilcox") +
-  theme_classic()
-print(p)
-
-# log-scale y axis
-print(p + scale_y_continuous(trans="log2") + 
-        ylab("Number of rejections (log2 scale)"))
-dev.off()
-
-b_dat=data.frame(pval=dat$scdd_pval, ind_covariate=dat$mean_exp,effect_size=matrix(g_cdata_sub_es),SE=matrix(g_cdata_sub_se))
-b_dat=b_dat%>%mutate(zscore = effect_size/SE)
-saveRDS(b_dat,"wilcox_meanexp.RDS")
-
-resfile <- paste0(getwd(), "/scrnaseqhuman_scdd_meanexp_results_",
-                  nrow(b_dat), ".RData")
-if (!file.exists(resfile)){
-  t1 <- proc.time()
-  b_dat_results <- run_benchmarks_mod(dat=b_dat%>%filter(!is.na(pval)), alphas=cutoffs, pvals=TRUE)
-  save(b_dat_results, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(b_dat), " genes"))
-}else{
-  load(resfile)
-}
-
-# plot N rejects vs FDR cutoff
-
-pdf("scrnaseq_scdd_results.pdf",width=20,height=10)
-p <- ggplot(b_dat_results$stats, aes(alpha, n_rejects, color=method)) +
-  geom_point() +
-  geom_line() +
-  xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("scRNAseq with Mean gene expression Covariate, scdd") +
-  theme_classic()
-print(p)
-
-# log-scale y axis
-print(p + scale_y_continuous(trans="log2") + 
-        ylab("Number of rejections (log2 scale)"))
-dev.off()
-
+m_scdd=readRDS("mouseplate_scDatEx_ks.rds")
+m_scdd_cov=data.frame(genes=rownames(metadata(m_scdd)$Genes),pval=metadata(m_scdd)$Genes$nonzero.pvalue)
+m_scdd_cov$genes=m_cov$genes
+m_scdd_cov=m_scdd_cov%>%subset(!is.na(pval))
+m_scdd_cov=m_scdd_cov%>%left_join(m_cov,by=c("genes"))
+plot_cov_diagnosis(m_scdd_cov,"mouseplate_scdd")
+plot_cov_diagnosis(m_scdd_cov%>%subset(detection_rate>=0.25),"mouseplate_scdd_filter")
 
 ```
+
 
