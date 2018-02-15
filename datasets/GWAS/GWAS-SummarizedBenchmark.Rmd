@@ -14,13 +14,13 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### Summary
+# Summary
 
 In the previous document `GWAS.Rmd`, we identified three GWAS datasets for FDR
 benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
 perform the benchmarking in a standardized way. 
 
-### Workspace setup
+# Workspace setup
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 system("mkdir -p DATA")
@@ -56,11 +56,11 @@ cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
 multicoreParam <- MulticoreParam(workers = cores)
 ```
 
-### GWAS meta-analysis for BMI (included in Boca-Leek)
+# GWAS meta-analysis for BMI (included in Boca-Leek)
 
 Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek paper. 
 
-#### Data download
+## Data download
 
 ```{r, GWAS1-download}
 download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
@@ -124,7 +124,7 @@ It looks like we have:
 for `r nrow(bmi)` SNPs.
 
 
-#### Prune SNPs that are in Linkage Disequilibrium
+## Prune SNPs that are in Linkage Disequilibrium
 
 Since nearby SNPs in linkage disequilibrium may not constitute separate discoveries, we carry out 
 a pruning step. This commonly done by examining correlation of genotypes among nearby markers, but
@@ -199,7 +199,7 @@ bmi <- bmi %>%
   select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
-#### Check Covariate Diagnostics
+## Check Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative. First we look at 
 the sample size covariate.
@@ -216,7 +216,7 @@ strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=2)
 rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF")
 ```
 
-#### Set up BenchDesign object 
+## Set up BenchDesign object 
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object.
@@ -225,7 +225,7 @@ add the benchmark methods to the `BenchDesign` object.
 bd <- initializeBenchDesign()
 ```
 
-#### Run buildBench for the sample size covariate and examine results
+## Run buildBench for the sample size covariate and examine results
 
 Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
@@ -289,7 +289,7 @@ plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNu
 
 ```
 
-#### Run buildBench for the allele frequency covariate and examine results
+## Run buildBench for the allele frequency covariate and examine results
 
 Now, we'll repeat the previous steps for the other covariate (AF):
 
