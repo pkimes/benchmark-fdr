@@ -435,19 +435,6 @@ if (!file.exists("yeast48-results/de5.rds")){
 Plot results. 
 
 ```{r}
-  mat <- ( assays( de5[[1]] )[["qvalue"]] < 0.1 )
-  dfCov <- data.frame(
-    covariate = sizesAll,
-    methods=factor( rep( names( allLenghts ), sapply( allLenghts, length ) ), 
-                    levels=names(allLenghts)  ) )
-  pl <- ggplot( dfCov, aes( methods, trans(covariate), col=methods) ) +
-    geom_boxplot( ) + theme(legend.position="top", 
-                            axis.text.x=element_blank(), 
-                            legend.direction="vertical") +
-    labs(col="", y="Covariate", x="") + guides(color=guide_legend(ncol=2))
-  pl
-}
-
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
