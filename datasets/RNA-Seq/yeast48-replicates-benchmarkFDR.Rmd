@@ -268,7 +268,8 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize, bd){
   geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
 
   sb <- bd %>% buildBench(data=geneExp, parallel = F, 
-                          truthCols = "qvalue")
+                          truthCols = "qvalue",
+                          ftCols = "ind_covariate")
   rowData(sb)$log2FC <- geneExp$effect_size
   
   return(sb)
@@ -456,9 +457,11 @@ plotsim_average(res5d, met="FPR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
+plotEffectSize(de5)
+plotEffectSize(de5, DE=FALSE)
+
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-  
   
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -497,13 +500,15 @@ Plot results.
 ```{r}
 res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res10d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="FPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+
+plotEffectSize(de10)
+plotEffectSize(de10, DE=FALSE)
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
