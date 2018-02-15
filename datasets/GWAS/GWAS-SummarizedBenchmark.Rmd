@@ -2,12 +2,16 @@
 title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
 author: "Keegan Korthauer"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: html_document
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
   
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = "/n/irizarryfs01_backed_up/kkorthauer/FDR")
 ```
 
 ### Summary
@@ -19,11 +23,10 @@ perform the benchmarking in a standardized way.
 ### Workspace setup
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
-# project directory & data/results folders - the datdir needs to match where
-#  files are downloaded with the first few bash chunks
-#setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
-datdir <- "DATA/GWAS/"
-resdir <- "RESULTS/GWAS/"
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
 
 # wrangling & plotting tools
 library(data.table)
@@ -45,7 +48,7 @@ library(FDRreg)
 
 # comparison tools/functions
 library(SummarizedBenchmark)
-sourceDirectory("benchmark-fdr/datasets/R/")
+sourceDirectory("../R/")
 
 # set up parallel backend
 library(BiocParallel)
@@ -59,8 +62,9 @@ Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek pape
 
 #### Data download
 
-```{bash, GWAS1-download, eval=FALSE}
-curl -o DATA/GWAS "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+```{r, GWAS1-download}
+download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
+             destfile=paste0(datdir,"BMI.SNPadjSMK.zip")) 
 ```
 
 Next we unzip the file, and delete the files we won't use (they provide results
@@ -71,25 +75,31 @@ all ancestries would require that we assess the impact of population stratificat
 and adjust for it if present. For simplicity, we follow suit and use the homogeneous 
 subset to avoid the impact of population stratification on our results.
 
-```{bash, GWAS1-unzip, eval=FALSE}
-unzip DATA/GWAS/BMI.SNPadjSMK.zip
-rm DATA/GWAS/BMI.SNPadjSMK.zip
-rm DATA/GWAS/BMI.SNPadjSMK.Women.EuropeanOnly.txt
-rm DATA/GWAS/BMI.SNPadjSMK.Women.AllAncestry.txt
-rm DATA/GWAS/BMI.SNPadjSMK.Men.EuropeanOnly.txt
-rm DATA/GWAS/BMI.SNPadjSMK.Men.AllAncestry.txt
-rm DATA/GWAS/BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt
+```{r, GWAS1-unzip}
+system(paste0("unzip ", datdir, "BMI.SNPadjSMK.zip"))
+system(paste0("rm ", "BMI.SNPadjSMK.Women.EuropeanOnly.txt"))
+system(paste0("rm ", "BMI.SNPadjSMK.Women.AllAncestry.txt"))
+system(paste0("rm ", "BMI.SNPadjSMK.Men.EuropeanOnly.txt"))
+system(paste0("rm ", "BMI.SNPadjSMK.Men.AllAncestry.txt"))
+system(paste0("rm ", "BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt"))
+system(paste0("mv BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt ", datdir))
+system(paste0("rm -f ", datdir, "/*.zip"))
 ```
 
 We also download the 1000 genomes CEU reference population data, which will be used to 
 determine which SNPs are LD buddies for the purposes of obtaining an independent set of SNPs.
 
-```{bash, GWAS1-refdata, eval=FALSE}
+```{r, GWAS1-refdata}
+# remove remnants of previous runs, if present
+system(paste0("rm -f ", datdir, "/*CEU_MAF0.01*"))
+
 # download CEU 1000 genomes SNP reference data 
-wget 'http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip' -P DATA/GWAS/
+download.file(url="http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
+              destfile=paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip"))
 
 # unzip reference data
-unzip DATA/GWAS/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip -d DATA/GWAS
+system(paste0("unzip ", datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip -d ", datdir))
+system(paste0("rm ", datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip"))
 ```
 
 Next, we'll read in the unzipped `.txt` file into R and verify that it contains
@@ -343,9 +353,7 @@ plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, maxNum=3)
 
 ```
 
-
-
-And we'll clean up the workspace before moving on to the next dataset.
+Clean up the workspace.
 
 ```{r, GWAS1-cleanup}
 rm(bmi)
