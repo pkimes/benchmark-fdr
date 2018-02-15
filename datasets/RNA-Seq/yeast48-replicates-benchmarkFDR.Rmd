@@ -457,8 +457,11 @@ plotsim_average(res5d, met="FPR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de5)
-plotEffectSize(de5, DE=FALSE)
+plotEffectSize(de5, covname="log2FC")
+plotEffectSize(de5, covname="log2FC", DE=FALSE)
+
+plotEffectSize(de5, covname="ind_covariate")
+plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -507,8 +510,11 @@ plotsim_average(res10d, met="FPR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de10)
-plotEffectSize(de10, DE=FALSE)
+plotEffectSize(de10, covname="log2FC")
+plotEffectSize(de10, covname="log2FC", DE=FALSE)
+
+plotEffectSize(de10, covname="ind_covariate")
+plotEffectSize(de10, covname="ind_covariate", DE=FALSE)
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
