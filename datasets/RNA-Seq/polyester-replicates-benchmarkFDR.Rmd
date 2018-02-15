@@ -1,0 +1,152 @@
+---
+title: "Polyester RNA-seq simulation study"
+author: "Stephanie Hicks"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This is an analysis using [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. We will  
+(1) implement null comparisons on samples simulated using polyester
+with no differentially expressed (DE) genes, (2) compare FDR approaches 
+on their ability to discover 'true positive' DE genes with log2 fold 
+changes simulated from a normal distribution. 
+
+In this Rmd, we will perform a Monte Carlo simulation study 
+and average over the replicates in plots.
+
+## Set up workspace
+
+```{r workspace-setup, results='hide', message=FALSE, warning=FALSE}
+# Load packages needed to simulate RNA-seq counts with polyester
+library(zebrafishRNASeq) 
+library(genefilter)
+library(limma)
+library(polyester)
+
+# Differential testing
+library(DESeq2)
+
+# Load supporting packages for data analyses
+library(data.table)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(R.utils)
+library(cowplot)
+library(tibble)
+library(ggthemes)
+
+# benchmark methods
+library(IHW)
+library(ashr)
+library(qvalue)
+library(swfdr)
+library(fdrtool)
+# Installed BayesLogit from CRAN archive via `R CMD INSTALL BayesLogit_0.6.tar.gz`
+# install_github('jgscott/FDRreg', subdir="R_pkg/")
+library(FDRreg)
+
+# comparison tools/functions
+library(SummarizedBenchmark)
+
+# load helper functions
+working_dir <- list(project_home = "/users/shicks1/projects/benchmark-fdr")
+sourceDirectory(file.path(working_dir$project_home,"datasets/R/"))
+
+# # set up parallel backend:
+library(doParallel)
+nCores <- 1
+multicoreParam <- MulticoreParam(workers = nCores)
+```
+
+
+## Set up Polyester
+
+We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. The package requires a count matrix as input which estimates the mean variance relationship. Here we start with the [zebrafish](https://bioconductor.org/packages/release/data/experiment/html/zebrafishRNASeq.html) Bioconductor data package. 
+
+Estimate mean and variance relationship
+
+```{r estimate-parameters-NB}
+data(zfGenes)
+dim(zfGenes)
+
+filter <- apply(zfGenes, 1, function(x) length(x[x>5])>=2)
+counts <- as.matrix(zfGenes[filter,])
+
+## Estimate the zero inflated negative binomial parameters
+params = get_params(counts)
+```
+
+
+```{r}
+bd <- initializeBenchDesign() # only needs to be done once
+```
+
+Try running `buildBench()` one time.
+```{r}
+sampleSize <- 5
+nDE <- 0
+
+groupPolyester = rep(c(-1,1),each=sampleSize)
+modPolyester = model.matrix(~-1 + groupPolyester)
+
+# things needed for differential testing using DESeq2
+groupDESeq = factor(rep(c(0,1), each=sampleSize))
+
+# NULL simulation
+truth <- rep(FALSE, nrow(counts)) 
+names(truth) <- rownames(counts)
+
+# log2FC are all 0 in null simulation
+log2FC = rep(0,nrow(counts))
+dat_alt = create_read_numbers(params$mu, params$fit,
+                              params$p0, m=dim(counts)[1], 
+                              n=sampleSize*2, beta=cbind(log2FC), 
+                              mod=modPolyester)
+
+# run DESeq2
+dds_alt <- DESeqDataSetFromMatrix(countData=dat_alt, 
+                                  colData = DataFrame(groupDESeq), 
+                                  design=~groupDESeq)
+dds_alt <- DESeq(dds_alt, parallel = FALSE)
+res_alt <- results(dds_alt, independentFiltering = F)
+
+geneExp <- tbl_df(data.frame(geneName=rownames(counts),
+                             pval=res_alt$pvalue, SE=res_alt$lfcSE, 
+                             ind_covariate = res_alt$baseMean, 
+                             effect_size=res_alt$log2FoldChange, 
+                             test_statistic=res_alt$stat, qvalue=truth, 
+                             pzero = rowSums(counts(dds_alt)==0)/
+                                     ncol(counts(dds_alt))  ))
+
+# filter NAs and those with less than 50% expressed 
+geneExp  <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+```
+
+```{r}
+head(geneExp)
+```
+
+```{r}
+# build Benchmark data
+sb <- bd %>% buildBench(data=geneExp, parallel=FALSE, BPPARAM=multicoreParam, 
+                        truthCols = "qvalue")
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
+
+
