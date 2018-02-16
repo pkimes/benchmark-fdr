@@ -138,7 +138,7 @@ simulateOneSplit <- function(counts, paramPolyester,
     # randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
     log2FC <- rep(0, nrow(counts))
     # log2FC[DE] <- rtruncnorm(nDE, 1, sd=.5) * sample(c(1,-1), size=nDE, replace=TRUE)
-    log2FC[DE] <- c(rnorm(nDE, sd = 1.5), rep(0,nrow(counts)-nDE))
+    log2FC[DE] <- c(rnorm(nDE, sd = 1), rep(0,nrow(counts)-nDE))
     dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
                                   paramPolyester$p0, m=dim(counts)[1], 
                                   n=sampleSize*2, beta=cbind(log2FC), 
