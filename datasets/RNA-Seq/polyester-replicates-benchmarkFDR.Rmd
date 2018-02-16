@@ -64,8 +64,8 @@ working_dir <- list(project_home = "/users/shicks1/projects/benchmark-fdr")
 sourceDirectory(file.path(working_dir$project_home,"datasets/R/"))
 
 # # set up parallel backend:
-library(doParallel)
-nCores <- 1
+library(BiocParallel)
+nCores <- 10
 multicoreParam <- MulticoreParam(workers = nCores)
 ```
 
@@ -88,60 +88,381 @@ params = get_params(counts)
 ```
 
 
+## Helper functions for simulation
+
+Next, we'll simulate RNA-Seq samples, both with and without the 
+addition of simulated DE genes. Here we'll create a function that we can use to 
+run one replicate given sample size and number of DE gene settings. This will be
+looped over many replications and results averaged over them.
+
+
 ```{r}
-bd <- initializeBenchDesign() # only needs to be done once
+#' @param counts is the full count dataset
+#' @param paramPolyester is the parameters from running polyester. 
+#' Contains information on the mean-variance relationship used to 
+#' simulate RNA-Seq counts. 
+#' @param sampleSize is the number of samples in each condition
+#' @param nDE is the number of DE genes
+#' @param bd is the bench design object
+simulateOneSplit <- function(counts, paramPolyester, 
+                             nDE, sampleSize, bd, BPPARAM){
+  
+  # things needed to simulate with Polyester
+  groupPolyester = rep(c(-1,1),each=sampleSize)
+  modPolyester = model.matrix(~-1 + groupPolyester)
+  
+  # things needed for differential testing using DESeq2
+  groupDESeq = factor(rep(c(0,1), each=sampleSize))
+  
+  # NULL simulation
+  if(nDE == 0) {
+    truth <- rep(FALSE, nrow(counts)) 
+    names(truth) <- rownames(counts)
+    
+    # log2FC are all 0 in null simulation
+    log2FC = rep(0,nrow(counts))
+    dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
+                                  paramPolyester$p0, m=dim(counts)[1], 
+                                  n=sampleSize*2, beta=cbind(log2FC), 
+                                  mod=modPolyester)
+  }
+  
+  # DE simulation
+  if(nDE > 0){
+    # pick random set of nDE genes to add signal to
+    DE <- sample(1:nrow(counts), nDE)
+    truth <- rep(FALSE, nrow(counts))
+    truth[DE] <- TRUE
+    names(truth) <- rownames(counts)
+    
+    # randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
+    log2FC <- rep(0, nrow(counts))
+    # log2FC[DE] <- rtruncnorm(nDE, 1, sd=.5) * sample(c(1,-1), size=nDE, replace=TRUE)
+    log2FC[DE] <- c(rnorm(nDE, sd = 1.5), rep(0,nrow(counts)-nDE))
+    dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
+                                  paramPolyester$p0, m=dim(counts)[1], 
+                                  n=sampleSize*2, beta=cbind(log2FC), 
+                                  mod=modPolyester)
+  }
+  
+  # run DESeq2
+  dds_alt <- DESeqDataSetFromMatrix(countData=dat_alt, 
+                                    colData = DataFrame(groupDESeq), 
+                                    design=~groupDESeq)
+  dds_alt <- DESeq(dds_alt, parallel = FALSE)
+  res_alt <- results(dds_alt, independentFiltering = F)
+  
+  geneExp <- tbl_df(data.frame(geneName=rownames(counts),
+                               pval=res_alt$pvalue, SE=res_alt$lfcSE, 
+                               ind_covariate = res_alt$baseMean, 
+                               effect_size=res_alt$log2FoldChange, 
+                               test_statistic=res_alt$stat, qvalue=truth, 
+                               pzero = rowSums(counts(dds_alt)==0)/
+                                 ncol(counts(dds_alt))  ))
+  
+  # filter NAs and those with less than 50% expressed 
+  geneExp  <- geneExp  %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+  
+  # built Benchmark data
+  sb <- bd %>% buildBench(data=geneExp, parallel = FALSE, 
+                          BPPARAM = BPPARAM, truthCols = "qvalue", 
+                          ftCols = "ind_covariate")
+  rowData(sb)$log2FC <- geneExp$effect_size
+  
+  return(sb)
+}
+
 ```
 
-Try running `buildBench()` one time.
+We'll also set some parameters that will be common to all simulations. These
+include the number of replications, the bench design object, the set of 
+methods to exclude in the results plots, and the alpha cutoff level to 
+be used when plotting the aggregated Upset results.
+
 ```{r}
+B <- 10
+bd <- initializeBenchDesign() # only needs to be done once
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+Here's a helper function to return the number of methods with rejections at
+a particular alpha level (this helps us determine whether or not to plot the
+aggregated upset plot - if there aren't at least 2 methods it will throw an
+error, which is a problem for the null simulations).
+
+```{r}
+#' @param res standardized metric data.table generated using
+#'        standardize_results.
+#' @param alpha alpha cutoff
+#' @param filterSet which methods to exclude from consideration 
+numberMethodsReject <- function(res, alphacutoff, filterSet){
+  res <- res %>% 
+    filter(is.na(param.alpha) | (param.alpha == alphacutoff)) %>%
+    filter(!(blabel %in% filterSet)) %>%
+    filter(alpha == alphacutoff) %>%
+    filter(performanceMetric == "rejections") %>%
+    select(blabel, performanceMetric, value) %>%
+    group_by(blabel) %>%
+    summarize(mean_value = mean(value)) %>%
+    filter(mean_value > 0)
+  return(nrow(res))
+}
+
+addDefaultMetrics <- function(sb) {
+    sb <- addPerformanceMetric(sb, evalMetric = c("TPR", "FPR", "TNR", "FNR", "rejections"),
+                               assay = "qvalue")
+    return(sb)
+}
+
+```
+
+
+# Sim N5: Null Comparison 5v5
+
+Here we run a null comparison 5 versus 5 RNA-Seq samples. 
+This will be done for 100 simulations.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
 sampleSize <- 5
 nDE <- 0
 
-groupPolyester = rep(c(-1,1),each=sampleSize)
-modPolyester = model.matrix(~-1 + groupPolyester)
-
-# things needed for differential testing using DESeq2
-groupDESeq = factor(rep(c(0,1), each=sampleSize))
-
-# NULL simulation
-truth <- rep(FALSE, nrow(counts)) 
-names(truth) <- rownames(counts)
-
-# log2FC are all 0 in null simulation
-log2FC = rep(0,nrow(counts))
-dat_alt = create_read_numbers(params$mu, params$fit,
-                              params$p0, m=dim(counts)[1], 
-                              n=sampleSize*2, beta=cbind(log2FC), 
-                              mod=modPolyester)
-
-# run DESeq2
-dds_alt <- DESeqDataSetFromMatrix(countData=dat_alt, 
-                                  colData = DataFrame(groupDESeq), 
-                                  design=~groupDESeq)
-dds_alt <- DESeq(dds_alt, parallel = FALSE)
-res_alt <- results(dds_alt, independentFiltering = F)
-
-geneExp <- tbl_df(data.frame(geneName=rownames(counts),
-                             pval=res_alt$pvalue, SE=res_alt$lfcSE, 
-                             ind_covariate = res_alt$baseMean, 
-                             effect_size=res_alt$log2FoldChange, 
-                             test_statistic=res_alt$stat, qvalue=truth, 
-                             pzero = rowSums(counts(dds_alt)==0)/
-                                     ncol(counts(dds_alt))  ))
-
-# filter NAs and those with less than 50% expressed 
-geneExp  <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))){
+  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+                   paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   BPPARAM=multicoreParam)
+  saveRDS(null5, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))
+} else {
+  null5 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))
+}
 ```
+
+## Plot average results over replications
+
+Plot results. 
 
 ```{r}
-head(geneExp)
+
+res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res5, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+} else {
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
 ```
 
-```{r}
-# build Benchmark data
-sb <- bd %>% buildBench(data=geneExp, parallel=FALSE, BPPARAM=multicoreParam, 
-                        truthCols = "qvalue")
+
+
+
+# Sim N10: Null Comparison 10v10
+
+Here we'll repeat the above, but for a null comparison 10 versus 10 samples. 
+This will be done for 100 simulations.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+sampleSize <- 10
+nDE <- 0
+
+if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))){
+  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+                   paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   BPPARAM=multicoreParam)
+  saveRDS(null10, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))
+} else {
+  null10 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))
+}
 ```
+
+## Plot average results over replications
+
+Plot results.
+
+```{r}
+res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res10, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+} else {
+  message("Not enough methods found rejections at alpha ", ualpha, "; skipping upset plot")
+}
+
+```
+
+# Sim D5: DE Comparison 5v5
+
+Here we'll repeat the above, but for a DE comparison 5 versus 5 samples
+and 1500 DE genes are added. This will be done for 100 simulations.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+sampleSize <- 5
+nDE <- 1500
+
+if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))){
+  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+                   paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   BPPARAM=multicoreParam)
+  saveRDS(de5, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))
+} else {
+  de5 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))
+}
+```
+
+## Plot average results over replications
+
+Plot results. 
+
+```{r}
+plotEffectSize <- function(sbl, alpha=0.05, DE=TRUE, covname){
+
+summarize_one_item <- function(object, alpha){
+  object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ) )
+                       & colData( object )$param.alpha != alpha )]
+  
+  df <- as.data.frame(cbind(as.matrix(rowData(object)), 
+                            1*(assays(object)[["qvalue"]]) < 0.05))
+  colnames(df)[1] <- "truth" 
+  df <- df %>%
+    select(truth, covname, bonf, bh,
+                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr, 
+                  "scott-theoretical", "scott-empirical") %>%
+    # rename("scott-theoretical"="scott-t", "scott-empirical"="scott-e") %>%
+    gather(method, significant, -truth, -covname) %>%
+    group_by(method, truth, significant) %>%
+    summarize(mean_effect_size=mean(abs(get(covname))),
+              med_effect_size=median(abs(get(covname))),
+              min_effect_size=min(abs(get(covname))),
+              max_effect_size=max(abs(get(covname))),
+              botQ=quantile(abs(get(covname)),0.25),
+              topQ=quantile(abs(get(covname)), 0.75)) %>% na.omit()
+  df$significant <- as.factor(df$significant)
+  levels(df$significant)=c("Not Significant", "Significant")
+  df$truth <- as.factor(df$truth)
+  levels(df$truth)=c("Not DE", "DE")
+  return(df)
+}
+
+df <- lapply(sbl, summarize_one_item, alpha=alpha)
+df <- bind_rows(df, .id = "rep")
+df <- as.tibble(df)
+
+if (DE){
+  df <- df %>% filter(truth=="DE")
+}else{
+  df <- df %>% filter(truth=="Not DE")
+} 
+
+p <- ggplot(df, aes(x = as.factor(method), y=med_effect_size)) +
+  geom_boxplot() +
+  facet_grid(significant~., scales="free_y") +
+  xlab("Method") +
+  ylab(paste0("Median ", covname))
+
+if (DE){
+  p <- p + ggtitle(paste0(covname, " of True DE genes by significance at alpha ", 
+                       alpha))
+}else{
+  p <- p + ggtitle(paste0(covname, " of Non-DE genes by significance at alpha ", 
+                       alpha))
+} 
+
+return(p)
+}
+
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="FPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+plotEffectSize(de5, covname="log2FC")
+plotEffectSize(de5, covname="log2FC", DE=FALSE)
+
+plotEffectSize(de5, covname="ind_covariate")
+plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
+
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+} else {
+  message("Not enough methods found rejections at alpha ", ualpha, "; skipping upset plot")
+}
+
+```
+
+# Sim D10: DE Comparison 10v10
+
+Here we'll repeat the above, but for a DE comparison 10 versus 10 samples
+and 1500 DE genes are added. This will be done for 100 simulations.
+
+## Generate a list of SB results objects
+
+```{r, results='hide', message=FALSE}
+sampleSize <- 10
+nDE <- 1500
+
+if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))){
+  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+                   paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   BPPARAM=multicoreParam)
+  saveRDS(de10, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))
+} else {
+  de10 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))
+}
+```
+
+## Plot average results over replications
+
+Plot results.
+
+```{r}
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
+
+# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
+plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="FPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+plotEffectSize(de5, covname="log2FC")
+plotEffectSize(de5, covname="log2FC", DE=FALSE)
+
+plotEffectSize(de5, covname="ind_covariate")
+plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
+
+
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+  aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+} else {
+  message("Not enough methods found rejections at alpha ", ualpha, "; skipping upset plot")
+}
+```
+
+
 
 # Session information
 
