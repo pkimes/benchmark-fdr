@@ -65,7 +65,7 @@ sourceDirectory(file.path(working_dir$project_home,"datasets/R/"))
 
 # # set up parallel backend:
 library(BiocParallel)
-nCores <- 10
+nCores <- 1
 multicoreParam <- MulticoreParam(workers = nCores)
 ```
 
@@ -448,11 +448,11 @@ plotsim_average(res10d, met="FPR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de5, covname="log2FC")
-plotEffectSize(de5, covname="log2FC", DE=FALSE)
+plotEffectSize(de10, covname="log2FC")
+plotEffectSize(de10, covname="log2FC", DE=FALSE)
 
-plotEffectSize(de5, covname="ind_covariate")
-plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
+plotEffectSize(de10, covname="ind_covariate")
+plotEffectSize(de10, covname="ind_covariate", DE=FALSE)
 
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
