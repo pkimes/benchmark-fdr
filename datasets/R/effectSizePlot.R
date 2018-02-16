@@ -29,8 +29,8 @@ summarize_one_item <- function(object, alpha){
     select(truth, covname, bonf, bh,
            qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
            "scott-empirical") %>%
-    rename("scott-theoretical"="scott-t",
-           "scott-empirical"="scott-e") %>%
+    rename("scott-theoretical"="scott-t") %>%
+    rename("scott-empirical"="scott-e") %>%
     gather(method, significant, -truth, -covname) %>%
     group_by(method, truth, significant) %>%
     summarize(mean_effect_size=mean(abs(get(covname))),
