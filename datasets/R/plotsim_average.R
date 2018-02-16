@@ -84,13 +84,13 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     }
 
     ## use percentage on y-axis labels when appropriate
-    if (met %in% c("FPR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) {
+    if (met %in% c("FDR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) {
         gp <- gp +
             scale_y_continuous(met, labels=scales::percent)
     }
 
     ## include 0% or 100% in plotting range depending on metric
-    if (met %in% c("FPR", "FNR", "FWER", "rejectprop")) {
+    if (met %in% c("FDR", "FNR", "FWER", "rejectprop")) {
         gp <- gp + expand_limits(y = 0)
     }
     if (met %in% c("TPR", "TNR")) {
@@ -98,7 +98,7 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     }
 
     ## add identity line for FPR/FDR plotting
-    if (met == "FPR") {
+    if (met == "FDR") {
         gp <- gp +
             geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2)
     }
