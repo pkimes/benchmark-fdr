@@ -114,7 +114,7 @@ initializeBenchDesign <- function(nmids=150) {
 
 ## wrapper to make up for function removed from SummarizedBenchmark package
 addDefaultMetrics <- function(sb) {
-    sb <- addPerformanceMetric(sb, evalMetric = c("TPR", "FPR", "TNR", "FNR", "rejections"),
+    sb <- addPerformanceMetric(sb, evalMetric = c("TPR", "FDR", "TNR", "FNR", "rejections"),
                                assay = "qvalue")
     return(sb)
 }
