@@ -47,7 +47,7 @@ summarize_one_item <- function(object, alpha){
   return(df)
 }
 
-df <- lapply(de5, summarize_one_item, alpha=alpha)
+df <- lapply(sbl, summarize_one_item, alpha=alpha)
 df <- bind_rows(df, .id = "rep")
 df <- as.tibble(df)
 
