@@ -1,0 +1,260 @@
+---
+title: "Comparison of FDR methods on 16S microbiome data with SummarizedBenchmark"
+author: "Claire Duvallet"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+----
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+Here we download and analyze the CDI Schubert diarrhea (C. diff and non-C. diff diarrhea) dataset. 
+We'll download the processed OTU tables from Zenodo and unzip them in the 
+`benchmark-fdr/datasets/microbiome/DATA` folder.
+
+In the previous document `cdi_schubert.Rmd`, we explored two microbiome datasets for FDR
+benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
+perform the benchmarking in a standardized way. 
+
+# Workspace setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(SummarizedBenchmark)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+```
+
+# Data Preparation
+
+```{r, schubert-download}
+cdi_data <- file.path(datdir, "cdi_schubert_results.tar.gz")
+if (!file.exists(cdi_data)) {
+    download.file("https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz",
+                  destfile = cdi_data)
+}
+
+cdi_dir <- file.path(datdir, "cdi_schubert_results")
+if (!file.exists(file.path(cdi_dir, "cdi_schubert.metadata.txt"))) {
+    untar(cdi_data, exdir = datdir)
+}
+```
+
+Next, we'll read in the unzipped OTU table and metadata files into R.
+
+We'll need to manually define which disease labels are of interest and what metadata
+column contains the sample IDs (i.e. the IDs in the OTU table).
+
+```{r, schubert-readdata, eval=TRUE}
+## load OTU table and metadata
+otu <- read.table(file.path(cdi_dir, "RDP",
+                            "cdi_schubert.otu_table.100.denovo.rdp_assigned"))
+meta <- read.csv(file.path(cdi_dir, "cdi_schubert.metadata.txt"), sep = '\t')
+
+# Keep only samples with the right DiseaseState metadata
+meta <- filter(meta, DiseaseState %in% c("H", "nonCDI", "CDI"))
+
+# Keep only samples with both metadata and 16S data
+keep_samples <- intersect(colnames(otu), meta$sample_id)
+otu <- otu[, keep_samples]
+meta <- filter(meta, 'sample_id' %in% keep_samples)
+```
+
+Since we'll be using OTU-wise covariates, we shouldn't need to perform any
+filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
+(This may happen after removing shallow samples, I think.)
+However, let's make sure we get rid of any samples with too few reads. 
+We define the minimum number of reads per sample in `sample_reads`. 
+
+After we've removed any shallow samples, we'll convert the OTU table to relative
+abundances. I'll add a pseudo-count of 1e-6 to any zero entries, to avoid
+problems with taking logs.
+
+```{r, schubert-cleandata, eval=TRUE}
+min_otu <- 10
+min_sample <- 100
+
+## Remove OTUs w/ <= min reads, samples w/ <= min reads
+otu <- otu[, colSums(otu) > min_otu]
+otu <- otu[rowSums(otu) > min_sample, ]
+
+## Update metadata with new samples
+meta <- filter(meta, sample_id %in% colnames(otu))
+
+## Remove empty OTUs
+otu <- otu[rowSums(otu) > 0, ]
+
+## Convert to relative abundance
+abun_otu <- t(t(otu) / rowSums(t(otu)))
+
+## Add pseudo counts
+zeroabun <- 0
+abun_otu <- abun_otu + zeroabun
+```
+
+# Data Analysis
+
+## Differential Testing
+
+Next, we need to calculate the pvalues, effect size, and standard error for each OTU.
+Here, we'll compare diarrhea vs. healthy. Diarrhea will include both CDI and nonCDI
+patients. We'll put these results into a dataframe, and label the columns with the 
+standardized names for downstream use (`pval`, `SE`, `effect_size`, `test_statistic`).
+The test statistic is the one returned by `wilcox.test()`.
+
+Note that the effect here is calculated as logfold change of mean abundance in controls
+relative to cases (i.e. `log(mean_abun[controls]/mean_abun[cases])`)
+
+While we're at it, we'll also calculate the mean abundance and ubiquity (detection rate)
+of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
+for use in downstream steps.
+
+```{r, schubert-pvals, eval=TRUE}
+resfile <- file.path(resdir, paste0("schubert_results_", nrow(abun_otu), "_OTUs.rda"))
+if (!file.exists(resfile)) {
+    res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
+                           is_case = meta$DiseaseState %in% c("CDI", "nonCDI"))
+    save(res, file=resfile)
+} else {
+  load(resfile)
+}
+head(res)
+```
+
+Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
+
+```{r, schubert-addphylo, eval=TRUE}
+res <- dplyr::separate(res, otu, 
+                       c("kingdom", "phylum", "class", "order",
+                         "family", "genus", "species", "denovo"), 
+                       sep = ";", remove = FALSE)
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, schubert-ubi, fig.width=10, fig.height=3.5, eval=TRUE}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=20, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+### Mean Abundance (across non-zero samples)
+
+```{r, schubert-abun, fig.width=10, fig.height=3.5, eval=TRUE}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+### Phylogeny
+
+Let's look at phylum-level stratification first. A priori, I *might* expect
+Proteobacteria to be enriched for low p-values? But I don't know if that's
+super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
+
+```{r, schubert-phylo, fig.width=10, fig.height=6, eval=FALSE}
+ggplot(res, aes(x=pval)) +
+    geom_histogram() +
+    facet_wrap(~phylum, scales = "free")
+```
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, schubert-labelcovariate, eval=TRUE}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, schubert-sb, results="hide", message=FALSE, eval=TRUE}
+for (nmids in c(5, 50, 150)) {
+    print(nmids)
+    bd <- initializeBenchDesign(nmids = nmids)
+    ## remove ASH from comparison
+    bd <- dropBMethod(bd, "ashs")
+    
+    resfile <- file.path(resdir, paste0("schubert_summarizedBenchmark_",
+                                        nrow(res),  "_nmids_", nmids, ".rda"))
+    duration <- NA
+    if (!file.exists(resfile)) {
+        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+        metadata(sb)$data_download_link <-
+                       "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
+        save(sb, file = resfile)
+    } else {
+        load(resfile)
+    }
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, schubert-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, schubert-plot, width=15, height=15, eval=TRUE}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+Hm, now the code runs. However, there are clearly still some issues:
+- ashs rejects all hypotheses (all q-values are essentially 0).
+- lfdr and scott-empirical are all NaN (I think this is likely related to the df error)
+
+```{r, schubert-genus-covariates}
+methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
+plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6, methods = methods)
+```
+
+```{r, eval=FALSE}
+assays(sb)[["qvalue"]]["ashs"] %>% max()
+sum(is.na(assays(sb)[["qvalue"]]["lfdr"]))
+sum(is.na(assays(sb)[["qvalue"]]["scott-empirical"]))
+sum(is.na(assays(sb)[["qvalue"]]["scott-theoretical"]))
+```
+
+Plotting methods are giving errors for some reason. Let's try to use Alejandro's code instead.
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
