@@ -49,9 +49,7 @@ insights for a unique data structure which has been widely utilized in modern ge
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 library(dplyr)
-library(tidyr)
 library(ggplot2)
-library(magrittr)
 library(SummarizedBenchmark)
 library(BiocParallel)
 library(GenomicRanges)
