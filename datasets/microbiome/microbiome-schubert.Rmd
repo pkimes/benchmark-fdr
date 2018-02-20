@@ -1,5 +1,5 @@
 ---
-title: "Comparison of FDR methods on 16S microbiome data with SummarizedBenchmark"
+title: "Case Study: 16S microbiome data (Schubert et al., 2014)"
 author: "Claire Duvallet"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -16,15 +16,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-Here we download and analyze the CDI Schubert diarrhea (C. diff and non-C. diff diarrhea) dataset. 
-We'll download the processed OTU tables from Zenodo and unzip them in the 
-`benchmark-fdr/datasets/microbiome/DATA` folder.
+Here we download and analyze the Schubert diarrhea dataset [(Schubert et al., 2014)](http://dx.doi.org/10.1128/mBio.01021-14).
+The dataset includes 154 healthy nondiarrheal, 93 Clostridium difficile infection (CDI) associated diarrheal,
+and 89 non-CDI associated diarrheal stool samples. We'll download the processed OTU tables from
+Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
 
-In the previous document `cdi_schubert.Rmd`, we explored two microbiome datasets for FDR
-benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
-perform the benchmarking in a standardized way. 
-
-# Workspace setup
+# Workspace Setup
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 library(dplyr)
@@ -61,9 +58,6 @@ if (!file.exists(file.path(cdi_dir, "cdi_schubert.metadata.txt"))) {
 
 Next, we'll read in the unzipped OTU table and metadata files into R.
 
-We'll need to manually define which disease labels are of interest and what metadata
-column contains the sample IDs (i.e. the IDs in the OTU table).
-
 ```{r, schubert-readdata, eval=TRUE}
 ## load OTU table and metadata
 otu <- read.table(file.path(cdi_dir, "RDP",
@@ -80,14 +74,15 @@ meta <- filter(meta, sample_id %in% keep_samples)
 ```
 
 Since we'll be using OTU-wise covariates, we shouldn't need to perform any
-filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
+filtering/cleaning of the OTUs, apart from removing any that are all zeros.
 (This may happen after removing shallow samples, I think.)
-However, let's make sure we get rid of any samples with too few reads. 
-We define the minimum number of reads per sample in `sample_reads`. 
+We still apply a minimum threshold of 10 reads per OTU across all samples.
+After removing these shallow OTUs, we also get rid of any samples with too few reads. 
+We define the minimum number of reads per OTU in `min_otu`, and
+the minimum number of reads per sample in `min_sample`.
 
-After we've removed any shallow samples, we'll convert the OTU table to relative
-abundances. I'll add a pseudo-count of 1e-6 to any zero entries, to avoid
-problems with taking logs.
+After we've removed any shallow OTUs and samples, we'll convert the OTU table to
+relative abundances.
 
 ```{r, schubert-cleandata, eval=TRUE}
 min_otu <- 10
@@ -133,11 +128,10 @@ resfile <- file.path(resdir, paste0("schubert_results_", nrow(abun_otu), "_OTUs.
 if (!file.exists(resfile)) {
     res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
                            is_case = meta$DiseaseState %in% c("CDI", "nonCDI"))
-    save(res, file=resfile)
+    save(res, file = resfile)
 } else {
   load(resfile)
 }
-head(res)
 ```
 
 Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
@@ -189,7 +183,8 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs.
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
@@ -204,7 +199,6 @@ for (nmids in c(5, 50, 150)) {
     
     resfile <- file.path(resdir, paste0("schubert_summarizedBenchmark_",
                                         nrow(res),  "_nmids_", nmids, ".rda"))
-    duration <- NA
     if (!file.exists(resfile)) {
         sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
         metadata(sb)$data_download_link <-
@@ -229,7 +223,7 @@ sb <- addDefaultMetrics(sb)
 Now, we'll plot the results.
 
 ```{r, schubert-plot, width=15, height=15, eval=TRUE}
-# plot nrejects by method overall and stratified by covariate
+## plot nrejects by method overall and stratified by covariate
 rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )

@@ -71,3 +71,6 @@ remove_shallow_otus <- function(df, n_reads) {
     return(df[rowSums(df) > n_reads, ])
 }
 
+remove_rare_otus <- function(df, perc_samples){
+  return(df[rowSums(df > 0) / dim(df)[2] > perc_samples, ])
+}
