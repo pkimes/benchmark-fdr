@@ -53,6 +53,7 @@ test_microbiome <- function(abundance, shift, is_case) {
         res$effect_size[i] <- log( mean(ctrldf[i, ]) / mean(casedf[i, ]) )
     }
 
+    ## compute test-statistic from p-value for ASH
     res <- dplyr::mutate(res,
                          test_statistic = qnorm(exp(log(pval) - log(2)),
                                                 lower.tail=FALSE),
@@ -61,7 +62,6 @@ test_microbiome <- function(abundance, shift, is_case) {
 
 
 remove_shallow_smpls <- function(df, n_reads) {
-    ## Removes samples with fewer than n_reads from dataframe df.
     ## df has OTUs in rows and samples in columns
     return(df[, colSums(df) > n_reads])
 }
