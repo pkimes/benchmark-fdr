@@ -8,7 +8,7 @@ output:
         toc_float: true
         highlight: tango
         number_sections: true
-----
+---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -30,6 +30,7 @@ provide an intermediate non-extreme case study.
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(magrittr)
 library(SummarizedBenchmark)
