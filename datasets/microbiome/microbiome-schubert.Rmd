@@ -89,8 +89,8 @@ min_otu <- 10
 min_sample <- 100
 
 ## Remove OTUs w/ <= min reads, samples w/ <= min reads
-otu <- otu[, colSums(otu) > min_otu]
-otu <- otu[rowSums(otu) > min_sample, ]
+otu <- otu[rowSums(otu) > min_otu, ]
+otu <- otu[, colSums(otu) > min_sample]
 
 ## Update metadata with new samples
 meta <- dplyr::filter(meta, sample_id %in% colnames(otu))
@@ -192,9 +192,8 @@ helper scripts).
 
 ```{r, schubert-sb, results="hide", message=FALSE, eval=TRUE}
 for (nmids in c(5, 50, 150)) {
-    print(nmids)
+    ## use common BenchDesign w/out ASH
     bd <- initializeBenchDesign(nmids = nmids)
-    ## remove ASH from comparison
     bd <- dropBMethod(bd, "ashs")
     
     resfile <- file.path(resdir, paste0("schubert_summarizedBenchmark_",
