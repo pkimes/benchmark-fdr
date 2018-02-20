@@ -76,7 +76,7 @@ meta <- filter(meta, DiseaseState %in% c("H", "nonCDI", "CDI"))
 # Keep only samples with both metadata and 16S data
 keep_samples <- intersect(colnames(otu), meta$sample_id)
 otu <- otu[, keep_samples]
-meta <- filter(meta, 'sample_id' %in% keep_samples)
+meta <- filter(meta, sample_id %in% keep_samples)
 ```
 
 Since we'll be using OTU-wise covariates, we shouldn't need to perform any
@@ -98,7 +98,7 @@ otu <- otu[, colSums(otu) > min_otu]
 otu <- otu[rowSums(otu) > min_sample, ]
 
 ## Update metadata with new samples
-meta <- filter(meta, sample_id %in% colnames(otu))
+meta <- dplyr::filter(meta, sample_id %in% colnames(otu))
 
 ## Remove empty OTUs
 otu <- otu[rowSums(otu) > 0, ]
@@ -143,7 +143,7 @@ head(res)
 Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
 
 ```{r, schubert-addphylo, eval=TRUE}
-res <- dplyr::separate(res, otu, 
+res <- tidyr::separate(res, otu, 
                        c("kingdom", "phylum", "class", "order",
                          "family", "genus", "species", "denovo"), 
                        sep = ";", remove = FALSE)
