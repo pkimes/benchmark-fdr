@@ -24,6 +24,12 @@
 #' 
 #' @author Keegan Korthauer     
 strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3){
+
+  library(cowplot)
+  library(ggplot2)
+  library(magrittr)
+  library(dplyr)
+  
   # check numQ input
   if (numQ > 5){
     stop("Please specify a valid value of numQ")
