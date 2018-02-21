@@ -365,7 +365,7 @@ saveRDS(g2_ids,"m_g2_ids_GSE94383.rds")
 We perform differential expression testing using 3 methods on the unfiltered data: non-parametric Wilcoxon, MAST which has a hurdle model to account for zeros and scDD which implicitly models any heterogeneity in expression. We will first assign names for all files
 
 ```{r, filenames}
-h_wilcox_dat1="h_data_wilcox_p.rds"
+h_wilcox_dat1="h_data_wilcox_p_GSE63818-GPL16791.rds"
 h_wilcox_dat2="h_data_wilcox_p_GSE84465.rds"
 m_wilcox_dat1="m_data_wilcox_p_GSE45719.rds"
 m_wilcox_dat2="m_data_wilcox_p_GSE94383.rds"
@@ -388,7 +388,7 @@ Per Soneson et al., we run TMM normalization to the TPM units before running Wil
 
 ```{r, wilcoxon, eval=FALSE}
 
-g_data_sub=readRDS("h_g_nofilter_subdata.rds")
+g_data_sub=readRDS("h_g_nofilter_subdata_GSE63818-GPL16791.rds")
 groups=c(rep(1,(dim(g_data_sub)[2]/2)),rep(2,(dim(g_data_sub)[2]/2)))
 compute_wilcoxde_sc(g_data_sub,h_wilcox_dat1,groups)
 
@@ -507,7 +507,7 @@ Next, we look at the covariates for MAST
 
 ```{r, mastcov, fig.width=10, fig.height=7}
 print("human_plate_1")
-hmast1 <- plot_covariate_diagnostics(paste0(,h_mast_dat1),"mast",h_cov)
+hmast1 <- plot_covariate_diagnostics(paste0(h_mast_dat1),"mast",h_cov)
 print(hmast1$plot)
 
 print("human_plate_2")
