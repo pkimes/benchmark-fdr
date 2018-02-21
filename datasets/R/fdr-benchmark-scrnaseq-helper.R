@@ -129,3 +129,57 @@ print_plot_cov_diagnosis <- function(cov_data){
   p=rank_scatter(cov_data,pvalue ="pval",covariate="detection_rate")
   print(p)
 }
+
+cowplot_cov_diagnosis <- function(cov_data){
+  #print("median_exp")
+  #p=strat_hist(cov_data,pvalue ="pval",covariate="median_exp",numQ=5,maxy=10)
+  #print(p)
+  
+  p1=strat_hist(cov_data,pvalue ="pval",covariate="median_exp",numQ=3,maxy=10)
+  p2=strat_hist(cov_data,pvalue ="pval",covariate="mean_exp",numQ=3,maxy=10)
+  p3=strat_hist(cov_data,pvalue ="pval",covariate="detection_rate",numQ=3,maxy=10)
+  
+  p4=rank_scatter(cov_data,pvalue ="pval",covariate="median_exp")
+  p5=rank_scatter(cov_data,pvalue ="pval",covariate="mean_exp")
+  p6=rank_scatter(cov_data,pvalue ="pval",covariate="detection_rate")
+  mean_p=plot_grid(p4,p5,p6, ncol = 3,nrow=1) +draw_label("median_exp", x = 0.15, y = 0.97,fontface="bold") +draw_label("mean_exp", x = 0.45, y = 0.97,fontface="bold")+draw_label("det_rate", x = 0.85, y = 0.97,fontface="bold")
+  
+  #print("detection_rate")
+  #p=strat_hist(cov_data,pvalue ="pval",covariate="detection_rate",numQ=5,maxy=10)
+  #print(p)
+  #print("mean_exp")
+  #p=strat_hist(cov_data,pvalue ="pval",covariate="mean_exp",numQ=5,maxy=10)
+  #print(p)
+  
+  #detr_p=plot_grid(p3, p4, labels = c("mean_exp", "mean_exp"), ncol = 1,nrow=2)
+  p<-plot_grid(p1, p2, p3, mean_p, ncol = 1,nrow=4) +draw_label("median_exp", x = 0.5, y = 0.99,fontface="bold") +draw_label("mean_exp", x = 0.5, y = 0.75,fontface="bold")+draw_label("det_rate", x = 0.5, y = 0.5,fontface="bold")
+  return(p)
+  
+  #p<-plot_grid(p1, p2, p3, mean_p, labels = c("median_exp", "mean_exp", "det_rate", "rank_scatter"), ncol = 1,nrow=4),label_x = c(1,1,1,1), label_y = c(0,0,0,0)   
+}
+
+plot_covariate_diagnostics <- function(fname,method,h_cov){
+  if (method=="wilcox"){
+  pval_data=readRDS(fname)
+  pval_data_cov=data.frame(genes=names(pval_data),pval=pval_data)
+  pval_data_cov=pval_data_cov%>%left_join(h_cov,by=c("genes"))
+  p <- cowplot_cov_diagnosis(pval_data_cov)}
+  else if (method=="mast"){
+    pval_data=readRDS(fname)
+    pval_data_cov=data.frame(genes=rownames(pval_data),pval=pval_data$pval)
+    pval_data_cov=pval_data_cov%>%left_join(h_cov,by=c("genes"))
+    p<-cowplot_cov_diagnosis(pval_data_cov)
+  }
+  else if (method=="scdd"){
+    pval_data=readRDS(fname)
+    pval_data_cov=data.frame(genes=rownames(metadata(pval_data)$Genes),pval=metadata(pval_data)$Genes$nonzero.pvalue)
+    pval_data_cov$genes=h_cov$genes #scdd changes gene names by appending numeric indices 
+    pval_data_cov=pval_data_cov%>%subset(!is.na(pval))
+    pval_data_cov=pval_data_cov%>%left_join(h_cov,by=c("genes"))
+    p<-cowplot_cov_diagnosis(pval_data_cov)
+  }
+  return(list(plot=p,data=pval_data_cov))
+}
+
+
+
