@@ -39,7 +39,8 @@ dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 ## set up parallel backend
-multicoreParam <- MulticoreParam(workers = 2)
+cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+multicoreParam <- MulticoreParam(workers = cores)
 ```
 
 # Data Preparation
@@ -121,7 +122,7 @@ methods already included.
 
 ```{r}
 bd <- initializeBenchDesign()
-sb <- buildBench(bd, data = geneExp, parallel = TRUE)
+sb <- buildBench(bd, data = geneExp)
 ```
 
 ## Benchmark Metrics
