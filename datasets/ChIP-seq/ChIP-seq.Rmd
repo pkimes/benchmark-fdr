@@ -66,7 +66,7 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 datdir <- "data"
 resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
-dir.create(residr, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
