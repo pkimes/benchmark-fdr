@@ -1,0 +1,181 @@
+---
+title: "Case Study: Gene Set Enrichment Analysis (GSEA), Mouse"
+author: "Alejandro Reyes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+**Some sort of summary of the analysis.**
+Same analysis but using the HSC-MPP dataset from Nina.  
+**Who is Nina?**
+
+# Workspace Setup
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(DESeq2)
+library(EnsDb.Mmusculus.v75)
+library(biomaRt)
+library(goseq)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+```
+
+
+# Data Preparation
+
+Download *DESeqDataSet* if not present locally.
+
+```{r, message=FALSE}
+dsd_data <- "dsdHSCMPP.RData"
+if(!file.exists(dsdMouse)) {
+    download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1",
+                  destfile = dsd_data)
+}
+load(dsd_data)
+```
+
+**Why no filtering on gene_biotype == "protein_coding" for this data?**
+
+# Data Analysis
+
+## Differential Testing 
+
+Specify model matrix design and run DESeq2 to get differentially expressed genes. 
+
+```{r deseq2, message=FALSE}
+dseHSCMPP <- DESeq(dseHSCMPP)
+res <- results(dseHSCMPP, contrast = c("conditions", "HSC", "MPP1"),
+               independentFiltering = FALSE)
+```
+
+## Enrichment Analysis
+
+**Add description of what's going on.**
+
+```{r goseq, message=FALSE}
+goset_data <- file.path(datdir, "goSetsMm.RData")
+if (!file.exists(goset_data)) {
+    mart <- useMart("ensembl", "mmusculus_gene_ensembl")
+    goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
+                    filters = "ensembl_gene_id", values = rownames(res))
+    goSets <- goSets[!nchar(goSets$go_id) == 0, ]
+    goSets <- with(goSets, split(go_id, ensembl_gene_id))
+    save(goSets, file = file)
+} else {
+   load(goset_data)
+}
+
+## getting median transcript length
+genes <- as.numeric(res$padj < 0.1)
+names(genes) <- rownames(res)
+
+## getting median transcript length
+txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
+geneLength <- sapply(width(txByGene), median)
+geneLength <- geneLength[names(genes)]
+genes[is.na( genes )] <- 0
+```
+
+Performing a gene set enrichment analysis with `goseq`.
+
+```{r}
+pwf <- nullp(genes, bias.data = geneLength)
+goRes <- goseq(pwf, gene2cat = goSets)
+```
+
+## Covariate Diagnostics
+
+Here, we can see that the covariant variable is actually informative.
+
+### Gene Set Size
+
+**Add description of independent covariate.**
+
+```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
+              covariate = "numInCat", bins = 50, funx = log2, 
+              funfill = log10_trans()) +
+    ylim(0, 12) +
+    ggtitle("Over-represented gene sets") +
+    xlab(expression(log[10]~"(# of genes)")) +
+    ylab(expression(-log[10]~"(p-value)")) 
+```
+
+```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+#dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
+    strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=10)
+```
+ 
+## Multiple-Testing Correction
+
+Generating the *SummarizedBenchmark* object:
+ 
+```{r runningBenckmark, message=FALSE}
+## rename columns and prepare for benchmarking
+res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
+    dplyr::rename(pval = over_represented_pvalue,
+                  ind_covariate = numInCat) %>%
+    dplyr::mutate(pval = pmin(pval, 1))
+
+## generate default BenchDesign
+designBen <- initializeBenchDesign()
+
+## run benchmark
+sGSEAMouse <- buildBench(designBen, res, ftCols = "ind_covariate")
+```
+
+## Benchmark Metrics
+
+```{r}
+assayNames(sGSEAMouse) <- "qvalue"
+sGSEAMouse <- addDefaultMetrics(sGSEAMouse)
+```
+
+```{r plottingResults}
+rejections_scatter(sGSEAMouse, as_fraction = FALSE, supplementary = FALSE)
+```
+  
+```{r}
+plotFDRMethodsOverlap(sGSEAMouse, alpha = 0.1, supplementary = FALSE,
+                      order.by = "freq", nsets = 100)
+```
+
+Gene set size of overlaps.
+
+```{r}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sGSEAMouse, alpha = 0.1, nsets = 4,
+                      methods = methods, trans = log2, maxNum = 5)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

@@ -1,87 +1,127 @@
 ---
-title: "GSEA datasets for FDR benchmarking"
-author: "Alejandro Reyes (on behalf of the Rafalab Benchmarking Consortium)"
-output: html_document
+title: "Case Study: Gene Set Enrichment Analysis (GSEA)"
+author: "Alejandro Reyes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Differential expression analysis with DESeq2
+# Summary
 
-Downloading *DESeqDataSet* if not present locally,
+**Some sort of summary of the analysis.**
+
+# Workspace Setup
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(DESeq2)
+library(EnsDb.Hsapiens.v86)
+library(biomaRt)
+library(goseq)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+```
+
+
+# Data Preparation
+
+Download *DESeqDataSet* if not present locally.
 	    
 ```{r, message=FALSE}
-
-file <- "dsd.RData"
-if(!file.exists( file ) ){
-    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",destfile="dsd.RData")
+dsd_data <- file.path(datdir, "dsd.RData")
+if (!file.exists(dsd_data)) {
+    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",
+                  destfile = dsd_data)
 }
-load(file)
-
-library(DESeq2)
-levels(colData(dsdObject)$individual) <- gsub("GTEX-", "",levels(colData(dsdObject)$individual))
-
+load(dsd_data)
 ```
+
+**What are we doing here?**
+
+```{r}
+levels(colData(dsdObject)$individual) <- gsub("GTEX-", "", levels(colData(dsdObject)$individual))
+```
+
+We only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
+
+```{r}
+gnType <-  genes(EnsDb.Hsapiens.v86, column = "gene_biotype")
+dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id, ]
+```
+
+# Data Analysis
+
+## Differential Testing 
 
 Specify model matrix design and run DESeq2 to get differentially expressed genes. 
 
 ```{r deseq2, message=FALSE}
-
-library(EnsDb.Hsapiens.v86)
-gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
-
-dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
 dsdObject <- DESeq(dsdObject)
-res <- results( dsdObject, independentFiltering=FALSE )
-
+res <- results(dsdObject, independentFiltering = FALSE)
 ```
 
-Performing a gene set enrichment analysis with goseq.
-	   
+## Enrichment Analysis
+
+**Add description of what's going on.**
+
 ```{r goseq, message=FALSE}
-
-library(goseq)
-
-file="goSets.RData"
-if(!file.exists(file)){
-  stopifnot( require( biomaRt ) )
-  mart <- useMart( "ensembl", "hsapiens_gene_ensembl" )
-  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
-  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
-  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
-  save(goSets, file=file)
-}else{
-  load(file)
+goset_data <- file.path(datdir, "goSets.RData")
+if (!file.exists(goset_data)) {
+    mart <- useMart("ensembl", "hsapiens_gene_ensembl")
+    goSets <- getBM( c("ensembl_gene_id", "go_id"), mart = mart,
+                    filters = "ensembl_gene_id", values = rownames(res))
+    goSets <- goSets[!nchar( goSets$go_id ) == 0, ]
+    goSets <- with(goSets, split(go_id, ensembl_gene_id))
+    save(goSets, file = file)
+} else {
+    load(goset_data)
 }
 
-genes <- as.numeric( res$padj < 0.1 )
-names( genes ) <- rownames( res )
-
+genes <- as.numeric(res$padj < 0.1)
+names(genes) <- rownames(res)
 
 ### getting median transcript length
 txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
 geneLength <- sapply( width( txByGene ), median )
 geneLength <- geneLength[names(genes)]
 genes[is.na( genes )] <- 0
-
-pwf <- nullp(genes, bias.data=geneLength )
-goRes <- goseq( pwf, gene2cat=goSets )
-
 ```
 
+Performing a gene set enrichment analysis with `goseq`.
 
+```{r}
+pwf <- nullp(genes, bias.data = geneLength)
+goRes <- goseq(pwf, gene2cat = goSets)
+```
+
+## Covariate Diagnostics
+
+Here, we can see that the covariant variable is actually informative.
+
+### Gene Set Size
+
+**Add description of independent covariate.**
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
-
-library(ggplot2)
-library(magrittr)
-library(cowplot)
-library(R.utils)
-library(scales)
-sourceDirectory("../R/")
-
 rank_scatter( dat=goRes, pval="over_represented_pvalue", 
               covariate="numInCat", bins=50, funx=log2, 
               funfill=log10_trans()) +
@@ -91,58 +131,62 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
 
 ```
 
-
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
-
-library(dplyr)
-
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
-
 dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
   strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
-
 ```
  
- Generating the *SummarizedBenchmark* object:
+## Multiple-Testing Correction
+
+Generating the *SummarizedBenchmark* object:
  
 ```{r runningBenckmark, message=FALSE}
-designBen <- initializeBenchDesign()
+## rename columns and prepare for benchmarking
 res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
-  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+    dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 res$pval <- pmin( res$pval, 1 )
-sGSEA <- designBen %>% buildBench( res, ftCols="ind_covariate")
+
+## generate default BenchDesign
+designBen <- initializeBenchDesign()
+
+## run benchmark
+sGSEA <- buildBench(designBen, res, ftCols="ind_covariate")
+```
+
+## Benchmark Metrics
+
+```{r}
 assayNames(sGSEA) <- "qvalue"
-sGSEA <- addDefaultMetrics( sGSEA )
+sGSEA <- addDefaultMetrics(sGSEA)
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
 ```
 
 ```{r plottingResults}
-rejections_scatter( sGSEA, as_fraction=FALSE, supplementary=FALSE)
-
-sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
-
+rejections_scatter(sGSEA, as_fraction=FALSE, supplementary=FALSE)
 ```
- 
- 
+  
 ```{r}
-plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+plotFDRMethodsOverlap(sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
 ```
 
-# Gene set size of overlaps
+Gene set size of overlaps.
 
 ```{r}
-
 methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
-plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2 )
-
+plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2)
+plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
 ```
 
- 
-# NULL comparisons
+# Data Analysis (Null Comparison)
+
+**Add description.**
+
+## Create Null Data
 
 ```{r, eval=FALSE }
-
 nms <- names( genes )
 xx <- seq_len(length(nms))
 gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
@@ -150,85 +194,23 @@ names( gns ) <- nms
 pwf <- nullp( gns, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
 res <- goRes %>%
-  dplyr:::filter( numDEInCat > 0 ) %>%
-  dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
-  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+    dplyr:::filter( numDEInCat > 0 ) %>%
+    dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
+    dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+```
+
+## Multiple-Testing Correction
+
+```{r}
 pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
 assayNames(pr) <- "qvalue"
 pr <- addDefaultMetrics(pr, metrics="rejections")
-
-estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
-  filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
-  select( blabel, value )
-
 ```
- 
-# Same analysis but using the HSC-MPP dataset from Nina
+
+## Benchmark Metrics
 
 ```{r}
-
-dsdMouse <- "dsdHSCMPP.RData"
-if( !file.exists( dsdMouse ) ){
-  download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1", destfile="dsdHSCMPP.RData")
-}
-load(dsdMouse)
-dseHSCMPP <- DESeq( dseHSCMPP)
-
-res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1"), independentFiltering=FALSE )
-genes <- as.numeric( res$padj < 0.1 )
-names( genes ) <- rownames( res )
-genes[is.na( genes )] <- 0
-table(genes)
-
-### preparing gene length info and goSets ###
-library("EnsDb.Mmusculus.v75")
-txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
-geneLength <- sapply( width( txByGene ), median )
-geneLength <- geneLength[names(genes)]
-
-
-file="goSetsMm.RData"
-if(!file.exists(file)){
-  stopifnot( require( biomaRt ) )
-  mart <- useMart( "ensembl", "mmusculus_gene_ensembl" )
-  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
-  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
-  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
-  save(goSets, file=file)
-}else{
-  load(file)
-}
-
-pwf <- nullp(genes, bias.data=geneLength )
-goRes <- goseq( pwf, gene2cat=goSets )
-
-res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
-  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
-res$pval <- pmin( res$pval, 1 )
-sGSEAMouse <- designBen %>% buildBench( res, ftCols="ind_covariate")
-assayNames(sGSEAMouse) <- "qvalue"
-sGSEAMouse <- addDefaultMetrics( sGSEAMouse )
-
-rank_scatter( dat=goRes, pval="over_represented_pvalue", 
-              covariate="numInCat", bins=50, funx=log2, 
-              funfill=log10_trans()) +
-    ylim(0, 12) + ggtitle("Over-represented gene sets") +
-    xlab( expression(log[10]~"(# of genes)")) +
-    ylab( expression(-log[10]~"(p-value)") ) 
-
-library(dplyr)
-
-dplyr:::filter( goRes, numDEInCat > 0, numInCat > 20)  %>%
-  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
-
-rejections_scatter( sGSEAMouse, as_fraction=FALSE, supplementary=FALSE)
-
-plotFDRMethodsOverlap( sGSEAMouse, supplementary=FALSE, order.by="freq")
-
-plotCovariateBoxplots( sGSEAMouse, alpha=0.1, nsets=4, methods=methods, trans=log2, maxNum=5)
-
-plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
-
-
+estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
+    filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+    select( blabel, value )
 ```
- 
