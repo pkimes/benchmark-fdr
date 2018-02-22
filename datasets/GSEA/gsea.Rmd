@@ -1,64 +1,109 @@
 ---
 title: "GSEA datasets for FDR benchmarking"
 author: "Alejandro Reyes (on behalf of the Rafalab Benchmarking Consortium)"
-output: html_document
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Differential expression analysis with DESeq2
+# Summary
 
-Downloading *DESeqDataSet* if not present locally,
+Here we will make use of the `SummarizedBenchmark` package to benchmark two 
+Gene Set Enrichment Analysis (GSEA) case studies.
+
+# Workspace setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+# data and results directories
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
+
+# GSEA analysis tools
+library(DESeq2)
+library(goseq)
+library(EnsDb.Hsapiens.v86)
+library(EnsDb.Mmusculus.v75)
+library(biomaRt)
+
+# wrangling & plotting tools
+library(ggplot2)
+library(cowplot)
+library(scales)
+library(dplyr)
+
+# comparison tools/functions
+library(R.utils)
+sourceDirectory("../R/")
+```
+
+# GTEX expression data
+
+## Differential expression analysis with DESeq2
+
+First we'll download the dataset from GTEX, which is saved as an `RData` file and
+contains a *DESeqDataSet* object. 
 	    
 ```{r, message=FALSE}
 
-file <- "dsd.RData"
+file <- paste0(datdir, "dsd.RData")
 if(!file.exists( file ) ){
-    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",destfile="dsd.RData")
+    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",
+                  destfile=file)
 }
 load(file)
 
-library(DESeq2)
 levels(colData(dsdObject)$individual) <- gsub("GTEX-", "",levels(colData(dsdObject)$individual))
 
 ```
 
-Specify model matrix design and run DESeq2 to get differentially expressed genes. 
+Specify model matrix design and run **DESeq2** to get differentially expressed genes. 
 
 ```{r deseq2, message=FALSE}
-
-library(EnsDb.Hsapiens.v86)
 gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
 
 dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
 dsdObject <- DESeq(dsdObject)
 res <- results( dsdObject, independentFiltering=FALSE )
-
 ```
 
-Performing a gene set enrichment analysis with goseq.
+## Gene set enrichment analysis with goseq
+
+Next we'll use the 
+**biomaRt** package to download GO gene set annotations (for humans since the
+GTEX data contains human samples).
 	   
-```{r goseq, message=FALSE}
-
-library(goseq)
-
-file="goSets.RData"
+```{r biomart, message=FALSE}
+file <- paste0(datdir, "goSets.RData")
 if(!file.exists(file)){
-  stopifnot( require( biomaRt ) )
   mart <- useMart( "ensembl", "hsapiens_gene_ensembl" )
-  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, 
+                   filters="ensembl_gene_id", values=rownames(res))
   goSets <- goSets[!nchar( goSets$go_id ) == 0,]
   goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
   save(goSets, file=file)
 }else{
   load(file)
 }
+```
 
+Finally, we'll perform a gene set enrichment analysis with **goseq**. We'll 
+include all genes with a **DESeq2** adjusted p-value less than 0.10, and adjust
+for gene length since not doing so may bias the results toward GO sets with 
+longer genes.
+
+```{r goseq, message=FALSE}
 genes <- as.numeric( res$padj < 0.1 )
 names( genes ) <- rownames( res )
-
 
 ### getting median transcript length
 txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
@@ -68,20 +113,11 @@ genes[is.na( genes )] <- 0
 
 pwf <- nullp(genes, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
-
 ```
 
-
+## Check Covariate Diagnostics
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
-
-library(ggplot2)
-library(magrittr)
-library(cowplot)
-library(R.utils)
-library(scales)
-sourceDirectory("../R/")
-
 rank_scatter( dat=goRes, pval="over_represented_pvalue", 
               covariate="numInCat", bins=50, funx=log2, 
               funfill=log10_trans()) +
@@ -93,9 +129,6 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
 
 
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
-
-library(dplyr)
-
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
@@ -104,8 +137,10 @@ dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
   strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
 
 ```
+
+## Run benchmarks on set size covariate 
  
- Generating the *SummarizedBenchmark* object:
+Generating the *SummarizedBenchmark* object:
  
 ```{r runningBenckmark, message=FALSE}
 designBen <- initializeBenchDesign()
@@ -129,7 +164,7 @@ sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
 plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
-# Gene set size of overlaps
+## Gene set size of overlaps
 
 ```{r}
 
@@ -139,7 +174,7 @@ plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2 )
 ```
 
  
-# NULL comparisons
+## NULL comparisons
 
 ```{r, eval=FALSE }
 
@@ -181,7 +216,6 @@ genes[is.na( genes )] <- 0
 table(genes)
 
 ### preparing gene length info and goSets ###
-library("EnsDb.Mmusculus.v75")
 txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
 geneLength <- sapply( width( txByGene ), median )
 geneLength <- geneLength[names(genes)]
@@ -215,8 +249,6 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
     ylim(0, 12) + ggtitle("Over-represented gene sets") +
     xlab( expression(log[10]~"(# of genes)")) +
     ylab( expression(-log[10]~"(p-value)") ) 
-
-library(dplyr)
 
 dplyr:::filter( goRes, numDEInCat > 0, numInCat > 20)  %>%
   strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
