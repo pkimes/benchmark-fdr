@@ -15,72 +15,35 @@ The downloaded plate data are stored in R objects called `MultiAssayExperiment`;
 ```{r, workspace-setup, results='hide', message=FALSE, warning=FALSE}
 datdir <- "data/scrnaseq/"
 resdir <- "results/scrnaseq/"
-#installation
-# source("https://bioconductor.org/biocLite.R")
-# biocLite("swfdr")
-# biocLite("IHW")
-# biocLite("qvalue")
-# install.packages("ashr")
-# install.packages("fdrtool")
-# biocLite("edgeR")
-# source("https://bioconductor.org/biocLite.R")
-# biocLite("scran")
-#  Samseq installation
-# source("https://bioconductor.org/biocLite.R")
-# biocLite("impute") 
-# install.packages("samr")
-# source("https://bioconductor.org/biocLite.R")
-#biocLite("MultiAssayExperiment")
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("SummarizedExperiment")
-#biocLite("BiocGenerics")
-#biocLite("S4Vectors")
-#biocLite("BiocParallel")
-#install_github("areyesq89/SummarizedBenchmark")
-#biocLite("EBSeq")
-#biocLite("scDD")
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("SingleCellExperiment")
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("MAST")
-#install.packages("FDRreg")
+system(paste0("mkdir -p ", datdir))
+system(paste0("mkdir -p ", resdir))
 
 # packages for data analyses
-suppressMessages(library(MultiAssayExperiment))
-suppressMessages(library(dplyr))
-suppressMessages(library(ggplot2))
-suppressMessages(library(cowplot))
-suppressMessages(library(UpSetR))
-suppressMessages(library(hexbin))
+library(MultiAssayExperiment)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(UpSetR)
+library(hexbin)
 
 # packages for differential expression testing
-suppressMessages(library(impute))
-#suppressMessages(library(samr)
-suppressMessages(library(scDD))
-suppressMessages(library(EBSeq))
-suppressMessages(library(edgeR))
-suppressMessages(library(MAST))
-
-# benchmark methods
-suppressMessages(library(IHW))
-suppressMessages(library(ashr))
-suppressMessages(library(qvalue))
-suppressMessages(library(swfdr))
-suppressMessages(library(fdrtool))
-suppressMessages(library(FDRreg))
+library(impute)
+library(scDD)
+library(EBSeq)
+library(edgeR)
+library(MAST)
 
 # summarizebenchmark
-suppressMessages(library(SummarizedBenchmark))
-suppressMessages(library(SingleCellExperiment))
-
+library(SummarizedBenchmark)
+library(SingleCellExperiment)
 
 # useful libraries
-suppressMessages(library(R.utils))
-suppressMessages(library(knitr))
+library(R.utils)
+library(knitr)
 library(BiocParallel)
 cores = 6
 multicoreParam <- MulticoreParam(workers = cores)
-sourceDirectory('benchmark-fdr/datasets/R/')
+sourceDirectory('../R/')
 ```
 
 ## scRNAseq datasets
@@ -102,25 +65,24 @@ We selected two datasets, one each from mouse and human spp, from the `Conquer` 
 
 We first download the data in our working directory. First, let's download the Human data:GSE63818-GPL16791 
 
-```{bash, humandata-download, eval=FALSE}
+```{r, humandata-download}
 # all data and results are on the wd: /net/irizarryfs01/srv/export/irizarryfs01_backed_up/share_root/fdrbenchmark-scrnaseq
 
 #these look well separated on the tsne plots on the conquer manuscript supplement
-curl -o data/scrnaseq/ http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE63818-GPL16791.rds
-# qc report: 
-curl -o data/scrnaseq/ http://imlspenticton.uzh.ch/robinson_lab/conquer/report-multiqc/GSE63818-GPL16791_multiqc_report.html
-# scater report
-curl -o data/scrnaseq/ http://imlspenticton.uzh.ch/robinson_lab/conquer/report-scater/GSE63818-GPL16791_scater.html
+download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE63818-GPL16791.rds",
+  destfile=paste0(datdir, "GSE63818-GPL16791.rds"))
 
 ## human ds2
-curl -o data/scrnaseq/ http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds
+download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds",
+  destfile=paste0(datdir, "GSE84465.rds"))
 ```
 
 Next, we download the Mouse data:GSE45719
 
-```{bash, mousedata-download, eval=FALSE}
+```{r, mousedata-download}
 #another well-separated dataset on tsne: GSE60749−GPL13112
-curl -o DATA/scrnaseq/ http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE45719.rds
+download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE45719.rds",
+  destfile=paste0(datdir, "GSE45719.rds"))
 ```
 
 ## Data processing and filtering
@@ -129,9 +91,9 @@ For data processing, we follow practices and recommendations from Soneson et al.
 
 First, we get the human data for the two groups of interest.
 
-```{r, dataload, eval=FALSE}
+```{r, dataload}
 #load compressed mae
-humandata=readRDS("GSE63818-GPL16791.rds")
+humandata=readRDS(paste0(datdir, "GSE63818-GPL16791.rds"))
 #get gene-level data
 genes=experiments(humandata)[1]
 #TPMS
@@ -154,8 +116,8 @@ g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
 g1_data=human_tpms[,colnames(human_tpms)%in%g1$geo_accession[g1_ids]]
 g2_data=human_tpms[,colnames(human_tpms)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_data,"h_g1_data_GSE63818-GPL16791.rds")
-saveRDS(g2_data,"h_g2_data_GSE63818-GPL16791.rds")
+saveRDS(g1_data,paste0(datdir,"h_g1_data_GSE63818-GPL16791.rds"))
+saveRDS(g2_data,paste0(datdir,"h_g2_data_GSE63818-GPL16791.rds"))
 #COUNTS
 #get counts
 count=assays(genes$gene)[2]
@@ -168,11 +130,10 @@ cdata=as.data.frame(cdata)
 g1_cdata=human_count[,colnames(human_count)%in%g1$geo_accession[g1_ids]]
 g2_cdata=human_count[,colnames(human_count)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_cdata,"h_g1_cdata_GSE63818-GPL16791.rds")
-saveRDS(g2_cdata,"h_g2_cdata_GSE63818-GPL16791.rds")
-
+saveRDS(g1_cdata,paste0(datdir,"h_g1_cdata_GSE63818-GPL16791.rds"))
+saveRDS(g2_cdata,paste0(datdir,"h_g2_cdata_GSE63818-GPL16791.rds"))
 #load compressed mao
-humandata2=readRDS("GSE84465.rds")
+humandata2=readRDS(paste0(datdir,"GSE84465.rds"))
 #get gene-level data
 genes=experiments(humandata2)[1]
 #TPMS
@@ -195,8 +156,8 @@ g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
 g1_data=human_tpms[,colnames(human_tpms)%in%g1$geo_accession[g1_ids]]
 g2_data=human_tpms[,colnames(human_tpms)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_data,"h_g1_data_GSE84465.rds")
-saveRDS(g2_data,"h_g2_data_GSE84465rds")
+saveRDS(g1_data, paste0(datdir,"h_g1_data_GSE84465.rds"))
+saveRDS(g2_data, paste0(datdir,"h_g2_data_GSE84465rds"))
 #COUNTS
 #get counts
 count=assays(genes$gene)[2]
@@ -209,46 +170,46 @@ cdata=as.data.frame(cdata)
 g1_cdata=human_count[,colnames(human_count)%in%g1$geo_accession[g1_ids]]
 g2_cdata=human_count[,colnames(human_count)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_cdata,"h_g1_cdata_GSE84465.rds")
-saveRDS(g2_cdata,"h_g2_cdata_GSE84465.rds")
+saveRDS(g1_cdata, paste0(datdir,"h_g1_cdata_GSE84465.rds"))
+saveRDS(g2_cdata, paste0(datdir,"h_g2_cdata_GSE84465.rds"))
 
 ```
 
 For the human dataset1, each group has 26 cells and 65218 genes. We merge the data and remove all genes which have 0s in all samples
 
-```{r, nofilter1, eval=FALSE}
+```{r, nofilter1}
 g_data=cbind(g1_data,g2_data)
 g_data_sub=g_data[rowSums(g_data==0)!=dim(g_data)[2],] 
-saveRDS(g_data_sub,"h_g_nofilter_subdata_GSE63818-GPL16791.rds") # removing rows with all zeros reduces the number of genes to 33169
+saveRDS(g_data_sub, paste0(datdir, "h_g_nofilter_subdata_GSE63818-GPL16791.rds")) # removing rows with all zeros reduces the number of genes to 33169
 
 g_cdata=cbind(g1_cdata,g2_cdata)
 g_cdata_sub=g_cdata[rowSums(g_cdata==0)!=dim(g_cdata)[2],]
 saveRDS(g_cdata_sub,"h_g_nofilter_subcdata_GSE63818-GPL16791.rds") # removing rows with all zeros reduces the number of genes to 33169
 
-saveRDS(g1_ids,"g1_ids_GSE63818-GPL16791.rds")
-saveRDS(g2_ids,"g2_ids_GSE63818-GPL16791.rds")
+saveRDS(g1_ids, paste0(datdir, "g1_ids_GSE63818-GPL16791.rds"))
+saveRDS(g2_ids, paste0(datdir, "g2_ids_GSE63818-GPL16791.rds"))
 ```
 
 For the human dataset2, each group has 695 cells and 65218 genes. We merge the data and remove all genes which have 0s in all samples
 
-```{r, nofilter2, eval=FALSE}
+```{r, nofilter2}
 g_data=cbind(g1_data,g2_data)
 g_data_sub=g_data[rowSums(g_data==0)!=dim(g_data)[2],] 
-saveRDS(g_data_sub,"h_g_nofilter_subdata_GSE84465.rds") # removing rows with all zeros reduces the number of genes to 52942
+saveRDS(g_data_sub, paste0(datdir, "h_g_nofilter_subdata_GSE84465.rds")) # removing rows with all zeros reduces the number of genes to 52942
 
 g_cdata=cbind(g1_cdata,g2_cdata)
 g_cdata_sub=g_cdata[rowSums(g_cdata==0)!=dim(g_cdata)[2],]
-saveRDS(g_cdata_sub,"h_g_nofilter_subcdata_GSE84465.rds") # removing rows with all zeros reduces the number of genes to 52942
+saveRDS(g_cdata_sub, paste0(datdir, "h_g_nofilter_subcdata_GSE84465.rds")) # removing rows with all zeros reduces the number of genes to 52942
 
-saveRDS(g1_ids,"g1_ids_GSE84465.rds")
-saveRDS(g2_ids,"g2_ids_GSE84465.rds")
+saveRDS(g1_ids, paste0(datdir, "g1_ids_GSE84465.rds"))
+saveRDS(g2_ids, paste0(datdir, "g2_ids_GSE84465.rds"))
 ```
 
 Next, we repeat the processing steps for the mouse datasets.
 
-```{r,mouse, eval=FALSE}
+```{r,mouse}
 ##mouse data
-mousedata=readRDS("GSE45719.rds")
+mousedata=readRDS(paste0(datdir, "GSE45719.rds"))
 #get gene-level data
 genes=experiments(mousedata)[1]
 #TPMS
@@ -271,8 +232,8 @@ g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
 g1_data=mouse_tpms[,colnames(mouse_tpms)%in%g1$geo_accession[g1_ids]]
 g2_data=mouse_tpms[,colnames(mouse_tpms)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_data,"m_g1_data_GSE45719.rds")
-saveRDS(g2_data,"m_g2_data_GSE45719.rds")
+saveRDS(g1_data,paste0(datdir, "m_g1_data_GSE45719.rds"))
+saveRDS(g2_data,paste0(datdir, "m_g2_data_GSE45719.rds"))
 #COUNTS
 #get counts
 count=assays(genes$gene)[2]
@@ -285,10 +246,12 @@ cdata=as.data.frame(cdata)
 g1_cdata=mouse_count[,colnames(mouse_count)%in%g1$geo_accession[g1_ids]]
 g2_cdata=mouse_count[,colnames(mouse_count)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_cdata,"m_g1_cdata_GSE45719.rds")
-saveRDS(g2_cdata,"m_g2_cdata_GSE45719.rds")
-
-mousedata2=readRDS("GSE94383.rds")
+saveRDS(g1_cdata,paste0(datdir, "m_g1_cdata_GSE45719.rds"))
+saveRDS(g2_cdata,paste0(datdir, "m_g2_cdata_GSE45719.rds"))
+```
+Comment out this section since GSE94383 was never downloaded, so it won't run.
+```{r, eval=FALSE}
+mousedata2=readRDS(paste0(datdir, "GSE94383.rds"))
 #get gene-level data
 genes=experiments(mousedata2)[1]
 #TPMS
@@ -311,8 +274,8 @@ g2_ids=sample.int(dim(g2)[1], size = sample_size[ssize], replace = FALSE)
 g1_data=mouse_tpms[,colnames(mouse_tpms)%in%g1$geo_accession[g1_ids]]
 g2_data=mouse_tpms[,colnames(mouse_tpms)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_data,"m_g1_GSE94383.rds")
-saveRDS(g2_data,"m_g2_GSE94383.rds")
+saveRDS(g1_data,paste0(datdir, "m_g1_GSE94383.rds"))
+saveRDS(g2_data,paste0(datdir, "m_g2_GSE94383.rds"))
 #COUNTS
 #get counts
 count=assays(genes$gene)[2]
@@ -325,28 +288,29 @@ cdata=as.data.frame(cdata)
 g1_cdata=mouse_count[,colnames(mouse_count)%in%g1$geo_accession[g1_ids]]
 g2_cdata=mouse_count[,colnames(mouse_count)%in%g2$geo_accession[g2_ids]]
 #save data
-saveRDS(g1_cdata,"m_g1_c_GSE94383.rds")
-saveRDS(g2_cdata,"m_g2_c_GSE94383.rds")
+saveRDS(g1_cdata,paste0(datdir, "m_g1_c_GSE94383.rds"))
+saveRDS(g2_cdata,paste0(datdir, "m_g2_c_GSE94383.rds"))
 
 ```
 
 For the mouse dataset1, each group has 50 cells and 45686 genes. We merge the data and remove all genes which have 0s in all samples
 
-```{r, m_nofilter, eval=FALSE}
+```{r, m_nofilter}
 g_data=cbind(g1_data,g2_data)
 g_data_sub=g_data[rowSums(g_data==0)!=dim(g_data)[2],] # 0.25*52=13
-saveRDS(g_data_sub,"m_g_nofilter_subdata_GSE45719.rds") # removing rows with all zeros reduces the number of genes to 33169
+saveRDS(g_data_sub,paste0(datdir, "m_g_nofilter_subdata_GSE45719.rds")) # removing rows with all zeros reduces the number of genes to 33169
 
 g_cdata=cbind(g1_cdata,g2_cdata)
 g_cdata_sub=g_cdata[rowSums(g_cdata==0)!=dim(g_data)[2],]
-saveRDS(g_cdata_sub,"m_g_nofilter_subcdata_GSE45719.rds") # removing rows with all zeros reduces the number of genes to 33169
+saveRDS(g_cdata_sub,paste0(datdir, "m_g_nofilter_subcdata_GSE45719.rds")) # removing rows with all zeros reduces the number of genes to 33169
 
-saveRDS(g1_ids,"m_g1_ids_GSE45719.rds")
-saveRDS(g2_ids,"m_g2_ids_GSE45719.rds")
+saveRDS(g1_ids,paste0(datdir, "m_g1_ids_GSE45719.rds"))
+saveRDS(g2_ids,paste0(datdir, "m_g2_ids_GSE45719.rds"))
 ```
 
 For the mouse dataset2, each group has 202 cells and 25179 genes after filtering for non-detected genes.
 
+comment out since mouse2 is not downloaded
 ```{r, m_nofilter_ds2, eval=FALSE}
 g_data=cbind(g1_data,g2_data)
 g_data_sub=g_data[rowSums(g_data==0)!=dim(g_data)[2],] # 0.25*52=13
@@ -400,9 +364,10 @@ g_data_sub=readRDS("m_g_nofilter_subdata_GSE45719.rds")
 groups=c(rep(1,(dim(g_data_sub)[2]/2)),rep(2,(dim(g_data_sub)[2]/2)))
 compute_wilcoxde_sc(g_data_sub,m_wilcox_dat1,groups)
 
-g_data_sub=readRDS("m_g_nofilter_subdata_GSE94383.rds")
-groups=c(rep(1,(dim(g_data_sub)[2]/2)),rep(2,(dim(g_data_sub)[2]/2)))
-compute_wilcoxde_sc(g_data_sub,m_wilcox_dat2,groups)
+#g_data_sub=readRDS("m_g_nofilter_subdata_GSE94383.rds")
+#groups=c(rep(1,(dim(g_data_sub)[2]/2)),rep(2,(dim(g_data_sub)[2]/2)))
+#compute_wilcoxde_sc(g_data_sub,m_wilcox_dat2,groups)
+
 ## warnings:
 ## In wilcox.test.default(x = structure(c(0, 0, 14.2107316559397,  ... :
 ## cannot compute exact p-value with ties
@@ -583,3 +548,4 @@ plotFDRMethodsOverlap(scrna_sb,
 methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
 mcols(scrna_sb)$ind_covariate <- mcols(scrna_sb)$ind_covar_N
 plotCovariateBoxplots(scrna_sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3)
+```
