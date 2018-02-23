@@ -91,7 +91,7 @@ if (!file.exists(goset_data)) {
                     filters = "ensembl_gene_id", values = rownames(res))
     goSets <- goSets[!nchar( goSets$go_id ) == 0, ]
     goSets <- with(goSets, split(go_id, ensembl_gene_id))
-    save(goSets, file = file)
+    save(goSets, file = goset_data)
 } else {
     load(goset_data)
 }
