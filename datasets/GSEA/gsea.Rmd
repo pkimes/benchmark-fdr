@@ -221,7 +221,7 @@ res <- goRes %>%
 
 pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
 assayNames(pr) <- "qvalue"
-pr <- addDefaultMetrics(pr, metrics="rejections")
+pr <- addDefaultMetrics(pr)
 
 estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
   filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
@@ -229,9 +229,9 @@ estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
 
 ```
  
-# Same analysis but using the HSC-MPP dataset from Nina
+# GSEA of genes differentially expressed upon blood cell differentiation in mouse
 
-Add some description of the HSC-MPP dataset.
+As a second dataset, we will use the mouse data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The dataset consists of RNA-seq data from mouse hematopoietic stem cells and 4 multipotent progenitor lineages. 
 
 ```{r}
 dsdMouse <- "dsdHSCMPP.RData"
@@ -242,6 +242,8 @@ load(dsdMouse)
 ```
 
 ## Differential expression analysis with DESeq2
+
+For this analysis, we will test each gene for differences in expression between hematopoietic stem cells and multipotent progenitors (fraction 1).  
 
 ```{r}
 dseHSCMPP <- DESeq( dseHSCMPP)
