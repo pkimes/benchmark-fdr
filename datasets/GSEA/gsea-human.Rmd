@@ -134,9 +134,9 @@ rank_scatter( dat=goRes, pval="over_represented_pvalue",
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
-#dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
-dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
-  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
+#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+    strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
 ```
  
 ## Multiple-Testing Correction
@@ -194,23 +194,29 @@ names( gns ) <- nms
 pwf <- nullp( gns, bias.data=geneLength )
 goRes <- goseq( pwf, gene2cat=goSets )
 res <- goRes %>%
-    dplyr:::filter( numDEInCat > 0 ) %>%
-    dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
-    dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+    dplyr::filter( numDEInCat > 0 ) %>%
+    dplyr::select( c("over_represented_pvalue", "numInCat") ) %>%
+    dplyr::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
 ```
 
 ## Multiple-Testing Correction
 
 ```{r}
-pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
+pr <- buildBench(designBen, res, ftCols = "ind_covariate")
 assayNames(pr) <- "qvalue"
-pr <- addDefaultMetrics(pr, metrics="rejections")
+pr <- addDefaultMetrics(pr)
 ```
 
 ## Benchmark Metrics
 
 ```{r}
 estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
-    filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
-    select( blabel, value )
+    dplyr::filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+    dplyr::select( blabel, value )
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
 ```

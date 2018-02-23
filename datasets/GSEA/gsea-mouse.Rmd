@@ -50,7 +50,7 @@ Download *DESeqDataSet* if not present locally.
 
 ```{r, message=FALSE}
 dsd_data <- "dsdHSCMPP.RData"
-if(!file.exists(dsdMouse)) {
+if(!file.exists(dsd_data)) {
     download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1",
                   destfile = dsd_data)
 }
@@ -127,11 +127,11 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
-#dplyr:::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
     strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=10)
 ```
- 
+
 ## Multiple-Testing Correction
 
 Generating the *SummarizedBenchmark* object:
