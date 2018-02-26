@@ -69,6 +69,7 @@ initializeBenchDesign <- function(nmids=150) {
                      p = pval)
   ## IHW (w/ varying alpha threshold) 
   for (ia in seq(0.01, 0.10, by=0.01)) {
+    force(ia)
     bd %<>% addBMethod(paste0("ihw-a", sprintf("%02g", ia*100)),
                        IHW::ihw,
                        IHW::adj_pvalues,
@@ -82,11 +83,12 @@ initializeBenchDesign <- function(nmids=150) {
                      betahat = effect_size, sebetahat = SE)
   ## Boca-Leek (w/ varying smoothing degrees of freedom)
   for (idf in 2:5) {
-      bd %<>% addBMethod(paste0("bl-df", sprintf("%02g", idf)), 
-                         swfdr::lm_pi0,
-                         function(x) { x$pi0 * p.adjust(pval, method = "BH") },
-                         pValues = pval, X = ind_covariate,
-                         smooth.df = UQ(idf))
+    force(idf)
+    bd %<>% addBMethod(paste0("bl-df", sprintf("%02g", idf)), 
+                       swfdr::lm_pi0,
+                       function(x) { x$pi0 * p.adjust(pval, method = "BH") },
+                       pValues = pval, X = ind_covariate,
+                       smooth.df = UQ(idf))
   }
   ## Cai's local FDR
   bd %<>% addBMethod("lfdr",

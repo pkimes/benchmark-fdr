@@ -1,0 +1,335 @@
+---
+title: "GSEA datasets for FDR benchmarking"
+author: "Alejandro Reyes (on behalf of the Rafalab Benchmarking Consortium)"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+Here we will make use of the `SummarizedBenchmark` package to benchmark two 
+Gene Set Enrichment Analysis (GSEA) case studies.
+
+# Workspace setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+# data and results directories
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
+
+# GSEA analysis tools
+library(DESeq2)
+library(goseq)
+library(EnsDb.Hsapiens.v86)
+library(EnsDb.Mmusculus.v75)
+library(biomaRt)
+
+# wrangling & plotting tools
+library(ggplot2)
+library(cowplot)
+library(scales)
+library(dplyr)
+
+# comparison tools/functions
+library(R.utils)
+sourceDirectory("../R/")
+```
+
+# GTEX expression data
+
+First we'll download the dataset from GTEX, which is saved as an `RData` file and
+contains a *DESeqDataSet* object. 
+	    
+```{r, message=FALSE}
+
+file <- paste0(datdir, "dsd.RData")
+if(!file.exists( file ) ){
+    download.file("https://www.dropbox.com/s/rdmv3tyqt4g37b0/dsd.RData?dl=1",
+                  destfile=file)
+}
+load(file)
+
+levels(colData(dsdObject)$individual) <- gsub("GTEX-", "",levels(colData(dsdObject)$individual))
+
+```
+
+## Differential expression analysis with DESeq2
+
+Check model matrix design and run **DESeq2** to get differentially expressed genes. 
+The design includes a factor for tissue (here we have Cortex and Cerebellum), 
+and adjusts for individual.
+
+```{r deseq2, message=FALSE}
+colData(dsdObject)
+design(dsdObject)
+
+gnType <-  genes(EnsDb.Hsapiens.v86, column="gene_biotype")
+
+dsdObject <- dsdObject[rownames(dsdObject) %in% gnType[gnType$gene_biotype == "protein_coding"]$gene_id,]
+dsdObject <- DESeq(dsdObject)
+res <- results( dsdObject, contrast=c("tissue", "Cortex", "Cerebellum"),
+                independentFiltering=FALSE)
+
+```
+
+## Gene set enrichment analysis with goseq
+
+Next we'll use the 
+**biomaRt** package to download GO gene set annotations (for humans since the
+GTEX data contains human samples).
+	   
+```{r biomart, message=FALSE}
+file <- paste0(datdir, "goSets.RData")
+if(!file.exists(file)){
+  mart <- useMart( "ensembl", "hsapiens_gene_ensembl" )
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, 
+                   filters="ensembl_gene_id", values=rownames(res))
+  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
+  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
+  save(goSets, file=file)
+}else{
+  load(file)
+}
+```
+
+Finally, we'll perform a gene set enrichment analysis with **goseq**. We'll 
+include all genes with a **DESeq2** adjusted p-value less than 0.10, and adjust
+for gene length since not doing so may bias the results toward GO sets with 
+longer genes. The bias is seen in the plot below, with gene length bin on the
+x-axis and proportion of genes detected as DE on the y-axis.
+
+```{r goseq, message=FALSE}
+genes <- as.numeric( res$padj < 0.1 )
+names( genes ) <- rownames( res )
+
+### getting median transcript length
+txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
+geneLength <- sapply( width( txByGene ), median )
+geneLength <- geneLength[names(genes)]
+genes[is.na( genes )] <- 0
+
+pwf <- nullp(genes, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+```
+
+## Check Covariate Diagnostics
+
+First we'll look at a scatterplot of the relationship between the pvalue and the number 
+of genes in the gene set.
+
+```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
+
+```
+
+Next we'll look at the histogram of p-values stratified by quantiles of the 
+covariate (number of genes in the gene set).
+
+```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
+
+```
+
+## Run benchmarks on set size covariate 
+ 
+Now we'll generate the *SummarizedBenchmark* object and run the benchmark methods.
+Note that we cannot the ash method since we do not have an effect size for this
+test. We also can't run the scott method since we don't have a test statistic.
+ 
+```{r runningBenckmark, message=FALSE}
+designBen <- initializeBenchDesign()
+res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+res$pval <- pmin( res$pval, 1 )
+sGSEA <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(sGSEA) <- "qvalue"
+sGSEA <- addDefaultMetrics( sGSEA )
+```
+
+Finally, we'll visualize the results by looking at the number of rejections at
+several alpha levels.
+
+```{r plottingResults}
+rejections_scatter( sGSEA, as_fraction=FALSE, supplementary=FALSE)
+
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+
+```
+ 
+In addition, we'll look at the overlap of gene sets found by each method at the
+alpha cutoff of 0.10.
+ 
+```{r}
+plotFDRMethodsOverlap( sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+Finally, we'll examine whether there are any preferences for methods to detect
+gene sets with certain covariate values.
+
+```{r}
+
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2 )
+
+```
+
+## Null comparison
+
+Here we'll evaluate specificity of the methods by investigating performance in 
+the null setting. Ideally, no significant gene sets should be found when we 
+perform the analysis on a set of random genes instead of a set of DE genes.
+Here we sample 1000 random genes and perform a GSEA.
+
+```{r, eval=FALSE }
+set.seed(4885)
+nms <- names( genes )
+xx <- seq_len(length(nms))
+gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
+names( gns ) <- nms
+pwf <- nullp( gns, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+```
+
+We'll use the same covariate (gene set size) and run the benchmark methods
+on the GSEA results. 
+
+```{r}
+res <- goRes %>%
+  dplyr:::filter( numDEInCat > 0 ) %>%
+  dplyr:::select( c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+
+pr <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(pr) <- "qvalue"
+pr <- addDefaultMetrics(pr)
+
+estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
+  filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+  select( blabel, value )
+
+```
+ 
+# GSEA of genes differentially expressed upon blood cell differentiation in mouse
+
+As a second dataset, we will use the mouse data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The dataset consists of RNA-seq data from mouse hematopoietic stem cells and 4 multipotent progenitor lineages. 
+
+```{r}
+dsdMouse <- "dsdHSCMPP.RData"
+if( !file.exists( dsdMouse ) ){
+  download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1", destfile="dsdHSCMPP.RData")
+}
+load(dsdMouse)
+```
+
+## Differential expression analysis with DESeq2
+
+For this analysis, we will test each gene for differences in expression between hematopoietic stem cells and multipotent progenitors (fraction 1).  
+
+```{r}
+dseHSCMPP <- DESeq( dseHSCMPP)
+
+res <- results( dseHSCMPP, contrast=c("conditions", "HSC", "MPP1"), independentFiltering=FALSE )
+genes <- as.numeric( res$padj < 0.1 )
+names( genes ) <- rownames( res )
+genes[is.na( genes )] <- 0
+table(genes)
+```
+
+## Gene set enrichment analysis with goseq
+
+```{r}
+### preparing gene length info and goSets ###
+txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
+geneLength <- sapply( width( txByGene ), median )
+geneLength <- geneLength[names(genes)]
+
+
+file="goSetsMm.RData"
+if(!file.exists(file)){
+  stopifnot( require( biomaRt ) )
+  mart <- useMart( "ensembl", "mmusculus_gene_ensembl" )
+  goSets <- getBM( c("ensembl_gene_id", "go_id"), mart=mart, filters="ensembl_gene_id", values=rownames(res))
+  goSets <- goSets[!nchar( goSets$go_id ) == 0,]
+  goSets <- with( goSets, split( go_id, ensembl_gene_id ) )
+  save(goSets, file=file)
+}else{
+  load(file)
+}
+
+pwf <- nullp(genes, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+
+res <- dplyr:::select( goRes, c("over_represented_pvalue", "numInCat") ) %>%
+  dplyr:::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+res$pval <- pmin( res$pval, 1 )
+```
+## Check Covariate Diagnostics
+
+```{r, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
+
+```
+
+
+```{r, message=FALSE, fig.width=10, fig.height=3.2}
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
+
+```
+
+## Run benchmarks on set size covariate 
+
+```{r}
+sGSEAMouse <- designBen %>% buildBench( res, ftCols="ind_covariate")
+assayNames(sGSEAMouse) <- "qvalue"
+sGSEAMouse <- addDefaultMetrics( sGSEAMouse )
+
+rank_scatter( dat=goRes, pval="over_represented_pvalue", 
+              covariate="numInCat", bins=50, funx=log2, 
+              funfill=log10_trans()) +
+    ylim(0, 12) + ggtitle("Over-represented gene sets") +
+    xlab( expression(log[10]~"(# of genes)")) +
+    ylab( expression(-log[10]~"(p-value)") ) 
+
+dplyr:::filter( goRes, numDEInCat > 0, numInCat > 20)  %>%
+  strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=7)
+
+rejections_scatter( sGSEAMouse, as_fraction=FALSE, supplementary=FALSE)
+
+plotFDRMethodsOverlap( sGSEAMouse, supplementary=FALSE, order.by="freq")
+
+plotCovariateBoxplots( sGSEAMouse, alpha=0.1, nsets=4, methods=methods, trans=log2, maxNum=5)
+
+plotCovariateBoxplots( sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
+
+
+```
+ 
