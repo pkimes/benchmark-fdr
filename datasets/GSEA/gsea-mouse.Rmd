@@ -49,7 +49,7 @@ dir.create(resdir, showWarnings = FALSE)
 Download *DESeqDataSet* if not present locally.
 
 ```{r, message=FALSE}
-dsd_data <- "dsdHSCMPP.RData"
+dsd_data <- file.path(datdir, "dsdHSCMPP.RData")
 if(!file.exists(dsd_data)) {
     download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1",
                   destfile = dsd_data)
@@ -147,7 +147,12 @@ res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
 designBen <- initializeBenchDesign()
 
 ## run benchmark
-sGSEAMouse <- buildBench(designBen, res, ftCols = "ind_covariate")
+sb_file <- file.path(resdir, "sb-gsea-mouse.rda")
+if (!file.exists(sb_file)) {
+    sGSEAMouse <- buildBench(designBen, res, ftCols = "ind_covariate")
+} else {
+    sGSEAMouse <- readRDS(sb_file)
+}
 ```
 
 ## Benchmark Metrics

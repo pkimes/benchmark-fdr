@@ -153,7 +153,12 @@ res$pval <- pmin( res$pval, 1 )
 designBen <- initializeBenchDesign()
 
 ## run benchmark
-sGSEA <- buildBench(designBen, res, ftCols="ind_covariate")
+sb_file <- file.path(resdir, "sb-gsea-human.rda")
+if (!file.exists(sb_file)) {
+    sGSEA <- buildBench(designBen, res, ftCols = "ind_covariate")
+} else {
+    sGSEA <- readRDS(sb_file)
+}
 ```
 
 ## Benchmark Metrics

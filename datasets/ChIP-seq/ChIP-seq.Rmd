@@ -192,9 +192,12 @@ Sometimes, there are a few regions with signal coverage between signal and backg
 In this example, we see that p-values are differently distributed under low, 
 median and high coverage. 
 
-```{r, chipseq-diag, fig.width=10, fig.height=3.5}
-strat_hist(dat, pvalue = "pval", covariate = "ind_covariate", maxy = 2)
+```{r, chipseq-diag-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(dat, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, chipseq-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(dat, pvalue = "pval", covariate = "ind_covariate", maxy = 2)
 ```
 
 ## Multiple-Testing Correction
@@ -235,7 +238,6 @@ Now, we'll plot the results.
 ```{r, chipseq-plot, results="hide", width=15, height=15}
 # plot nrejects by method overall and stratified by covariate
 rejections_scatter(sb, supplementary = FALSE)
-
 rejection_scatter_bins(sb, covariate = "ind_covariate",
                        bins = 4, supplementary = FALSE)
 

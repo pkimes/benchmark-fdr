@@ -40,7 +40,8 @@ dir.create(resdir, showWarnings = FALSE)
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
-multicoreParam <- MulticoreParam(workers = cores)
+##multicoreParam <- MulticoreParam(workers = cores)
+multicoreParam <- SerialParam()
 ```
 
 # Data Preparation
@@ -106,14 +107,18 @@ geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
 
 ### Mean Coverage
 
-```{r}
+```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
+gp <- rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Mean coverage as independent covariate") +
+    xlab("Mean Expression")
+ggsave("temp.png", gp, width = 4.5, height = 3.5)
+```
+
+```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
 strat_hist(geneExp, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
-```{r}
-rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate")
-```
 
 ## Multiple-Testing Correction
 
@@ -122,7 +127,7 @@ methods already included.
 
 ```{r}
 bd <- initializeBenchDesign()
-sb <- buildBench(bd, data = geneExp)
+sb <- buildBench(bd, data = geneExp, ftCols = "ind_covariate")
 ```
 
 ## Benchmark Metrics
@@ -134,14 +139,23 @@ sb <- addDefaultMetrics(sb)
 
 **Add description of results.**
 
-```{r}
+```{r, rnaseq-scatter}
 rejections_scatter(sb, supplementary = FALSE)
+rejection_scatter_bins(sb, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
 ```
 
-```{r}
+```{r, rnaseq-overlap}
 plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
                       order.by = "freq", decreasing = TRUE,
                       supplementary = FALSE)
+```
+
+```{r, rnaseq-boxplots}
+## properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
+plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
+                      methods = methods, trans = log2, maxNum = 5)
 ```
 
 # Session Info

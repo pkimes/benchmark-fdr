@@ -166,8 +166,11 @@ Here we look to see if the covariates do indeed look informative.
 
 ### Ubiquity
 
-```{r, baxter-ubi, fig.width=10, fig.height=3.5}
+```{r, baxter-ubi-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+```{r, baxter-ubi-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
@@ -176,8 +179,11 @@ Either way, ubiquity looks to be a bit informative (from the scatter plot, but n
 
 ### Mean Abundance (across non-zero samples)
 
-```{r, baxter-abun, fig.width=10, fig.height=3.5}
+```{r, baxter-abun-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, baxter-abun-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
@@ -311,8 +317,11 @@ Here we look to see if the covariates do indeed look informative.
 
 ### Ubiquity
 
-```{r, baxter-genus-ubi, fig.width=10, fig.height=3.5}
+```{r, baxter-genus-ubi, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+```{r, baxter-genus-ubi-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
@@ -321,8 +330,11 @@ Either way, ubiquity looks to be a bit informative (from the scatter plot, but n
 
 ### Mean Abundance (across non-zero samples)
 
-```{r, baxter-genus-abun, fig.width=10, fig.height=3.5}
+```{r, baxter-genus-abun, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, baxter-genus-abun-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 

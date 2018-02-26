@@ -149,15 +149,21 @@ Here we look to see if the covariates do indeed look informative.
 
 ### Ubiquity
 
-```{r, schubert-ubi, fig.width=10, fig.height=3.5, eval=TRUE}
+```{r, schubert-ubi, fig.width=10, fig.height=3.2, eval=TRUE}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=20, binwidth=0.05)
+```
+
+```{r, schubert-ubi-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
 ### Mean Abundance (across non-zero samples)
 
-```{r, schubert-abun, fig.width=10, fig.height=3.5, eval=TRUE}
+```{r, schubert-abun, fig.width=10, fig.height=3.2, eval=TRUE}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, schubert-abun-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
