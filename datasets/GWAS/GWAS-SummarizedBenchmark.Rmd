@@ -1,9 +1,9 @@
 ---
-title: "Comparison of FDR methods on GWAS with SummarizedBenchmark"
+title: "Case study: Genome-Wide Association Analyses (GWAS)"
 author: "Keegan Korthauer"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: 
-    html_document:
+output:
+   html_document:
         toc: true
         toc_float: true
         highlight: tango
@@ -16,13 +16,20 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-In the previous document `GWAS.Rmd`, we identified three GWAS datasets for FDR
-benchmarking. Here we will make use of the new `SummarizedBenchmark` package to
-perform the benchmarking in a standardized way. 
+Here we will make use of the `SummarizedBenchmark` package to benchmark a 
+Genome-Wide Association Study (GWAS) dataset. We will examine a GWAS 
+meta-analysis for Body Mass Index (BMI), which was also included in the 
+Boca-Leek manuscript.
 
 # Workspace setup
 
+This analysis requires that the software PLINK (version 1.9) 
+is installed on your system.
+PLINK is freely available for download 
+[here](http://zzz.bwh.harvard.edu/plink/plink2.shtml).
+
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+# data and results directories
 system("mkdir -p DATA")
 system("mkdir -p RESULTS")
 datdir <- "DATA/"
@@ -34,20 +41,10 @@ library(readxl)
 library(readr)
 library(dplyr)
 library(ggplot2)
-library(magrittr)
-library(R.utils)
 library(cowplot)
 
-# benchmark methods
-library(IHW)
-library(ashr)
-library(qvalue)
-library(swfdr)
-library(fdrtool)
-library(FDRreg)
-
 # comparison tools/functions
-library(SummarizedBenchmark)
+library(R.utils)
 sourceDirectory("../R/")
 
 # set up parallel backend
@@ -56,9 +53,10 @@ cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
 multicoreParam <- MulticoreParam(workers = cores)
 ```
 
-# GWAS meta-analysis for BMI (included in Boca-Leek)
+# Data preparation
 
-Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+We'll first download the GWAS summary statistics dataset from the 
+GIANT consortium data portal.
 
 ## Data download
 
@@ -158,17 +156,15 @@ less than 0.2 with all neighbors within 250 kilobases of distance. We write the 
 
 ```{bash, clump, eval=FALSE}
 # use PLINK clumping tool to obtain a set of independent SNPs by LD
-module load plink
-
 plink \
---bfile DATA/GWAS/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01 \
---clump DATA/GWAS/rslist.assoc \
+--bfile DATA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01 \
+--clump DATA/rslist.assoc \
 --clump-field P \
 --clump-p1 0.9999 \
 --clump-p2 0.9999 \
 --clump-r2 0.2 \
 --clump-kb 250 \
---out DATA/GWAS/plink_clump
+--out DATA/plink_clump
 
 ```
 
@@ -199,37 +195,60 @@ bmi <- bmi %>%
   select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
-## Check Covariate Diagnostics
+# Data Analysis
+
+## Differential Testing
+Since we do not have access to the individual genotype information and since
+our data already contains the results of performing hypothesis tests of
+association of BMI with each SNP (including p-values and effect sizes), we 
+don't need to carry out any additional testing. We move on to checking the
+covariate diagnostics and adjusting for multiple comparisons.
+
+## Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative. First we look at 
 the sample size covariate.
 
-```{r, GWAS1-diag, fig.width=10, fig.height=3.5}
-strat_hist(bmi, pvalue="pval", covariate="ind_covar_N", maxy=2)
-rank_scatter(bmi, pvalue="pval", covariate="ind_covar_N")
+### Covariate one: Sample Size
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(bmi, pvalue="pval", covariate="ind_covar_N") + 
+  ggtitle("Covariate 1: Sample Size")
 ```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_N", maxy=2) 
+```
+
+### Covariate two: Minor Allele Frequency
 
 Next we look at the allele frequency covariate.
 
-```{r, GWAS1-diag2, fig.width=10, fig.height=3.5}
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF") +
+  ggtitle("Covariate 1: Minor allele frequency")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=2)
-rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF")
 ```
 
-## Set up BenchDesign object 
+## Multiple-Testing Correction
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object.
 
-```{r, GWAS1-benchdesign}
+```{r, GWAS1-benchdesign, message=FALSE}
 bd <- initializeBenchDesign()
 ```
-
-## Run buildBench for the sample size covariate and examine results
 
 Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
                                         helper scripts). 
+                                        
+### Covariate one: Sample size
+
+First we'll include the sample size covariate.
 
 ```{r, GWAS1-sb, results="hide", message=FALSE}
 resN <- paste0(resdir, "bmi_N_summarizedBenchmark_",
@@ -238,14 +257,15 @@ resN <- paste0(resdir, "bmi_N_summarizedBenchmark_",
 duration <- NA
 if (!file.exists(resN)){
   t1 <- proc.time()
-  sb <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
+  sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
                           ftCols = c("ind_covar_N"),
                           parallel=TRUE, BPPARAM=multicoreParam)
-  metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-  save(sb, file=resN)
+  metadata(sbN)$data_download_link <- 
+    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+  saveRDS(sbN, file=resN)
   duration <- round((proc.time()-t1)[3]/60,1)
 }else{
-  load(resN)
+  sbN <- readRDS(resN)
 }
 ```
 
@@ -256,107 +276,119 @@ if(!is.na(duration)){
 }
 ```
 
-Next, we'll add the default performance metric for q-value assays. First, we have
+### Covariate two: Minor Allele Frequency
+
+Now, we'll repeat the multiple testing correction using the other covariate (AF):
+
+```{r, GWAS1-sb2, results="hide", message=FALSE}
+resAF <- paste0(resdir, "bmi_AF_summarizedBenchmark_",
+nrow(bmi), ".RData")
+
+duration <- NA
+if (!file.exists(resAF)){
+  t1 <- proc.time()
+  sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
+                                    filter(!is.na(ind_covariate))), 
+                            ftCols = c("ind_covar_AF"),
+                            parallel=TRUE, BPPARAM=multicoreParam)
+  metadata(sbAF)$data_download_link <-    
+    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+  saveRDS(sbAF, file=resAF)
+  duration <- round((proc.time()-t1)[3]/60,1)
+}else{
+  sbAF <- readRDS(resAF)
+}
+```
+
+```{r, echo=FALSE}
+if(!is.na(duration)){
+  message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+  cores, " cores.")
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays and 
+plot the results. We'll start with covariate one.
+
+### Covariate one: Sample Size
+
+First, we have
 to rename the assay to 'qvalue'.
 
 ```{r, GWAS1-metrics}
 # rename assay to qvalue
-assayNames(sb) <- "qvalue"
-sb <- addDefaultMetrics(sb)
+assayNames(sbN) <- "qvalue"
+sbN <- addDefaultMetrics(sbN)
 ```
 
 Now, we'll plot the results.
 
-```{r, GWAS1-plot, results="hide", width=15, height=15}
+```{r, GWAS1-plot, results="hide"}
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(sb,
-                   supplementary=FALSE)
+rejections_scatter(sbN,
+                   supplementary=FALSE) +
+  ggtitle("Covariate 1: Sample size")
 
-rejection_scatter_bins(sb, covariate="ind_covar_N", bins=4,
-                       supplementary=FALSE)
+rejection_scatter_bins(sbN, covariate="ind_covar_N", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("Covariate 1: Sample size")
 
 # upset plot 
-plotFDRMethodsOverlap(sb, 
+plotFDRMethodsOverlap(sbN, 
                       alpha=0.05, nsets=ncol(sb),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE) 
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
+plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
+  ggtitle("Covariate 1: Sample size")
+
+```
+
+### Covariate two: Minor Allele Frequency
+
+Next, we'll look at the performance metrics for the other covariate (minor
+allele frequency).
+
+```{r, GWAS1-metrics2}
+# rename assay to qvalue
+assayNames(sbAF) <- "qvalue"
+sbAF <- addDefaultMetrics(sbAF)
+```
+
+Now, we'll plot the results.
+
+```{r, GWAS1-plot2, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sbAF, supplementary=FALSE) +
+  ggtitle("Covariate 2: Minor allele frequency")
+
+rejection_scatter_bins(sbAF, covariate="ind_covar_AF", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("Covariate 2: Minor allele frequency")
+
+# upset plot 
+plotFDRMethodsOverlap(sbAF, 
+                      alpha=0.05, nsets=ncol(sbAF),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE)
 
 # properties of method-exclusive discoveries
 methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
              "scott-empirical", "scott-theoretical")
-mcols(sb)$ind_covariate <- mcols(sb)$ind_covar_N
-plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3)
+mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
+plotCovariateBoxplots(sbAF, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
+  ggtitle("Covariate 2: Minor allele frequency")
 
 ```
 
-## Run buildBench for the allele frequency covariate and examine results
+# Session Information
 
-Now, we'll repeat the previous steps for the other covariate (AF):
-
-```{r, GWAS1-sb2, results="hide", message=FALSE}
-bd <- initializeBenchDesign()
-resAF <- paste0(resdir, "bmi_AF_summarizedBenchmark_",
-nrow(bmi), ".RData")
-
-duration <- NA
-if (!file.exists(resAF)){
-t1 <- proc.time()
-sb <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
-filter(!is.na(ind_covariate))), 
-ftCols = c("ind_covar_AF"),
-parallel=TRUE, BPPARAM=multicoreParam)
-metadata(sb)$data_download_link <- "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-save(sb, file=resAF)
-duration <- round((proc.time()-t1)[3]/60,1)
-}else{
-load(resAF)
-}
-```
-
-```{r, echo=FALSE}
-if(!is.na(duration)){
-message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
-cores, " cores.")
-}
-```
-
-Next, we'll add the default performance metric for q-value assays. First, we have
-to rename the assay to 'qvalue'.
-
-```{r, GWAS1-metrics2}
-# rename assay to qvalue
-assayNames(sb) <- "qvalue"
-sb <- addDefaultMetrics(sb)
-```
-
-Now, we'll plot the results.
-
-```{r, GWAS1-plot2, results="hide", width=15, height=15}
-# plot nrejects by method overall and stratified by covariate
-rejections_scatter(sb,
-supplementary=FALSE)
-
-rejection_scatter_bins(sb, covariate="ind_covar_AF", bins=4,
-supplementary=FALSE)
-
-# upset plot 
-plotFDRMethodsOverlap(sb, 
-alpha=0.05, nsets=ncol(sb),
-order.by="freq", decreasing=TRUE,
-supplementary=FALSE)
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sb)$ind_covariate <- abs(mcols(sb)$ind_covar_AF-0.5)
-plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods, maxNum=3)
-
-```
-
-Clean up the workspace.
-
-```{r, GWAS1-cleanup}
-rm(bmi)
-rm(bd)
-rm(sb)
+```{r}
+sessionInfo()
 ```
