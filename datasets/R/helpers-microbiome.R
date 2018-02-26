@@ -6,7 +6,7 @@
 #' for each OTU. Results are reported as a data.frame with
 #' one row per OTU.
 #' 
-#' @param abundance matrix of relative abunances with rows and
+#' @param abundance matrix of relative abundances with rows and
 #'        columns corresponding to OTUs and samples.
 #' @param shift psuedocount that was added to all relative abundance
 #'        values in \code{abundance} to handle zero counts.

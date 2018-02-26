@@ -21,6 +21,8 @@ The dataset includes 154 healthy nondiarrheal, 93 Clostridium difficile infectio
 and 89 non-CDI associated diarrheal stool samples. We'll download the processed OTU tables from
 Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
 
+Diarrhea comes with a broad community re-structuring, so we expect there to be many truly differentially abundant OTUs in this dataset.
+
 # Workspace Setup
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
@@ -86,10 +88,12 @@ relative abundances.
 
 ```{r, schubert-cleandata, eval=TRUE}
 min_otu <- 10
+minp_otu <- 0.01
 min_sample <- 100
 
-## Remove OTUs w/ <= min reads, samples w/ <= min reads
+## Remove OTUs w/ <= min reads, w/ <= min prop, samples w/ <= min reads
 otu <- otu[rowSums(otu) > min_otu, ]
+otu <- otu[rowSums(otu > 0) / ncol(otu) > minp_otu, ]
 otu <- otu[, colSums(otu) > min_sample]
 
 ## Update metadata with new samples
