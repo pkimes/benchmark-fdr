@@ -3,7 +3,7 @@
 #SBATCH -n 8
 #SBATCH -N 1
 #SBATCH -p irizarry,serial_requeue
-#SBATCH --mem 8GB
+#SBATCH --mem 16G
 #SBATCH -t 0-05:00
 #SBATCH -o render-%j.out
 #SBATCH -e render-%j.err
