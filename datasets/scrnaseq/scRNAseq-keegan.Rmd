@@ -1,14 +1,45 @@
 ---
 title: "scRNAseq"
-author: "Ayshwarya Subramanian"
-date: "9/15/2017"
-output: html_document
+author: "Ayshwarya Subramanian and Keegan Korthauer"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,cache=TRUE,cache.lazy = FALSE)
-
 ```
-## R workspace setup
+# Summary
+
+For the application of differential gene expression, we look at scRNAseq and bulk RNAseq data. Here we discuss the analyses of scRNAseq.
+
+```{r echo=FALSE, results='asis'}
+library(knitr)
+df=data.frame(datasets=c("GSE63818-GPL16791","GSE84465","GSE45719","GSE94383"),
+              organism=c("human","human","mouse","mouse"),
+              technology=c("smart-seq","smart-seq","smart-seq2","smart-seq2"),
+              comparison=c("Somatic vs Primordial Germ Cells", 
+                           "Neoplastic vs Regular",
+                           "16-cell stage blastomere vs Mid blastocyst cell",
+                           "LPS vs No stimulation"))
+kable(df,caption="scRNAseq Datasets")
+df1=data.frame(DE_method=c("Wilcoxon-rank sum","ScDD","MAST"),
+               input=c("tpm","count","tpm"),
+               output=c("p-val","p-val","p-val"))
+kable(df1,caption="DE methods")
+```
+
+We selected four datasets, two each from mouse and human. 
+These datasets come from the `Conquer` (Soneson et al., 2017) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+
+Here we are interested in performing differential expression analyses to determine
+which 
+
+# Workspace setup
 
 The downloaded plate data are stored in R objects called `MultiAssayExperiment`; this package requires BioConductor release 3.5 and R version 3.4 or greater for installation. 
 
@@ -39,7 +70,6 @@ library(SingleCellExperiment)
 
 # useful libraries
 library(R.utils)
-library(knitr)
 library(BiocParallel)
 
 cores <- 8
@@ -48,24 +78,10 @@ BiocParallel::register(MulticoreParam(workers = cores))
 sourceDirectory("../R/")
 ```
 
-## scRNAseq datasets
+# Data preparation
 
-For the application of differential gene expression, we look at scRNAseq and bulk RNAseq data. Here we discuss the analyses of scRNAseq.
-
-```{r echo=FALSE, results='asis'}
-df=data.frame(datasets=c("GSE63818-GPL16791","GSE84465","GSE45719","GSE94383"),organism=c("human","human","mouse","mouse"),technology=c("smart-seq","smart-seq","smart-seq2","smart-seq2"))
-kable(df,caption="scRNAseq Datasets")
-df1=data.frame(DE_method=c("Wilcoxon-rank sum","ScDD","MAST"),input=c("tpm","count","tpm"),output=c("p-val","p-val","p-val"))
-kable(df1,caption="DE methods")
-
-```
-
-We selected two datasets, one each from mouse and human spp, from the `Conquer` (Soneson et al., 2017) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors use `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
-
-
-## Data Download
-
-We first download the data in the data directory.`conquer` provides the processed datasets in convenient .rds files. First, let's download the Human datasets. 
+We first download the data in the data directory.`conquer` provides the processed datasets in convenient .rds files. First, let's download the Human datasets: GSE63818-GPL16791 and
+GSE84465.
 
 ```{r, humandata-download}
 #these look well separated on the tsne plots on the conquer manuscript supplement
@@ -78,7 +94,7 @@ download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE8446
 
 ```
 
-Next, we download the Mouse data:GSE45719
+Next, we download the Mouse data: GSE45719 and GSE94383
 
 ```{r, mousedata-download}
 #another well-separated dataset on tsne: GSE60749−GPL13112
@@ -98,30 +114,37 @@ We'll extract two conditions: Primordial Germ Cells and Somatic cells at
 7 weeks gestation.
 
 ```{r, dataload}
-# load MultiAssayExperiment
-humandata <- readRDS(paste0(datdir,"GSE63818-GPL16791.rds"))
+datfile_h1 <- paste0(datdir, "h1_GSE63818-GPL16791.rds")
 
-# subset by groups of interest
-humandata <- humandata[, (colData(humandata)$source_name_ch1 %in% 
+if (!file.exists(datfile_h1)){
+ 
+   # load MultiAssayExperiment
+  humandata <- readRDS(paste0(datdir,"GSE63818-GPL16791.rds"))
+
+  # subset by groups of interest
+  humandata <- humandata[, (colData(humandata)$source_name_ch1 %in% 
                          c("Somatic Cells", "Primordial Germ Cells")) &
                          (colData(humandata)$characteristics_ch1 == 
                          c("developmental stage: 7 week gestation"))]
-cdata=colData(humandata)
-cdata$group <- cdata$source_name_ch1
+  cdata=colData(humandata)
+  cdata$group <- cdata$source_name_ch1
 
-# subset by gene expression TPM & count assays
-humandata <- experiments(humandata)[[1]]
-assays(humandata) <- assays(humandata)[c("TPM", "count")]
-colData(humandata) <- cdata
+  # subset by gene expression TPM & count assays
+  humandata <- experiments(humandata)[[1]]
+  assays(humandata) <- assays(humandata)[c("TPM", "count")]
+  colData(humandata) <- cdata
 
-# subset by genes not all zero
-humandata <- humandata[rowSums(assays(humandata)[["count"]]==0) < ncol(humandata),]
+  # subset by genes not all zero
+  humandata <- humandata[rowSums(assays(humandata)[["count"]]==0) < ncol(humandata),]
 
-# look at number of cells in each group
-table(colData(humandata)$group)
+  # look at number of cells in each group 
+  table(colData(humandata)$group)
 
-# save SummarizedExperiment 
-saveRDS(humandata, paste0(datdir, "h1_GSE63818-GPL16791.rds"))
+  # save SummarizedExperiment 
+  saveRDS(humandata, datfile_h1)
+}else{
+  humandata <- readRDS(datfile_h1)
+}
 ```
 
 For the human dataset1 there are `r ncol(humandata)` cells total and 
@@ -131,30 +154,37 @@ Now humandata2. We'll extract two conditions: Neoplastic and Regular cells, as
 defined by their tsne clusters.
 
 ```{r}
-# load MultiAssayExperiment
-humandata2 <- readRDS(paste0(datdir, "GSE84465.rds"))
+datfile_h2 <- paste0(datdir, "h2_GSE84465.rds")
 
-# subset by groups of interest
-humandata2 <- humandata2[, (colData(humandata2)$characteristics_ch1.7 %in% 
+if (!file.exists(datfile_h2)){
+  
+  # load MultiAssayExperiment
+  humandata2 <- readRDS(paste0(datdir, "GSE84465.rds"))
+
+  # subset by groups of interest
+  humandata2 <- humandata2[, (colData(humandata2)$characteristics_ch1.7 %in% 
                          c("neoplastic: Neoplastic", "neoplastic: Regular")) &
                          (colData(humandata2)$characteristics_ch1.5 %in% 
                          c("tsne cluster: 11",  "tsne cluster: 8"))]
-cdata=colData(humandata2)
-cdata$group <- cdata$characteristics_ch1.7
+  cdata=colData(humandata2)
+  cdata$group <- cdata$characteristics_ch1.7
 
-# subset by gene expression TPM & count assays
-humandata2 <- experiments(humandata2)[[1]]
-assays(humandata2) <- assays(humandata2)[c("TPM", "count")]
-colData(humandata2) <- cdata
+  # subset by gene expression TPM & count assays
+  humandata2 <- experiments(humandata2)[[1]]
+  assays(humandata2) <- assays(humandata2)[c("TPM", "count")]
+  colData(humandata2) <- cdata
 
-# subset by genes not all zero
-humandata2 <- humandata2[rowSums(assays(humandata2)[["count"]]==0) < ncol(humandata2),]
+  # subset by genes not all zero
+  humandata2 <- humandata2[rowSums(assays(humandata2)[["count"]]==0) < ncol(humandata2),]
 
-# look at number of cells in each group
-table(colData(humandata2)$group)
-
-# save SummarizedExperiment 
-saveRDS(humandata2, paste0(datdir, "h2_GSE84465.rds"))
+  # look at number of cells in each group
+  table(colData(humandata2)$group)
+ 
+  # save SummarizedExperiment 
+  saveRDS(humandata2, datfile_h2)
+}else{
+  humandata2 <- readRDS(datfile_h2)
+}
 ```
 
 For the human dataset2, there are a total of `r nrow(humandata2)` cells and `r ncol(humandata2)` genes. 
@@ -163,29 +193,36 @@ Next, we repeat the processing steps for the mouse datasets. For the first one,
 we'll extract two conditions: 16-cell stage blastomere and mid blastocysts cells.
 
 ```{r,mouse}
-# load MultiAssayExperiment
-mousedata=readRDS(paste0(datdir, "GSE45719.rds"))
+datfile_m1 <- paste0(datdir, "m1_GSE45719.rds")
 
-# subset by groups of interest
-mousedata <- mousedata[, colData(mousedata)$source_name_ch1 %in% 
+if (!file.exists(datfile_m1)){
+
+  # load MultiAssayExperiment
+  mousedata=readRDS(paste0(datdir, "GSE45719.rds"))
+
+  # subset by groups of interest
+  mousedata <- mousedata[, colData(mousedata)$source_name_ch1 %in% 
                          c("16-cell stage blastomere", 
                            "Mid blastocyst cell (92-94h post-fertilization)")]
-cdata=colData(mousedata)
-cdata$group <- cdata$source_name_ch1
+  cdata=colData(mousedata)
+  cdata$group <- cdata$source_name_ch1
 
-# subset by gene expression TPM & count assays
-mousedata <- experiments(mousedata)[[1]]
-assays(mousedata) <- assays(mousedata)[c("TPM", "count")]
-colData(mousedata) <- cdata
+  # subset by gene expression TPM & count assays
+  mousedata <- experiments(mousedata)[[1]]
+  assays(mousedata) <- assays(mousedata)[c("TPM", "count")]
+  colData(mousedata) <- cdata
 
-# subset by genes not all zero
-mousedata <- mousedata[rowSums(assays(mousedata)[["count"]]==0) < ncol(mousedata),]
+  # subset by genes not all zero
+  mousedata <- mousedata[rowSums(assays(mousedata)[["count"]]==0) < ncol(mousedata),]
 
-# look at number of cells in each group
-table(as.character(colData(mousedata)$group))
+  # look at number of cells in each group
+  table(as.character(colData(mousedata)$group))
 
-# save SummarizedExperiment 
-saveRDS(mousedata, paste0(datdir, "m1_GSE45719.rds"))
+  # save SummarizedExperiment 
+  saveRDS(mousedata, datfile_m1)
+}else{
+  mousedata <- readRDS(datfile_m1)
+}
 ```
 
 For the mouse dataset1, we have a total of `r ncol(mousedata)` cells and 
@@ -194,32 +231,39 @@ For the mouse dataset1, we have a total of `r ncol(mousedata)` cells and
 Now mousedata2. We'll extract two conditions: No stimulation versus LPS at 150 min.
 
 ```{r}
-# load MultiAssayExperiment
-mousedata2=readRDS(paste0(datdir,"GSE94383.rds"))
+datfile_m2 <- paste0(datdir, "m2_GSE94383.rds")
 
-# subset by groups of interest
-mousedata2 <- mousedata2[, (colData(mousedata2)$characteristics_ch1.2 ==
+if (!file.exists(datfile_m2)){
+
+  # load MultiAssayExperiment
+  mousedata2=readRDS(paste0(datdir,"GSE94383.rds"))
+
+  # subset by groups of interest
+  mousedata2 <- mousedata2[, (colData(mousedata2)$characteristics_ch1.2 ==
                               "condition: No stimulation") |
                            (colData(mousedata2)$characteristics_ch1.2 ==
                               "condition: LPS" &
                             colData(mousedata2)$characteristics_ch1.1 %in% 
                               "time point: 150 min") ]
-cdata=colData(mousedata2)
-cdata$group <- cdata$characteristics_ch1.2
+  cdata=colData(mousedata2)
+  cdata$group <- cdata$characteristics_ch1.2
 
-# subset by gene expression TPM & count assays
-mousedata2 <- experiments(mousedata2)[[1]]
-assays(mousedata2) <- assays(mousedata2)[c("TPM", "count")]
-colData(mousedata2) <- cdata
+  # subset by gene expression TPM & count assays
+  mousedata2 <- experiments(mousedata2)[[1]]
+  assays(mousedata2) <- assays(mousedata2)[c("TPM", "count")]
+  colData(mousedata2) <- cdata
 
-# subset by genes not all zero
-mousedata2 <- mousedata2[rowSums(assays(mousedata2)[["count"]]==0) < ncol(mousedata2),]
+  # subset by genes not all zero
+  mousedata2 <- mousedata2[rowSums(assays(mousedata2)[["count"]]==0) < ncol(mousedata2),]
 
-# look at number of cells in each group
-table(as.character(colData(mousedata2)$group))
+  # look at number of cells in each group
+  table(as.character(colData(mousedata2)$group))
 
-# save SummarizedExperiment 
-saveRDS(mousedata2, paste0(datdir, "m2_GSE94383.rds"))
+  # save SummarizedExperiment 
+  saveRDS(mousedata2, datfile_m2)
+}else{
+  mousedata2 <- readRDS(datfile_m2) 
+}
 ```
 
 For the mouse dataset2, we have a total of `r ncol(mousedata2)` cells and 
@@ -236,13 +280,18 @@ Per Soneson et al., we run TMM normalization to the TPM units before running Wil
 ```{r, wilcoxon}
 # function to add wilcox p-values
 compute_wilcoxde_sc <- function(dat){
-  expr <- assays(dat)[["TPM"]] 
-  tmm <- edgeR::calcNormFactors(expr)
-  expr <- edgeR::cpm(expr, lib.size = tmm * colSums(expr))
-  rowData(dat)$wilcox_p <- sapply(seq_len(nrow(expr)), 
-    function(i) {
-      wilcox.test(expr[i, ] ~ colData(dat)$group)$p.value
-    })
+  # check if already computed
+  if (! "wilcox_p" %in% colnames(rowData(dat))){
+    expr <- assays(dat)[["TPM"]] 
+    tmm <- edgeR::calcNormFactors(expr)
+    expr <- edgeR::cpm(expr, lib.size = tmm * colSums(expr))
+    rowData(dat)$wilcox_p <- sapply(seq_len(nrow(expr)), 
+      function(i) {
+        wilcox.test(expr[i, ] ~ colData(dat)$group)$p.value
+      })
+  }else{
+     message("Wilcox p-values already computed.")
+  }
   return(dat)
 }
 
@@ -253,32 +302,55 @@ humandata2 <- compute_wilcoxde_sc(humandata2)
 mousedata <- compute_wilcoxde_sc(mousedata)
 
 mousedata2 <- compute_wilcoxde_sc(mousedata2)
+
+# save results
+saveRDS(humandata, datfile_h1)
+saveRDS(humandata2, datfile_h2)
+saveRDS(mousedata, datfile_m1)
+saveRDS(mousedata2, datfile_m2)
 ```
 
 
 ### Differences in distributions of gene expression in the 2 conditions
-** Still need to clean up from here on; nothing below is eval'd**
-We apply scDD to log-transformed counts as below. Th helper functions set up the Single-Cell experiment object.
+
+We apply scDD to normalized log-transformed counts. 
 
 ```{r, scdd, eval=FALSE}
+# function to add scDD p-values
+compute_scdd_sc <- function(dat){
+  # check if already computed
+  if (! "scdd_p" %in% colnames(rowData(dat))){
+    sce <- SingleCellExperiment(assays=list(count=assays(dat)[["count"]]),
+                                colData=data.frame(colData(dat)))
+    # scran normalization
+    libsize <- scran::computeSumFactors(assay(sce, "count"))
+    normcounts(sce) <- GetNormalizedMat(assay(sce, "count"), libsize)
+
+    rowData(dat)$scdd_p <- 
+        results(scDD(sce, 
+             condition = "group",
+             prior_param = list(alpha=0.01, mu0=0, s0=0.01, a0=0.01, b0=0.01), 
+             testZeroes = FALSE))$nonzero.pvalue
+  }else{
+     message("scDD p-values already computed.")
+  }
+  return(dat)
+}
 
 ## human data
-g_cdata_sub=readRDS(paste0(datdir,"h_g_nofilter_subcdata_GSE63818-GPL16791.rds"))
-compute_scdd_sc(g_cdata_sub, h_scdd_dat1)
 
-g_cdata_sub=readRDS(paste0(datdir,"h_g_nofilter_subcdata_GSE84465.rds"))
-compute_scdd_sc(g_cdata_sub, h_scdd_dat2)
+compute_scdd_sc(humandata)
 
-## mouse data
-g_cdata_sub=readRDS(paste0(datdir,"m_g_nofilter_subcdata_GSE45719.rds"))
-compute_scdd_sc(g_cdata_sub, m_scdd_dat1)
+compute_scdd_sc(humandata2)
 
-g_cdata_sub=readRDS(paste0(datdir,"m_g_nofilter_subcdata_GSE94383.rds"))
-compute_scdd_sc(g_cdata_sub, m_scdd_dat2)
+compute_scdd_sc(mousedata)
+
+compute_scdd_sc(mousedata2)
 
 ```
 
 ### MAST
+** Still need to clean up from here on; nothing below is eval'd**
 
 We run MAST on the TPMs following the approach in Soneson et al. 
 
