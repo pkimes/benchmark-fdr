@@ -1,0 +1,270 @@
+---
+title: "Case Study: scRNA-seq (Mouse data, scDD method)"
+author: "Ayshwarya Subramanian and Keegan Korthauer"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache=TRUE,cache.lazy = FALSE)
+```
+# Summary
+
+For the application of differential gene expression, we look at scRNAseq and bulk RNAseq data. Here we discuss the analyses of scRNAseq.
+
+```{r echo=FALSE, results='asis'}
+library(knitr)
+df=data.frame(datasets=c("GSE84465","GSE94383"),
+              organism=c("human","mouse"),
+              technology=c("smart-seq","smart-seq2"),
+              comparison=c("Neoplastic vs Regular",
+                           "LPS vs No stimulation"))
+kable(df,caption="scRNAseq Datasets")
+df1=data.frame(DE_method=c("ScDD","MAST"),
+               input=c("count","tpm"),
+               output=c("p-val","p-val"))
+kable(df1,caption="DE methods")
+```
+
+We selected two datasets, one each from mouse and human. 
+These datasets come from the `Conquer` (Soneson et al., 2017) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+
+Here we are interested in performing differential expression analyses to determine
+which genes have different expression among the two biological groups in each comparison.
+We also apply two different analysis methods: MAST and scDD. In this vignette, we will
+explore the mouse dataset analysed with scDD.
+
+# Workspace setup
+
+The downloaded plate data are stored in R objects called `MultiAssayExperiment`; this package requires BioConductor release 3.5 and R version 3.4 or greater for installation. 
+
+```{r, workspace-setup, results='hide', message=FALSE, warning=FALSE}
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
+
+# packages for data analyses
+library(MultiAssayExperiment)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(UpSetR)
+library(hexbin)
+
+# packages for differential expression testing
+library(impute)
+library(scDD)
+library(EBSeq)
+library(edgeR)
+library(MAST)
+
+# summarizebenchmark
+library(SummarizedBenchmark)
+library(SingleCellExperiment)
+
+# useful libraries
+library(R.utils)
+library(BiocParallel)
+
+cores <- 6
+BiocParallel::register(MulticoreParam(workers = cores))
+
+sourceDirectory("../R/")
+```
+
+# Data preparation
+
+We first download the data in the data directory.`conquer` provides the processed datasets in convenient .rds files. We download the Mouse data from GSE94383
+
+```{r, mousedata-download}
+download.file(url="http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE94383.rds",
+  destfile=paste0(datdir,"GSE94383.rds"))
+```
+
+## Data processing and filtering
+
+For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons. We do not filter genes as filtering may affect the subsequent false discovery control steps.  
+
+We'll extract two conditions: No stimulation versus LPS at 150 min.
+
+```{r}
+datfile <- paste0(datdir, "mouse_GSE94383.rds")
+
+if (!file.exists(datfile)){
+
+  # load MultiAssayExperiment
+  mousedata=readRDS(paste0(datdir,"GSE94383.rds"))
+
+  # subset by groups of interest
+  mousedata <- mousedata[, (colData(mousedata)$characteristics_ch1.2 ==
+                              "condition: No stimulation") |
+                           (colData(mousedata)$characteristics_ch1.2 ==
+                              "condition: LPS" &
+                            colData(mousedata)$characteristics_ch1.1 %in% 
+                              "time point: 150 min") ]
+  cdata=colData(mousedata)
+  cdata$group <- cdata$characteristics_ch1.2
+
+  # subset by gene expression TPM & count assays
+  mousedata <- experiments(mousedata)[[1]]
+  assays(mousedata) <- assays(mousedata)[c("TPM", "count")]
+  colData(mousedata) <- cdata
+
+  # subset by genes not all zero
+  mousedata <- mousedata2[rowSums(assays(mousedata)[["count"]]==0) < ncol(mousedata),]
+
+  # look at number of cells in each group
+  table(as.character(colData(mousedata2)$group))
+
+  # save SummarizedExperiment 
+  saveRDS(mousedata, datfile)
+}else{
+  mousedata <- readRDS(datfile) 
+}
+```
+
+For the mouse dataset2, we have a total of `r ncol(mousedata2)` cells and 
+`r nrow(mousedata2)` genes after filtering for non-detected genes.
+
+## Differential expression testing
+
+We perform differential expression testing using scDD which implicitly models any heterogeneity in expression. 
+
+### scDD: Differences in distributions of gene expression in the 2 conditions
+
+We apply scDD to normalized log-transformed counts. 
+The p-value results are added to the `rowData` slot of the `SummarizedExperiment` 
+data objects to ensure that gene metadata stays intact.
+
+```{r, scdd}
+# function to add scDD p-values
+compute_scdd_sc <- function(dat){
+  # check if already computed
+  if (! "scdd_p" %in% colnames(rowData(dat))){
+    sce <- SingleCellExperiment(assays=list(count=assays(dat)[["count"]]),
+                                colData=data.frame(colData(dat)))
+    # scran normalization
+    libsize <- scran::computeSumFactors(assay(sce, "count"))
+    normcounts(sce) <- GetNormalizedMat(assay(sce, "count"), libsize)
+
+    rowData(dat)$scdd_p <- 
+        results(scDD(sce, 
+             condition = "group",
+             prior_param = list(alpha=0.01, mu0=0, s0=0.01, a0=0.01, b0=0.01), 
+             testZeroes = FALSE))$nonzero.pvalue
+  }else{
+     message("scDD p-values already computed.")
+  }
+  return(dat)
+}
+
+
+compute_scdd_sc(mousedata)
+
+# save results
+saveRDS(mousedata, datfile_m1)
+```
+
+## Covariate Diagnostics
+
+In scrnaseq data, strength of the signal can be a affected by the of level of gene expression. 
+We will explore two potential covariates related to expression level: mean expression 
+and detection rate (defined as the proportion of cells expressing the gene at a nonzero level). 
+These will also be added to the `rowData` slot of the `SummarizedExperiments`.
+
+```{r,cov}
+add_covariates_scrnaseq <- function(dat){
+  rowData(dat)$meanExp <- rowMeans(assays(dat)[["count"]])
+  rowData(dat)$detection <- rowMeans(assays(dat)[["count"]]==0)
+  return(dat)
+}
+
+mousedata <- add_covariates_scrnaseq(mousedata)
+
+# save results
+saveRDS(mousedata, datfile_m1)
+```
+
+### Covariate one: Mean Expression
+
+For each covariate, we'll examine the plots for each of the three analysis methods.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(data.frame(rowData(mousedata)), 
+             pvalue="scdd_p", covariate="meanExp") + 
+  ggtitle("scDD, Covariate 1: Mean Expression")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(data.frame(rowData(mousedata)), 
+           pvalue="scdd_p", covariate="meanExp", maxy=25) 
+```
+
+The mean expression appears to be informative and approximately satisfies the 
+assumptions 
+
+### Covariate two: Detection Rate
+
+Next we look at the detection rate covariate.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(data.frame(rowData(mousedata)), 
+             pvalue="scdd_p", covariate="detection") + 
+  ggtitle("scDD, Covariate 2: Detection Rate")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(data.frame(rowData(mousedata)), 
+           pvalue="scdd_p", covariate="detection", maxy=25) 
+```
+
+### Benchmarking FDR methods
+
+** Still need to clean up from here on; nothing below is eval'd**
+
+First we will adjust for multiple comparisons using the scDD results
+
+```{r, benchmarking, eval=FALSE}
+
+bd <- initializeBenchDesign()
+resN <- paste0(resdir, "scrnaseq_wilcox_summarizedBenchmark_",nrow(m_scdd_cov), ".RData")
+
+duration <- NA
+if (!file.exists(resN)){
+  t1 <- proc.time()
+  scrna_sb <- bd %>% buildBench(data=(hscdd1$data%>%select(pval,mean_exp)%>%mutate(effect_size=0, test_statistic=0, SE=0) %>% mutate(ind_covariate=mean_exp)), 
+                          ftCols = c("mean_exp"),
+                          parallel=TRUE, BPPARAM=multicoreParam)
+
+  save(scrna_sb, file=resN)
+  duration <- round((proc.time()-t1)[3]/60,1)
+}else{
+  load(resN)
+}
+
+assayNames(scrna_sb) <- "qvalue"
+scrna_sb <- addDefaultMetrics(scrna_sb)
+
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(scrna_sb,supplementary=FALSE)
+
+rejection_scatter_bins(scrna_sb, covariate="ind_covar_N", bins=3,supplementary=FALSE)
+
+# upset plot 
+plotFDRMethodsOverlap(scrna_sb, 
+                      alpha=0.05, nsets=ncol(scrna_sb),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE)
+
+# properties of method-exclusive discoveries
+methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
+mcols(scrna_sb)$ind_covariate <- mcols(scrna_sb)$ind_covar_N
+plotCovariateBoxplots(scrna_sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3)
+```
