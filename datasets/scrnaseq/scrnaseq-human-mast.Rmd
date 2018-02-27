@@ -11,7 +11,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,cache=TRUE,cache.lazy = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 # Summary
 
@@ -32,7 +32,7 @@ kable(df1,caption="DE methods")
 ```
 
 We selected two datasets, one each from mouse and human. 
-These datasets come from the `Conquer` (Soneson et al., 2017) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+These datasets come from the `Conquer` (Soneson et al., 2018) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
 
 Here we are interested in performing differential expression analyses to determine
 which genes have different expression among the two biological groups in each comparison.
@@ -80,6 +80,8 @@ sourceDirectory("../R/")
 
 # Data preparation
 
+## Data download
+
 We first download the data in the data directory.`conquer` provides the processed datasets in convenient .rds files. First, we download the Human dataset:
 GSE84465.
 
@@ -91,19 +93,33 @@ download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE8446
 
 ## Data processing and filtering
 
-For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons. We do not filter genes as filtering may affect the subsequent false discovery control steps.  
+For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons. We do not filter genes as filtering may affect the subsequent false discovery control steps.  We only filter out genes that are expressed in 
+fewer than 1% of cells. 
+We will filter out cells with extremely low mapping rate
+(below 20%), as these represent poor quality cells that may end up having negative
+size factor estimates during normalization. For the same reason, we also filter cells
+which have extremely low proportion of genes detected (less than 5%).
 
 We'll extract two conditions: Neoplastic and Regular cells, as
 defined by their tsne clusters.
 
 ```{r}
-datfile <- paste0(datdir, "human_GSE84465.rds")
+datfile <- paste0(datdir, "human_GSE84465_mast.rds")
 
 if (!file.exists(datfile)){
   
   # load MultiAssayExperiment
   humandata <- readRDS(paste0(datdir, "GSE84465.rds"))
-
+  
+  # exclude cells with extremely low mapping or feature rate (poor quality cells)
+  lowMap <- which(metadata(humandata)$salmon_summary$percent_mapped < 20 |
+                  colMeans(assay(experiments(humandata)[[1]], "count") > 0) < 0.05)
+  if (length(lowMap) > 0){
+    humandata <- humandata[, -lowMap]
+    message("Removed ", length(lowMap), " cells with mapping rate below 20%",
+            " or fewer than 5% of genes detected.")
+  }
+  
   # subset by groups of interest
   humandata <- humandata[, (colData(humandata)$characteristics_ch1.7 %in% 
                          c("neoplastic: Neoplastic", "neoplastic: Regular")) &
@@ -117,22 +133,27 @@ if (!file.exists(datfile)){
   assays(humandata) <- assays(humandata)[c("TPM", "count")]
   colData(humandata) <- cdata
 
-  # subset by genes not all zero
-  humandata <- humandata[rowSums(assays(humandata)[["count"]]==0) < ncol(humandata),]
-
-  # look at number of cells in each group
-  table(colData(humandata)$group)
+  # subset by genes with detection rate > 1%
+  humandata <- humandata[rowMeans(assay(humandata, "count") > 0) > 0.01, ]
+    
+  # remove spike-in controls 
+  humandata <- humandata[!grepl("ERCC-", rownames(humandata)),]
  
   # save SummarizedExperiment 
   saveRDS(humandata, datfile)
 }else{
   humandata <- readRDS(datfile)
 }
+
+# look at number of cells in each group
+table(colData(humandata)$group)
 ```
 
-For the human dataset, there are a total of `r nrow(humandata)` cells and `r ncol(humandata)` genes. 
+For the human dataset, there are a total of `r ncol(humandata)` cells and `r nrow(humandata)` genes. 
 
-## Differential expression testing
+# Data analysis
+
+## Differential testing
 
 We perform differential expression testing using 
 MAST which has a hurdle model to account for zeroes.
@@ -144,9 +165,9 @@ We apply MAST to the TPMs following the approach in Soneson et al.
 compute_MAST_sc <- function(dat){
   # check if already computed
   if (! "mast_p" %in% colnames(rowData(dat))){
-    sca <- FromMatrix(exprsArray = log2(assays(dat)[["TPM"]] + 1), 
+    sca <- FromMatrix(exprsArray = log2(assay(dat, "TPM") + 1), 
                     cData = data.frame(wellKey=colnames(dat), colData(dat)))
-    zlmdata <- zlm.SingleCellAssay(~group, sca)
+    zlmdata <- zlm(~group, sca)
 
     rowData(dat)$mast_p <- 
         lrTest(zlmdata, "group")[, "hurdle", "Pr(>Chisq)"]
@@ -156,7 +177,7 @@ compute_MAST_sc <- function(dat){
   return(dat)
 }
 
-compute_MAST_sc(humandata)
+humandata <- compute_MAST_sc(humandata)
 
 # save results
 saveRDS(humandata, datfile)
@@ -171,8 +192,8 @@ These will also be added to the `rowData` slot of the `SummarizedExperiments`.
 
 ```{r,cov}
 add_covariates_scrnaseq <- function(dat){
-  rowData(dat)$meanExp <- rowMeans(assays(dat)[["count"]])
-  rowData(dat)$detection <- rowMeans(assays(dat)[["count"]]==0)
+  rowData(dat)$meanExp <- rowMeans(assay(dat, "count"))
+  rowData(dat)$detection <- rowMeans(assay(dat, "count") > 0)
   return(dat)
 }
 
@@ -184,7 +205,7 @@ saveRDS(humandata, datfile)
 
 ### Covariate one: Mean Expression
 
-For each covariate, we'll examine the plots for each of the two analysis methods.
+For each covariate, we'll examine the covariate diagnostic plots.
 
 ```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
 rank_scatter(data.frame(rowData(humandata)), 
@@ -194,7 +215,8 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="meanExp", maxy=25) 
+           pvalue="mast_p", covariate="meanExp", maxy=35,
+           main = "MAST, Covariate 1: Mean Expression")
 ```
 
 The mean expression appears to be informative and approximately satisfies the 
@@ -212,48 +234,147 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="detection", maxy=25) 
+           pvalue="mast_p", covariate="detection", maxy=35,
+           main = "MAST, Covariate 2: Detection Rate") 
 ```
 
+## Multiple-Testing Correction
 
-### Benchmarking FDR methods
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object.
 
-** Still need to clean up from here on; nothing below is eval'd**
-
-```{r, benchmarking, eval=FALSE}
-
+```{r, benchdesign, message=FALSE}
 bd <- initializeBenchDesign()
-resN <- paste0(resdir, "scrnaseq_wilcox_summarizedBenchmark_",nrow(m_scdd_cov), ".RData")
+```
 
-duration <- NA
-if (!file.exists(resN)){
-  t1 <- proc.time()
-  scrna_sb <- bd %>% buildBench(data=(hscdd1$data%>%select(pval,mean_exp)%>%mutate(effect_size=0, test_statistic=0, SE=0) %>% mutate(ind_covariate=mean_exp)), 
-                          ftCols = c("mean_exp"),
-                          parallel=TRUE, BPPARAM=multicoreParam)
+Now, we're ready to construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+                                        helper scripts). 
+                                        
+### Covariate one: Mean expression
 
-  save(scrna_sb, file=resN)
-  duration <- round((proc.time()-t1)[3]/60,1)
+First we'll include the mean expression covariate.
+
+```{r, sb1, results="hide", message=FALSE}
+res1 <- paste0(resdir, "sb_GSE84465_mast_mean.rds")
+
+if (!file.exists(res1)){
+  sb1 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
+                                   na.omit() %>%
+                                   mutate(pval=mast_p,
+                                          ind_covariate=meanExp), 
+                          ftCols = c("meanExp"),
+                          parallel=TRUE)
+
+  saveRDS(sb1, file=res1)
 }else{
-  load(resN)
+  sb1 <- readRDS(res1)
 }
+```
 
-assayNames(scrna_sb) <- "qvalue"
-scrna_sb <- addDefaultMetrics(scrna_sb)
+### Covariate two: Detection Rate
 
+Now, we'll repeat the multiple testing correction using the other covariate (detection rate):
+
+```{r, sb2, results="hide", message=FALSE}
+res2 <- paste0(resdir, "sb_GSE84465_mast_det.rds")
+
+if (!file.exists(res2)){
+  sb2 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
+                                   na.omit() %>%
+                                   mutate(pval=mast_p,
+                                          ind_covariate=detection), 
+                          ftCols = c("detection"),
+                          parallel=TRUE)
+
+  saveRDS(sb2, file=res2)
+}else{
+  sb2 <- readRDS(res2)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays and 
+plot the results. We'll start with covariate one.
+
+### Covariate one: Mean Expression
+
+First, we have
+to rename the assay to 'qvalue'.
+
+```{r, metrics1}
+# rename assay to qvalue
+assayNames(sb1) <- "qvalue"
+sb1 <- addDefaultMetrics(sb1)
+```
+
+Now, we'll plot the results.
+
+```{r, plot1, results="hide"}
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(scrna_sb,supplementary=FALSE)
+rejections_scatter(sb1,
+                   supplementary=FALSE) +
+  ggtitle("MAST, Covariate 1: Mean Expression")
 
-rejection_scatter_bins(scrna_sb, covariate="ind_covar_N", bins=3,supplementary=FALSE)
+rejection_scatter_bins(sb1, covariate="meanExp", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("MAST, Covariate 1: Mean Expression")
 
 # upset plot 
-plotFDRMethodsOverlap(scrna_sb, 
-                      alpha=0.05, nsets=ncol(scrna_sb),
+plotFDRMethodsOverlap(sb1, 
+                      alpha=0.05, nsets=ncol(sb1),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE) 
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
+plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
+  ggtitle("MAST, Covariate 1: Mean Expression")
+
+```
+
+### Covariate two: Detection Rate
+
+Next, we'll look at the performance metrics for the other covariate (detection rate).
+
+```{r, metrics2}
+# rename assay to qvalue
+assayNames(sb2) <- "qvalue"
+sb2 <- addDefaultMetrics(sb2)
+```
+
+Now, we'll plot the results.
+
+```{r, plot2, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb2, supplementary=FALSE) +
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
+rejection_scatter_bins(sb2, covariate="detection", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
+# upset plot 
+plotFDRMethodsOverlap(sb2, 
+                      alpha=0.05, nsets=ncol(sb2),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE)
 
 # properties of method-exclusive discoveries
-methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
-mcols(scrna_sb)$ind_covariate <- mcols(scrna_sb)$ind_covar_N
-plotCovariateBoxplots(scrna_sb, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3)
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sb2)$ind_covariate <- mcols(sb2)$detection
+plotCovariateBoxplots(sb2, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
 ```
+
+# Session Information
+
+```{r}
+sessionInfo()
+```
+
