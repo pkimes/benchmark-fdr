@@ -118,10 +118,10 @@ if (!file.exists(datfile)){
   colData(mousedata) <- cdata
 
   # subset by genes not all zero
-  mousedata <- mousedata2[rowSums(assays(mousedata)[["count"]]==0) < ncol(mousedata),]
+  mousedata <- mousedata[rowSums(assays(mousedata)[["count"]]==0) < ncol(mousedata),]
 
   # look at number of cells in each group
-  table(as.character(colData(mousedata2)$group))
+  table(as.character(colData(mousedata)$group))
 
   # save SummarizedExperiment 
   saveRDS(mousedata, datfile)
@@ -130,8 +130,8 @@ if (!file.exists(datfile)){
 }
 ```
 
-For the mouse dataset2, we have a total of `r ncol(mousedata2)` cells and 
-`r nrow(mousedata2)` genes after filtering for non-detected genes.
+For the mouse dataset2, we have a total of `r ncol(mousedata)` cells and 
+`r nrow(mousedata)` genes after filtering for non-detected genes.
 
 ## Differential expression testing
 
