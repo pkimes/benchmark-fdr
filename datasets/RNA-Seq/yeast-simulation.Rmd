@@ -357,12 +357,15 @@ if (!file.exists(resfile)){
 Plot results. 
 
 ```{r}
-res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.20, 0.01))
+res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateHeatmap(null5, alpha=0.05, covname="log2FC")
+covariateHeatmap(null5, alpha=0.05, covname="ind_covariate")
 
 if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -402,12 +405,15 @@ if (!file.exists(resfile)){
 Plot results.
 
 ```{r}
-res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.20, 0.01))
+res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateHeatmap(null10, alpha=0.05, covname="log2FC")
+covariateHeatmap(null10, alpha=0.05, covname="ind_covariate")
 
 if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -449,7 +455,7 @@ if (!file.exists(resfile)){
 Plot results. 
 
 ```{r}
-res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -458,11 +464,8 @@ plotsim_average(res5d, met="FDR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de5, covname="log2FC")
-plotEffectSize(de5, covname="log2FC", DE=FALSE)
-
-plotEffectSize(de5, covname="ind_covariate")
-plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
+covariateHeatmap(de5, alpha=0.05, covname="log2FC")
+covariateHeatmap(de5, alpha=0.05, covname="ind_covariate")
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -503,7 +506,7 @@ if(!file.exists(resfile)){
 Plot results.
 
 ```{r}
-res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -512,11 +515,8 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de10, covname="log2FC")
-plotEffectSize(de10, covname="log2FC", DE=FALSE)
-
-plotEffectSize(de10, covname="ind_covariate")
-plotEffectSize(de10, covname="ind_covariate", DE=FALSE)
+covariateHeatmap(de10, alpha=0.05, covname="log2FC")
+covariateHeatmap(de10, alpha=0.05, covname="ind_covariate")
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
