@@ -60,6 +60,12 @@ library(FDRreg)
 library(SummarizedBenchmark)
 sourceDirectory("../R/")
 
+# set up data / results directories
+datdir <- "yeast-data"
+resdir <- "yeast-results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
 # set up parallel backend
 library(parallel)
 cores <- 20
@@ -75,12 +81,19 @@ single bam file for each replicate in each condition, which we'll place in a sub
 called `data`.
 
 ```{r, download}
-system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz")
-system("wget https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/WT_countdata.tar.gz")
-system("mkdir yeast48-data")
-system("tar -xvf WT_countdata.tar.gz -C ./yeast48-data")
-system("tar -xvf Snf2_countdata.tar.gz -C ./yeast48-data")
-system("rm *.tar.gz")
+download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz",
+              destfile = paste0(datdir, "/Snf2_countdata.tar.gz"))
+download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/WT_countdata.tar.gz", 
+              destfile = paste0(datdir, "/WT_countdata.tar.gz"))
+
+gunzip(paste0(datdir, "/Snf2_countdata.tar.gz")) 
+gunzip(paste0(datdir, "/WT_countdata.tar.gz")) 
+
+untar(paste0(datdir, "/Snf2_countdata.tar"), exdir = datdir) 
+untar(paste0(datdir, "/WT_countdata.tar"), exdir = datdir) 
+
+file.remove(paste0(datdir, "/Snf2_countdata.tar"), 
+            paste0(datdir, "/WT_countdata.tar"))
 ```
 
 Each of the data files contains two columns, one with a gene/feature name, and one
@@ -94,8 +107,8 @@ as well as add in the sample name (derived from the file name) to each subtable.
 Finally, the `reduce` function is used to join all the replicates together.
 
 ```{r, readin, results='hide', message=FALSE}
-files <- dir(path = "./yeast48-data/", pattern = "*.bam.gbgout", full.names = TRUE)
-sample_names <- sapply(strsplit(dir(path = "./yeast48-data/", pattern = "*.bam.gbgout"), "_MID"),
+files <- dir(path = datdir, pattern = "*.bam.gbgout", full.names = TRUE)
+sample_names <- sapply(strsplit(dir(path = datdir, pattern = "*.bam.gbgout"), "_MID"),
                        function(x) x[[1]])
 
 counts <- files %>%
@@ -326,16 +339,15 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 225
 sampleSize <- 5
 nDE <- 0
+resfile <- paste0(resdir, "/null5.rds")
 
-system("mkdir -p yeast48-results")
-
-if (!file.exists("yeast48-results/null5.rds")){
+if (!file.exists(resfile)){
   null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(null5, file="yeast48-results/null5.rds")
+  saveRDS(null5, file=resfile)
 }else{
-  null5 <- readRDS(file="yeast48-results/null5.rds")
+  null5 <- readRDS(file=resfile)
 }
 
 ```
@@ -372,14 +384,15 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 837
 sampleSize <- 10
 nDE <- 0
+resfile <- paste0(resdir, "/null10.rds")
 
-if (!file.exists("yeast48-results/null10.rds")){
+if (!file.exists(resfile)){
   null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(null10, file="yeast48-results/null10.rds")
+  saveRDS(null10, file=resfile)
 }else{
-  null10 <- readRDS(file="yeast48-results/null10.rds")
+  null10 <- readRDS(file=resfile)
 }
 
 ```
@@ -419,14 +432,15 @@ This will be done for 100 random splits.
 rseed <- 198
 sampleSize <- 5
 nDE <- 500
+resfile <- paste0(resdir, "/de5.rds")
 
-if (!file.exists("yeast48-results/de5.rds")){
+if (!file.exists(resfile)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(de5, file="yeast48-results/de5.rds")
+  saveRDS(de5, file=resfile)
 }else{
-  de5 <- readRDS(file="yeast48-results/de5.rds")
+  de5 <- readRDS(file=resfile)
 }
 ```
 
@@ -439,7 +453,7 @@ res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res5d, met="FPR",filter_set = excludeSet,
+plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -472,14 +486,15 @@ This will be done for 100 random splits.
 rseed <- 961
 sampleSize <- 10
 nDE <- 500
+resfile <- paste0(resdir, "/de10.rds")
 
-if(!file.exists("yeast48-results/de10.rds")){
+if(!file.exists(resfile)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(de10, file="yeast48-results/de10.rds")
+  saveRDS(de10, file=resfile)
 }else{
-  de10 <- readRDS(file="yeast48-results/de10.rds")
+  de10 <- readRDS(file=resfile)
 }
 ```
 
@@ -492,7 +507,7 @@ res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res10d, met="FPR",filter_set = excludeSet,
+plotsim_average(res10d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
