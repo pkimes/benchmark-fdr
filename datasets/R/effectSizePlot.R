@@ -75,3 +75,86 @@ return(p)
 }
 
 
+#' Function to create heatmap of percentage significance for different covariate 
+#' value bins.
+#' 
+#' Assumes that covariates are found 
+#' in the rowData. For each method, divides the features into a specified number
+#' of bins based on the value of the specified covariate, and 
+#' calculates the proportion of features in that bin found
+#' significant (at specified alpha). If the input object is a list of 
+#' SummarizedBenchmark objects, this quantity is also averaged over the list
+#' items (e.g. if each item is a simulation replicate). The function will
+#' exclude any methods with missing values for rejections.
+#' 
+#' @param sbl a summarized benchmark object or a list of summarized benchmark 
+#' objects (with each item representing
+#' a simulation replicate)
+#' @param alpha the alpha cutoff for determining significance.
+#' @param covname character that specifies column name of rowData to use for 
+#' y-axis (e.g. effect size, or ind_covariate)
+#' @param nbins positive inter value indicating how many bins to divide the 
+#' covariate values into for the heatmap rows. Defaults to 50.
+#' @param trans character indicating a transformation to apply to the scale
+#' of fill (default NULL means no transformation). 
+#' 
+#' @return a ggplot object
+covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, DE=NULL, 
+                             covname, trans = NULL){
+  
+  summarize_one_item <- function(object, alpha, nbins){
+    object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ))
+                         & colData( object )$param.alpha != alpha )]
+    
+    df <- as.data.frame(cbind(as.matrix(rowData(object)), 
+                              1*(assays(object)[["qvalue"]]) < 0.05))
+    colnames(df)[1] <- "truth" 
+    df <- df %>%
+      select(truth, covname, bonf, bh,
+             qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
+             "scott-empirical") %>%
+      rename("scott-theoretical"="scott-t") %>%
+      rename("scott-empirical"="scott-e") %>%
+      mutate(bin = ntile(abs(get(covname)), nbins)) %>%
+      gather(method, significant, -covname, -bin) %>%
+      group_by(method, bin) %>%
+      summarize(nsig = sum(significant),
+                tot = sum(!is.na(significant))) %>%
+      filter(method != 'truth')
+    return(df)
+  }
+  
+  if (is.list(sbl)){
+    df <- lapply(sbl, summarize_one_item, alpha=alpha, nbins=nbins)
+    df <- bind_rows(df, .id = "rep")
+    df <- as.tibble(df) %>%
+      group_by(method, bin) %>%
+      summarize(nsig = mean(nsig / tot)*100) %>%
+      mutate(nsig = ifelse(nsig == 0, NA, nsig)) %>%
+      na.omit()
+  }else if ("SummarizedBenchmark" %in% class(sbl)){
+    df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins)
+  }else{
+    stop("Input object must be either a SummarizedBenchmark object, or ",
+         "a list of SummarizedBenchmark objects.")
+  }
+  
+  p <- ggplot(df, aes(x = as.factor(method), y = bin/nbins)) +
+         geom_raster(aes(fill = nsig)) +
+    xlab("Method") +
+    scale_y_continuous(labels = scales::percent) +
+    ylab(paste0(covname, " percentile")) +
+    labs(fill="Mean % Significant")
+  
+  if(!is.null(trans)){
+    p <- p + viridis::scale_fill_viridis(trans = trans) 
+  }else{
+    p <- p + viridis::scale_fill_viridis() 
+  }
+  
+  p <- p + ggtitle(paste0(covname, " by significance at alpha ", alpha))
+  
+  return(p)
+}
+
+
