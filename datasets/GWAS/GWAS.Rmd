@@ -49,7 +49,7 @@ sourceDirectory("../R/")
 
 # set up parallel backend
 library(BiocParallel)
-cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+cores <- 8
 multicoreParam <- MulticoreParam(workers = cores)
 ```
 
@@ -60,12 +60,7 @@ GIANT consortium data portal.
 
 ## Data download
 
-```{r, GWAS1-download}
-download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
-             destfile=paste0(datdir,"BMI.SNPadjSMK.zip")) 
-```
-
-Next we unzip the file, and delete the files we won't use (they provide results
+After downloading, we unzip the file, and delete the files we won't use (they provide results
 subsetted by ancestry and sex), keeping only the file with European ancestry and
 both sexes `BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt`. Note that
 the Boca-Leek paper also used the 'EuropeanOnly' subset, likely because using 
@@ -73,31 +68,32 @@ all ancestries would require that we assess the impact of population stratificat
 and adjust for it if present. For simplicity, we follow suit and use the homogeneous 
 subset to avoid the impact of population stratification on our results.
 
-```{r, GWAS1-unzip}
-system(paste0("unzip ", datdir, "BMI.SNPadjSMK.zip"))
-system(paste0("rm ", "BMI.SNPadjSMK.Women.EuropeanOnly.txt"))
-system(paste0("rm ", "BMI.SNPadjSMK.Women.AllAncestry.txt"))
-system(paste0("rm ", "BMI.SNPadjSMK.Men.EuropeanOnly.txt"))
-system(paste0("rm ", "BMI.SNPadjSMK.Men.AllAncestry.txt"))
-system(paste0("rm ", "BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt"))
-system(paste0("mv BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt ", datdir))
-system(paste0("rm -f ", datdir, "/*.zip"))
+
+```{r, GWAS1-download}
+if(!file.exists(paste0(datdir,"BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"))){
+  download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
+             destfile=paste0(datdir,"BMI.SNPadjSMK.zip")) 
+  unzip(paste0(datdir,"BMI.SNPadjSMK.zip"), exdir=datdir)
+  file.remove(paste0(datdir,"BMI.SNPadjSMK.zip"))
+  
+  dfiles <- list.files(path=datdir, pattern="BMI.SNPadjSMK.*.txt", 
+                     full.names = TRUE)
+  dfiles <- dfiles[!grepl("BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt", dfiles)]
+  file.remove(dfiles)
+}
 ```
 
 We also download the 1000 genomes CEU reference population data, which will be used to 
 determine which SNPs are LD buddies for the purposes of obtaining an independent set of SNPs.
 
 ```{r, GWAS1-refdata}
-# remove remnants of previous runs, if present
-system(paste0("rm -f ", datdir, "/*CEU_MAF0.01*"))
-
-# download CEU 1000 genomes SNP reference data 
-download.file(url="http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
-              destfile=paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip"))
-
-# unzip reference data
-system(paste0("unzip ", datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip -d ", datdir))
-system(paste0("rm ", datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip"))
+reffile <- paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01")
+if (!file.exists(paste0(reffile, ".fam"))){
+  download.file(url="http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
+              destfile=paste0(reffile, ".zip"))
+  unzip(paste0(reffile, ".zip"))
+  file.remove(paste0(reffile, ".zip"))
+}
 ```
 
 Next, we'll read in the unzipped `.txt` file into R and verify that it contains
@@ -112,7 +108,7 @@ head(bmi)
 
 It looks like we have:
   
-  - `p_value`:p-value
+- `p_value`:p-value
 - `effect`:effect size
 - `stderr`:standard error
 - additional covariates: 
@@ -120,7 +116,6 @@ It looks like we have:
 - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
 
 for `r nrow(bmi)` SNPs.
-
 
 ## Prune SNPs that are in Linkage Disequilibrium
 
@@ -165,7 +160,6 @@ plink \
 --clump-r2 0.2 \
 --clump-kb 250 \
 --out DATA/plink_clump
-
 ```
 
 Next, we'll read in the clumped results and subset our data by our list of independent SNPs.
@@ -350,6 +344,12 @@ plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxN
 
 ```
 
+```{r, fig.width=8, fig.height=3.5}
+mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
+covariateHeatmap(sbN, alpha=0.05, covname="tstat")
+covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N")
+```
+
 ### Covariate two: Minor Allele Frequency
 
 Next, we'll look at the performance metrics for the other covariate (minor
@@ -384,7 +384,12 @@ methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
 mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
 plotCovariateBoxplots(sbAF, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
   ggtitle("Covariate 2: Minor allele frequency")
+```
 
+```{r, fig.width=8, fig.height=3.5}
+mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
+covariateHeatmap(sbAF, alpha=0.05, covname="tstat")
+covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF")
 ```
 
 # Session Information

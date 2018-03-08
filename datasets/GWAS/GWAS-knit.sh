@@ -9,10 +9,9 @@
 #SBATCH -e SLURM/render-%j.err  # Standard error
  
 module load plink
-module load rstudio
 export SLURM_NTASKS
 export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/rstudio/0.98.1103-fasrc01/bin/pandoc/"
 
-# change filename to Rmd to be knitted. ncores is passed in through environment
-# variable SLURM_NTASKS
-R -e "rmarkdown::render('GWAS.Rmd')"
+# change filename to Rmd to be knitted. 
+# make sure ncores in Rmd matches -n batch param above
+R -e "rmarkdown::render('GWAS.Rmd', clean = FALSE)"
