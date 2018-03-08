@@ -99,7 +99,7 @@ return(p)
 #' of fill (default NULL means no transformation). 
 #' 
 #' @return a ggplot object
-covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, DE=NULL, 
+covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, 
                              covname, trans = NULL){
   
   summarize_one_item <- function(object, alpha, nbins){
@@ -120,7 +120,8 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, DE=NULL,
       group_by(method, bin) %>%
       summarize(nsig = sum(significant),
                 tot = sum(!is.na(significant))) %>%
-      filter(method != 'truth')
+      dplyr::filter(method != 'truth') %>%
+      na.omit()
     return(df)
   }
   
@@ -133,7 +134,8 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, DE=NULL,
       mutate(nsig = ifelse(nsig == 0, NA, nsig)) %>%
       na.omit()
   }else if ("SummarizedBenchmark" %in% class(sbl)){
-    df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins)
+    df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins) %>%
+      mutate(nsig = nsig/tot*100)
   }else{
     stop("Input object must be either a SummarizedBenchmark object, or ",
          "a list of SummarizedBenchmark objects.")
