@@ -41,18 +41,22 @@ datdir <- "data"
 resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+
+cdi_data <- file.path(datdir, "cdi_schubert_results.tar.gz")
+cdi_dir <- file.path(datdir, "cdi_schubert_results")
+
+otu_result_file <- file.path(resdir, "schubert-otus-results.rds")
+otu_bench_file <- file.path(resdir, "schubert-otus-benchmark.rds")
 ```
 
 # Data Preparation
 
 ```{r, schubert-download}
-cdi_data <- file.path(datdir, "cdi_schubert_results.tar.gz")
 if (!file.exists(cdi_data)) {
     download.file("https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz",
                   destfile = cdi_data)
 }
 
-cdi_dir <- file.path(datdir, "cdi_schubert_results")
 if (!file.exists(file.path(cdi_dir, "cdi_schubert.metadata.txt"))) {
     untar(cdi_data, exdir = datdir)
 }
@@ -128,13 +132,12 @@ of each OTU. Later, we can assign their values to a new column called `ind_covar
 for use in downstream steps.
 
 ```{r, schubert-pvals, eval=TRUE}
-resfile <- file.path(resdir, paste0("schubert_results_", nrow(abun_otu), "_OTUs.rda"))
-if (!file.exists(resfile)) {
+if (!file.exists(otu_result_file)) {
     res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
                            is_case = meta$DiseaseState %in% c("CDI", "nonCDI"))
-    save(res, file = resfile)
+    saveRDS(res, file = otu_result_file)
 } else {
-  load(resfile)
+    res <- readRDS(otu_result_file)
 }
 ```
 
@@ -201,21 +204,16 @@ the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
 ```{r, schubert-sb, results="hide", message=FALSE, eval=TRUE}
-for (nmids in c(5, 50, 150)) {
-    ## use common BenchDesign w/out ASH
+if (!file.exists(otu_bench_file)) {
+    nmids <- 150
     bd <- initializeBenchDesign(nmids = nmids)
     bd <- dropBMethod(bd, "ashs")
-    
-    resfile <- file.path(resdir, paste0("schubert_summarizedBenchmark_",
-                                        nrow(res),  "_nmids_", nmids, ".rda"))
-    if (!file.exists(resfile)) {
-        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-        metadata(sb)$data_download_link <-
-                       "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
-        save(sb, file = resfile)
-    } else {
-        load(resfile)
-    }
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
+    saveRDS(sb, file = otu_bench_file)
+} else {
+    sb <- readRDS(otu_bench_file)
 }
 ```
 
@@ -232,7 +230,6 @@ sb <- addDefaultMetrics(sb)
 Now, we'll plot the results.
 
 ```{r, schubert-plot, width=15, height=15, eval=TRUE}
-## plot nrejects by method overall and stratified by covariate
 rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )

@@ -43,18 +43,24 @@ datdir <- "data"
 resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+
+ob_data <- file.path(datdir, "ob_goodrich_results.tar.gz")
+ob_dir <- file.path(datdir, "ob_goodrich_results")
+
+otu_result_file <- file.path(resdir, "goodrich-otus-results.rds")
+otu_bench_file <- file.path(resdir, "goodrich-otus-benchmark.rds")
+gns_result_file <- file.path(resdir, "goodrich-genus-results.rds")
+gns_bench_file <- file.path(resdir, "goodrich-genus-benchmark.rds")
 ```
 
 # Data Preparation
 
 ```{r, goodrich-download}
-ob_data <- file.path(datdir, "ob_goodrich_results.tar.gz")
 if (!file.exists(ob_data)) {
     download.file("https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz",
                   destfile = ob_data)
 }
 
-ob_dir <- file.path(datdir, "ob_goodrich_results")
 if (!file.exists(file.path(ob_dir, "ob_goodrich.metadata.txt"))) {
     untar(ob_data, exdir = datdir)
 }
@@ -79,7 +85,6 @@ keep_samples <- intersect(colnames(otu), meta$X)
 otu <- otu[, keep_samples]
 meta <- dplyr::filter(meta, X %in% keep_samples)
 ```
-
 
 Since we'll be using OTU-wise covariates, we shouldn't need to perform any
 filtering/cleaning of the OTUs, apart from removing any that are all zeros. 
@@ -136,16 +141,14 @@ for use in downstream steps.
 Note that OB Goodrich has ~70,000 OTUs, so this is going to take a while. 
 
 ```{r, goodrich-pvals}
-resfile <- file.path(resdir, paste0("goodrich_results_", nrow(abun_otu), "_OTUs.rda"))
-if (!file.exists(resfile)) {
+if (!file.exists(otu_result_file)) {
     res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
                            is_case = meta$DiseaseState == "OB")
-    save(res, file = resfile)
+    saveRDS(res, file = otu_result_file)
 } else {
-    load(resfile)
+    res <- readRDS(otu_result_file)
 }
 ```
-
 
 Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
 
@@ -187,9 +190,9 @@ Proteobacteria to be enriched for low p-values? But I don't know if that's
 super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
 
 ```{r, goodrich-phylo, fig.width=10, fig.height=6, eval=FALSE}
-##strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=20)
-##rank_scatter(res, pvalue="pval", covariate="ubiquity")
-ggplot(res, aes(x=pval)) + geom_histogram() + facet_wrap(~phylum, scales = "free")
+ggplot(res, aes(x=pval)) +
+    geom_histogram() +
+    facet_wrap(~phylum, scales = "free")
 ```
 
 ## Multiple-Testing Correction
@@ -210,21 +213,17 @@ the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
 ```{r, goodrich-sb, results="hide", message=FALSE, eval=TRUE}
-for (nmids in c(5, 50, 150)) {
-    ## use common BenchDesign w/out ASH
+if (!file.exists(otu_bench_file)) {
+    nmids <- 150
     bd <- initializeBenchDesign(nmids = nmids)
     bd <- dropBMethod(bd, "ashs")
-    
-    resfile <- file.path(resdir, paste0("goodrich_summarizedBenchmark_",
-                                        nrow(res), "_nmids_", nmids, ".rda"))
-    if (!file.exists(resfile)) {
-        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-        metadata(sb)$data_download_link <-
-                       "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
-        save(sb, file = resfile)
-    } else {
-        load(resfile)
-    }
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = otu_bench_file)
+} else {
+    sb <- readRDS(otu_bench_file)
 }
 ```
 
@@ -293,13 +292,12 @@ genus <- as.matrix(genus_df)
 ## Differential Testing
 
 ```{r, goodrich-genus-pvals}
-resfile <- file.path(resdir, paste0("goodrich_results_", nrow(genus_df), "_genera.rda"))
-if (!file.exists(resfile)) {
+if (!file.exists(gns_result_file)) {
     res <- test_microbiome(abundance = genus, shift = zeroabun,
                            is_case = meta$DiseaseState == "OB")
-    save(res, file = resfile)
+    saveRDS(res, file = gns_result_file)
 } else {
-    load(resfile)
+    res <- readRDS(gns_result_file)
 }
 ```
 
@@ -338,8 +336,6 @@ Let's use `ubiquity` as our `ind_covariate`.
 res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
-#### Set up BenchDesign object 
-
 First, we'll create an object of `BenchDesign` class to hold the data and 
 add the benchmark methods to the `BenchDesign` object. We'll do this for a few
 values of nmids, to explore its effects on the outputs.
@@ -349,21 +345,17 @@ the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
 ```{r, goodrich-genus-sb, results="hide", message=FALSE, eval=TRUE}
-for (nmids in c(5, 50, 150)) {
-    ## use common BenchDesign w/out ASH
+if (!file.exists(gns_bench_file)) {
+    nmids <- 150
     bd <- initializeBenchDesign(nmids = nmids)
     bd <- dropBMethod(bd, "ashs")
-    
-    resfile <- file.path(resdir, paste0("goodrich_summarizedBenchmark_",
-                                        nrow(res), "_genera_nmids_", nmids, ".rda"))
-    if (!file.exists(resfile)) {
-        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-        metadata(sb)$data_download_link <-
-                       "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
-        save(sb, file = resfile)
-    } else {
-        load(resfile)
-    }
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = gns_bench_file)
+} else {
+    sb <- readRDS(gns_bench_file)
 }
 ```
 
@@ -380,10 +372,8 @@ sb <- addDefaultMetrics(sb)
 Now, we'll plot the results.
 
 ```{r, goodrich-genus-plot, width=15, height=15, eval=TRUE}
-# plot nrejects by method overall and stratified by covariate
-rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
-#plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
 Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
@@ -391,9 +381,10 @@ Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
 ```{r, goodrich-genus-overlap}
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
+
 ```{r, goodrich-genus-covariates}
 methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
-plotCovariateBoxplots( sb, alpha=0.1, nsets=6, methods=methods)
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
 
 # Session Info

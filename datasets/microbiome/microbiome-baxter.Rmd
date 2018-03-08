@@ -45,18 +45,24 @@ datdir <- "data"
 resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+
+crc_data <- file.path(datdir, "crc_baxter_results.tar.gz")
+crc_dir <- file.path(datdir, "crc_baxter_results")
+
+otu_result_file <- file.path(resdir, "baxter-otus-results.rds")
+otu_bench_file <- file.path(resdir, "baxter-otus-benchmark.rds")
+gns_result_file <- file.path(resdir, "baxter-genus-results.rds")
+gns_bench_file <- file.path(resdir, "baxter-genus-benchmark.rds")
 ```
 
 # Data Preparation
 
 ```{r, baxter-download}
-crc_data <- file.path(datdir, "crc_baxter_results.tar.gz")
 if (!file.exists(crc_data)) {
     download.file("https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz",
                   destfile = crc_data)
 }
 
-crc_dir <- file.path(datdir, "crc_baxter_results")
 if (!file.exists(file.path(crc_dir, "crc_baxter.metadata.txt"))) {
     untar(crc_data, exdir = datdir)
 }
@@ -141,13 +147,12 @@ of each OTU. Later, we can assign their values to a new column called `ind_covar
 for use in downstream steps.
 
 ```{r, baxter-pvals}
-resfile <- file.path(resdir, paste0("baxter_results_", nrow(abun_otu), "_OTUs.rda"))
-if (!file.exists(resfile)) {
+if (!file.exists(otu_result_file)) {
     res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
                            is_case = meta$DiseaseState == "CRC")
-    save(res, file = resfile)
+    saveRDS(res, file = otu_result_file)
 } else {
-    load(resfile)
+    res <- readRDS(otu_result_file)
 }
 ```
 
@@ -157,7 +162,7 @@ Finally, let's try to add phylogeny as covariates. Here we'll have columns for e
 res <- tidyr::separate(res, otu, 
                        c("kingdom", "phylum", "class", "order",
                          "family", "genus", "species", "denovo"), 
-                       sep=";", remove = FALSE)
+                       sep = ";", remove = FALSE)
 ```
 
 ## Covariate Diagnostics
@@ -199,7 +204,7 @@ ggplot(res, aes(x=pval)) +
     facet_wrap(~phylum, scales = "free")
 ```
 
-Not really informative either...
+Not really informative either.
 
 ## Multiple-Testing Correction
 
@@ -219,22 +224,17 @@ the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
 ```{r, baxter-sb, results="hide", message=FALSE, eval=TRUE}
-for (nmids in c(5, 50, 150)){
-    print(nmids)
-    bd <- initializeBenchDesign(nmids=nmids)
-    ## remove ASH from comparison
+if (!file.exists(otu_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
     bd <- dropBMethod(bd, "ashs")
-    
-    resfile <- file.path(resdir, paste0("baxter_summarizedBenchmark_",
-                                        nrow(res), "_nmids_", nmids, ".rda"))
-    if (!file.exists(resfile)){
-        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-        metadata(sb)$data_download_link <-
-                       "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
-        save(sb, file = resfile)
-    } else {
-        load(resfile)
-    }
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = otu_bench_file)
+} else {
+    sb <- readRDS(otu_bench_file)
 }
 ```
 
@@ -251,10 +251,8 @@ sb <- addDefaultMetrics(sb)
 Now, we'll plot the results.
 
 ```{r, baxter-plot, width=15, height=15, eval=TRUE}
-## plot nrejects by method overall and stratified by covariate
 rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
-##plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
 ```{r, eval=FALSE}
@@ -301,13 +299,12 @@ genus <- as.matrix(genus_df)
 ## Differential Testing
 
 ```{r, baxter-genus-pvals}
-resfile <- file.path(resdir, paste0("baxter_results_", nrow(genus_df), "_genera.rda"))
-if (!file.exists(resfile)) {
+if (!file.exists(gns_result_file)) {
     res <- test_microbiome(abundance = genus, shift = zeroabun,
                            is_case = meta$DiseaseState == "CRC")
-    save(res, file = resfile)
+    saveRDS(res, file = gns_result_file)
 } else {
-    load(resfile)
+    res <- readRDS(gns_result_file)
 }
 ```
 
@@ -356,21 +353,17 @@ the functions specified in each method (these are actually sourced in from the
 helper scripts). 
 
 ```{r, baxter-genus-sb, results="hide", message=FALSE, eval=TRUE}
-for (nmids in c(5, 50, 150)) {
-    ## use common BenchDesign w/out ASH
-    bd <- initializeBenchDesign(nmids=nmids)
+if (!file.exists(gns_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
     bd <- dropBMethod(bd, "ashs")
-    
-    resfile <- file.path(resdir, paste0("baxter_summarizedBenchmark_", nrow(res),
-                                        "_genera_nmids_", nmids, ".rda"))
-    if (!file.exists(resfile)) {
-        sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-        metadata(sb)$data_download_link <-
-                       "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
-        save(sb, file = resfile)
-    } else {
-        load(resfile)
-    }
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = gns_bench_file)
+} else {
+    sb <- readRDS(gns_bench_file)
 }
 ```
 
@@ -387,10 +380,8 @@ sb <- addDefaultMetrics(sb)
 Now, we'll plot the results.
 
 ```{r, baxter-genus-plot, width=15, height=15, eval=TRUE}
-## plot nrejects by method overall and stratified by covariate
-rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
-##plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 
 Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
@@ -400,7 +391,7 @@ plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets
 ```
 ```{r}
 methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
-plotCovariateBoxplots( sb, alpha=0.1, nsets=6, methods=methods)
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
 
 # Session Info
