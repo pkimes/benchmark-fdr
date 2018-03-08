@@ -181,7 +181,7 @@ if (file.exists(count_file)) {
                              width = 150, ext = frag_len)
 
     ## filter windows by abundance
-    bins <- windowCounts(meta$file, bin = TRUE, width = 2000, param = param)
+    bins <- windowCounts(meta$sorted, bin = TRUE, width = 2000, param = param)
     filter_stat <- filterWindows(win_cnts, bins, type = "global")
     keep <- filter_stat$filter > log2(3)
     filtered_cnts <- win_cnts[keep, ]
