@@ -72,7 +72,7 @@ library(SingleCellExperiment)
 library(R.utils)
 library(BiocParallel)
 
-cores <- 6
+cores <- 8
 BiocParallel::register(MulticoreParam(workers = cores))
 
 sourceDirectory("../R/")
@@ -88,7 +88,6 @@ GSE84465.
 ```{r, humandata-download}
 download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds",
   destfile=paste0(datdir, "GSE84465.rds"))
-
 ```
 
 ## Data processing and filtering
@@ -186,13 +185,14 @@ saveRDS(humandata, datfile)
 ## Covariate Diagnostics
 
 In scrnaseq data, strength of the signal can be a affected by the of level of gene expression. 
-We will explore two potential covariates related to expression level: mean expression 
+We will explore two potential covariates related to expression level: mean nonzero expression 
 and detection rate (defined as the proportion of cells expressing the gene at a nonzero level). 
 These will also be added to the `rowData` slot of the `SummarizedExperiments`.
 
 ```{r,cov}
 add_covariates_scrnaseq <- function(dat){
-  rowData(dat)$meanExp <- rowMeans(assay(dat, "count"))
+  rowData(dat)$meanExp <- apply(assay(dat, "count"), 1, 
+                                function(x) mean(x[x>0]))
   rowData(dat)$detection <- rowMeans(assay(dat, "count") > 0)
   return(dat)
 }
@@ -203,23 +203,23 @@ humandata <- add_covariates_scrnaseq(humandata)
 saveRDS(humandata, datfile)
 ```
 
-### Covariate one: Mean Expression
+### Covariate one: Mean Nonzero Expression
 
 For each covariate, we'll examine the covariate diagnostic plots.
 
 ```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
 rank_scatter(data.frame(rowData(humandata)), 
              pvalue="mast_p", covariate="meanExp") + 
-  ggtitle("MAST, Covariate 1: Mean Expression")
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 ```
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
            pvalue="mast_p", covariate="meanExp", maxy=35,
-           main = "MAST, Covariate 1: Mean Expression")
+           main = "MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
-The mean expression appears to be informative and approximately satisfies the 
+The mean nonzero expression appears to be informative and approximately satisfies the 
 assumptions 
 
 ### Covariate two: Detection Rate
@@ -251,9 +251,9 @@ Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
                                         helper scripts). 
                                         
-### Covariate one: Mean expression
+### Covariate one: mean nonzero expression
 
-First we'll include the mean expression covariate.
+First we'll include the mean nonzero expression covariate.
 
 ```{r, sb1, results="hide", message=FALSE}
 res1 <- paste0(resdir, "sb_GSE84465_mast_mean.rds")
@@ -298,7 +298,7 @@ if (!file.exists(res2)){
 Next, we'll add the default performance metric for q-value assays and 
 plot the results. We'll start with covariate one.
 
-### Covariate one: Mean Expression
+### Covariate one: mean nonzero expression
 
 First, we have
 to rename the assay to 'qvalue'.
@@ -315,11 +315,11 @@ Now, we'll plot the results.
 # plot nrejects by method overall and stratified by covariate
 rejections_scatter(sb1,
                    supplementary=FALSE) +
-  ggtitle("MAST, Covariate 1: Mean Expression")
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 
 rejection_scatter_bins(sb1, covariate="meanExp", bins=4,
                        supplementary=FALSE) +
-  ggtitle("MAST, Covariate 1: Mean Expression")
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 
 # upset plot 
 plotFDRMethodsOverlap(sb1, 
@@ -332,8 +332,13 @@ methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
              "scott-empirical", "scott-theoretical")
 mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
 plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
-  ggtitle("MAST, Covariate 1: Mean Expression")
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 
+```
+
+```{r, fig.width=8, fig.height=3.5}
+covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate") +
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
 ### Covariate two: Detection Rate
@@ -370,6 +375,11 @@ mcols(sb2)$ind_covariate <- mcols(sb2)$detection
 plotCovariateBoxplots(sb2, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
   ggtitle("MAST, Covariate 2: Detection Rate")
 
+```
+
+```{r, fig.width=8, fig.height=3.5}
+covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate") +
+  ggtitle("MAST, Covariate 2: Detection Rate")
 ```
 
 # Session Information
