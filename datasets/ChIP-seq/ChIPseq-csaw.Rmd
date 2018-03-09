@@ -40,6 +40,7 @@ library(SummarizedBenchmark)
 library(BiocParallel)
 library(rtracklayer)
 library(Rsamtools)
+library(Rsubread)
 library(csaw)
 library(edgeR)
 
@@ -66,62 +67,76 @@ multicoreParam <- MulticoreParam(workers = cores)
 
 # Data Preparation
 
-We download the bam files directly from the UCSC ENCODE portal.
+We download the fastq files directly from the UCSC ENCODE portal and align them against the reference.
 
-```{r, encode-download}
+```{r, download-fastqs}
 broad_url <- "http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeBroadHistone/"
-broad_bams <- c("wgEncodeBroadHistoneGm12878H3k4me3StdAlnRep1.bam",
-                "wgEncodeBroadHistoneGm12878H3k04me3StdAlnRep2V2.bam",
-                "wgEncodeBroadHistoneK562H3k4me3StdAlnRep1.bam",
-                "wgEncodeBroadHistoneK562H3k4me3StdAlnRep2.bam")
+broad_fastqs <- c("wgEncodeBroadHistoneGm12878H3k4me3StdRawDataRep1.fastq.gz",
+                  "wgEncodeBroadHistoneGm12878H3k04me3StdRawDataRep2V2.fastq.gz",
+                  "wgEncodeBroadHistoneK562H3k4me3StdRawDataRep1.fastq.gz",
+                  "wgEncodeBroadHistoneK562H3k4me3StdRawDataRep2.fastq.gz")
 
-for (i_bam in broad_bams) {
-    if (!file.exists(file.path(datdir, i_bam))) {
-        download.file(paste0(broad_url, i_bam),
-                      destfile = file.path(datdir, i_bam))
-    }
-    i_bai <- paste0(i_bam, ".bai")
-    if (!file.exists(file.path(datdir, i_bai))) {
-        download.file(paste0(broad_url, i_bai),
-                      destfile = file.path(datdir, i_bai))
+for (i_fq in broad_fastqs) {
+    if (!file.exists(file.path(datdir, i_fq))) {
+        download.file(paste0(broad_url, i_fq),
+                      destfile = file.path(datdir, i_fq))
     }
 }
 
 uw_url <- "http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwHistone/"
-uw_bams <- c("wgEncodeUwHistoneGm12878H3k4me3StdAlnRep1.bam",
-             "wgEncodeUwHistoneGm12878H3k4me3StdAlnRep2.bam",
-             "wgEncodeUwHistoneK562H3k4me3StdAlnRep1.bam",
-             "wgEncodeUwHistoneK562H3k4me3StdAlnRep2.bam")
+uw_fastqs <- c("wgEncodeUwHistoneGm12878H3k4me3StdRawDataRep1.fastq.gz",
+               "wgEncodeUwHistoneGm12878H3k4me3StdRawDataRep2.fastq.gz",
+               "wgEncodeUwHistoneK562H3k4me3StdRawDataRep1.fastq.gz",
+               "wgEncodeUwHistoneK562H3k4me3StdRawDataRep2.fastq.gz")
 
-for (i_bam in uw_bams) {
-    if (!file.exists(file.path(datdir, i_bam))) {
-        download.file(paste0(uw_url, i_bam),
-                      destfile = file.path(datdir, i_bam))
+for (i_fq in uw_fastqs) {
+    if (!file.exists(file.path(datdir, i_fq))) {
+        download.file(paste0(uw_url, i_fq),
+                      destfile = file.path(datdir, i_fq))
     }
-    i_bai <- paste0(i_bam, ".bai")
-    if (!file.exists(file.path(datdir, i_bai))) {
-        download.file(paste0(uw_url, i_bai),
-                      destfile = file.path(datdir, i_bai))
+}
+```
+
+We also use the GRCh38 reference genome used for ENCODE3 analysis. If the reference index is
+not already available, we must first download the reference file. Note that this is a different
+reference than what was originally used for the data.
+
+```{r, download-ref}
+ref_url <- paste0("https://www.encodeproject.org/files/",
+                  "GRCh38_no_alt_analysis_set_GCA_000001405.15/@@download/",
+                  "GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta.gz")
+ref_fastagz <- file.path(datdir, basename(ref_url))
+ref_fasta <- gsub("\\.gz$", "", ref_fastagz)
+
+if (!file.exists(file.path(datdir, "ref_index.00.b.tab"))) {
+    if (!file.exists(ref_fasta)) {
+        download.file(ref_url, destfile = ref_fastagz)
+        system(paste("gunzip", ref_fastagz))
     }
+    buildindex(basename = file.path(datdir, "ref_index"),
+               reference = ref_fasta)
 }
 ```
 
 We determine sample metadata from the file names.
 
 ```{r}
-bamfiles <- file.path(datdir, c(broad_bams, uw_bams))
-labs <- gsub("wgEncode(.*)Histone.*", "\\1", basename(bamfiles))
-cells <- gsub("wgEncode.*Histone(.*)H3k.*", "\\1", basename(bamfiles))
+fqfiles <- file.path(datdir, c(broad_fastqs, uw_fastqs))
+labs <- gsub("wgEncode(.*)Histone.*", "\\1", basename(fqfiles))
+cells <- gsub("wgEncode.*Histone(.*)H3k.*", "\\1", basename(fqfiles))
 
-meta <- data.frame(cellline = cells, lab = labs, file = bamfiles,
-                   sorted = gsub("\\.bam$", ".sorted.bam", bamfiles),
+meta <- data.frame(cellline = cells, lab = labs,
+                   fqfile = fqfiles,
+                   bamfile = gsub("\\.fastq.gz", ".bam", fqfiles),
+                   sortedfile = gsub("\\.fastq.gz", ".sorted.bam", fqfiles),
                    stringsAsFactors = FALSE)
 ```
 
-We also download blacklisted regions for hg19/GRCh37 from ENCODE (https://www.encodeproject.org/annotations/ENCSR636HFF/).
+We also download blacklisted regions for GRCh38 from ENCODE (https://www.encodeproject.org/annotations/ENCSR636HFF/).
 
 ```{r}
-blacklist_url <- "https://www.encodeproject.org/files/ENCFF001TDO/@@download/ENCFF001TDO.bed.gz"
+blacklist_url <- paste0("http://mitra.stanford.edu/kundaje/akundaje/",
+                        "release/blacklists/hg38-human/hg38.blacklist.bed.gz")
 if (!file.exists(file.path(datdir, basename(blacklist_url)))) {
     download.file(blacklist_url, destfile = file.path(datdir, basename(blacklist_url)))
 }
@@ -144,10 +159,19 @@ We count reads within sliding windows across the genome.
 if (file.exists(count_file)) {
     filtered_cnts <- readRDS(count_file)
 } else {
+    ## align reads to reference
+    unaligned <- !file.exists(meta$bamfile)
+    if (any(unaligned)) {
+        align(index = file.path(datdir, "ref_index"),
+              readfile1 = meta$fqfile[unaligned],
+              TH1 = 2, type = 1,
+              output_file = meta$bamfile[unaligned])
+    }
+    
     ## sort bam files
     for (i in 1:nrow(meta)) {
-        if (!file.exists(meta$sorted[i])) {
-            sortBam(meta$file[i], gsub("\\.bam$", "", meta$sorted[i]))
+        if (!file.exists(meta$sortedfile[i])) {
+            sortBam(meta$bamfile[i], gsub("\\.bam$", "", meta$sortedfile[i]))
         }
     }
     
@@ -156,7 +180,7 @@ if (file.exists(count_file)) {
     temp_file <- "temp_mets.txt"
     temp_dir <- "data/temp_dups"
     dir.create(temp_dir)
-    for (i_bam in meta$sorted) {
+    for (i_bam in meta$sortedfile) {
         code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
                        "MarkDuplicates I=%s O=%s M=%s ", 
                        "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
@@ -170,18 +194,18 @@ if (file.exists(count_file)) {
     unlink(temp_dir, recursive = TRUE)
     
     ## index bam files
-    indexBam(meta$sorted)
+    indexBam(meta$sortedfile)
 
     ## use correlateReads to determine fragment length (remove dups)
-    x <- correlateReads(meta$sorted, param = reform(param, dedup = TRUE))
+    x <- correlateReads(meta$sortedfile, param = reform(param, dedup = TRUE))
     frag_len <- which.max(x) - 1
 
     ## count reads in sliding windows (keep dups)
-    win_cnts <- windowCounts(meta$sorted, param = param,
+    win_cnts <- windowCounts(meta$sortedfile, param = param,
                              width = 150, ext = frag_len)
 
     ## filter windows by abundance
-    bins <- windowCounts(meta$sorted, bin = TRUE, width = 2000, param = param)
+    bins <- windowCounts(meta$sortedfile, bin = TRUE, width = 2000, param = param)
     filter_stat <- filterWindows(win_cnts, bins, type = "global")
     keep <- filter_stat$filter > log2(3)
     filtered_cnts <- win_cnts[keep, ]
