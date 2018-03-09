@@ -159,13 +159,24 @@ We count reads within sliding windows across the genome.
 if (file.exists(count_file)) {
     filtered_cnts <- readRDS(count_file)
 } else {
-    ## align reads to reference
-    unaligned <- !file.exists(meta$bamfile)
-    if (any(unaligned)) {
+    ## Broad samples have quality score w/ phred offset +33 (standard)
+    b_meta <- meta[meta$lab == "Broad", ]
+    b_unaligned <- !file.exists(b_meta$bamfile)
+    if (any(b_unaligned)) {
         align(index = file.path(datdir, "ref_index"),
-              readfile1 = meta$fqfile[unaligned],
-              TH1 = 2, type = 1,
-              output_file = meta$bamfile[unaligned])
+              readfile1 = b_meta$fqfile[b_unaligned],
+              TH1 = 2, type = 1, phredOffset = 33,
+              output_file = b_meta$bamfile[b_unaligned])
+    }
+    
+    ## UW samples have quality score w/ phred offset +64 (old Illumina scale)
+    u_meta <- meta[meta$lab == "Uw", ]
+    u_unaligned <- !file.exists(u_meta$bamfile)
+    if (any(u_unaligned)) {
+        align(index = file.path(datdir, "ref_index"),
+              readfile1 = u_meta$fqfile[u_unaligned],
+              TH1 = 2, type = 1, phredOffset = 64,
+              output_file = u_meta$bamfile[u_unaligned])
     }
     
     ## sort bam files
