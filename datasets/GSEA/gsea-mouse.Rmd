@@ -1,5 +1,5 @@
 ---
-title: "Case Study: Gene Set Enrichment Analysis (GSEA), Mouse"
+title: "Case Study: Gene Set Enrichment Analysis (Mouse Data Set)"
 author: "Alejandro Reyes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -41,6 +41,13 @@ datdir <- "data"
 resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+
+## intermediary files we create below
+count_file <- file.path(datdir, "mouse-counts.rds")
+deseq_file <- file.path(datdir, "mouse-deseq.rds")
+goset_file <- file.path(datdir, "mouse-gosets.rds")
+result_file <- file.path(resdir, "mouse-results.rds")
+bench_file <- file.path(resdir, "mouse-benchmark.rds")
 ```
 
 
@@ -49,61 +56,68 @@ dir.create(resdir, showWarnings = FALSE)
 Download *DESeqDataSet* if not present locally.
 
 ```{r, message=FALSE}
-dsd_data <- file.path(datdir, "dsdHSCMPP.RData")
-if(!file.exists(dsd_data)) {
-    download.file("https://www.dropbox.com/s/spo1pifum5k72rn/dseHSCMPP.RData?dl=1",
-                  destfile = dsd_data)
+if (!file.exists(count_file)) {
+    ## download.file("", destfile = count_file)
 }
-load(dsd_data)
+dseHSCMPP <- readRDS(count_file)
 ```
 
 **Why no filtering on gene_biotype == "protein_coding" for this data?**
 
 # Data Analysis
 
-## Differential Testing 
-
-Specify model matrix design and run DESeq2 to get differentially expressed genes. 
-
-```{r deseq2, message=FALSE}
-dseHSCMPP <- DESeq(dseHSCMPP)
-res <- results(dseHSCMPP, contrast = c("conditions", "HSC", "MPP1"),
-               independentFiltering = FALSE)
-```
-
 ## Enrichment Analysis
 
 **Add description of what's going on.**
+We first test for differentially expressed genes using DESeq2 and use genes with adjusted p-value less than 0.1.
+
+```{r deseq2, message=FALSE}
+if (!file.exists(deseq_file)) {
+    dseHSCMPP <- DESeq(dseHSCMPP)
+    res <- results(dseHSCMPP, contrast = c("conditions", "HSC", "MPP1"),
+                   independentFiltering = FALSE)
+    saveRDS(res, file = deseq_file)
+} else {
+    res <- readRDS(deseq_file)
+}
+
+genes <- as.numeric(res$padj < 0.1)
+names(genes) <- rownames(res)
+```
+
+We next determine the gene sets associated with each gene.
 
 ```{r goseq, message=FALSE}
-goset_data <- file.path(datdir, "goSetsMm.RData")
-if (!file.exists(goset_data)) {
+if (!file.exists(goset_file)) {
     mart <- useMart("ensembl", "mmusculus_gene_ensembl")
     goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
                     filters = "ensembl_gene_id", values = rownames(res))
     goSets <- goSets[!nchar(goSets$go_id) == 0, ]
     goSets <- with(goSets, split(go_id, ensembl_gene_id))
-    save(goSets, file = goset_data)
+    saveRDS(goSets, file = goset_file)
 } else {
-   load(goset_data)
+   goSets <- readRDS(goset_file)
 }
-
-## getting median transcript length
-genes <- as.numeric(res$padj < 0.1)
-names(genes) <- rownames(res)
-
-## getting median transcript length
-txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
-geneLength <- sapply(width(txByGene), median)
-geneLength <- geneLength[names(genes)]
-genes[is.na( genes )] <- 0
 ```
 
-Performing a gene set enrichment analysis with `goseq`.
+Now we are ready to perform gene set enrichment analysis using `goseq`.
 
 ```{r}
-pwf <- nullp(genes, bias.data = geneLength)
-goRes <- goseq(pwf, gene2cat = goSets)
+if (!file.exists(result_file)) {
+    ## getting median transcript length
+    txByGene <- transcriptsBy(EnsDb.Mmusculus.v75, "gene")
+    geneLength <- sapply(width(txByGene), median)
+    geneLength <- geneLength[names(genes)]
+    genes[is.na(genes)] <- 0
+    
+    ## perform gsea
+    pwf <- nullp(genes, bias.data = geneLength)
+    goRes <- goseq(pwf, gene2cat = goSets)
+
+    saveRDS(goRes, file = result_file)
+} else {
+    goRes <- readRDS(result_file)
+}
 ```
 
 ## Covariate Diagnostics
@@ -116,8 +130,8 @@ Here, we can see that the covariant variable is actually informative.
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
 rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
-              covariate = "numInCat", bins = 50, funx = log2, 
-              funfill = log10_trans()) +
+             covariate = "numInCat", bins = 50, funx = log2, 
+             funfill = log10_trans()) +
     ylim(0, 12) +
     ggtitle("Over-represented gene sets") +
     xlab(expression(log[10]~"(# of genes)")) +
@@ -144,14 +158,14 @@ res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
     dplyr::mutate(pval = pmin(pval, 1))
 
 ## generate default BenchDesign
-designBen <- initializeBenchDesign()
+bd <- initializeBenchDesign()
 
 ## run benchmark
-sb_file <- file.path(resdir, "sb-gsea-mouse.rda")
-if (!file.exists(sb_file)) {
-    sGSEAMouse <- buildBench(designBen, res, ftCols = "ind_covariate")
+if (!file.exists(bench_file)) {
+    sGSEAMouse <- buildBench(bd, res, ftCols = "ind_covariate")
+    saveRDS(sGSEAMouse, file = bench_file)
 } else {
-    sGSEAMouse <- readRDS(sb_file)
+    sGSEAMouse <- readRDS(bench_file)
 }
 ```
 
