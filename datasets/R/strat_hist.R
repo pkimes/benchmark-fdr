@@ -18,12 +18,20 @@
 #' @param numQ an integer value that specifies the number of quantile bins to 
 #'  split on the covariate. Will result in `numQ` + 1 histograms generated. This
 #'  must be less than 6.
+#' @param main a character string that will be used as the main plot title
 #'        
 #' @return a cowplot object 
 #' 
 #' 
 #' @author Keegan Korthauer     
-strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3){
+strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3,
+                       main = ""){
+
+  library(cowplot)
+  library(ggplot2)
+  library(magrittr)
+  library(dplyr)
+  
   # check numQ input
   if (numQ > 5){
     stop("Please specify a valid value of numQ")
@@ -74,5 +82,10 @@ strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3){
   
   gg_stratified <- plot_grid(plotlist=gglist,
                              nrow=numrows)
+  
+  gg_stratified <- plot_grid(ggplot(), gg_stratified,
+                             rel_heights = c(0.075,1),
+                             nrow=2) +
+                     draw_label(main, 0.5, 0.96)
   return(gg_stratified)
 }

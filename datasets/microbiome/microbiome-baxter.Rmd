@@ -1,0 +1,401 @@
+---
+title: "Case Study: 16S microbiome data (Baxter et al., 2016)"
+author: "Claire Duvallet"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+Here we download and analyze the Baxter colorectal cancer (CRC) dataset
+[(Baxter et al., 2016)](http://dx.doi.org/10.1186/s13073-016-0290-3).
+The dataset includes stool samples from 172 patients with no colonic lesions,
+and 120 patients with CRC. We'll download the processed OTU tables from
+Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
+
+For colorectal cancer, we do expect some amount of truly differentially abundant OTUs,
+but not as many as in diarrhea (e.g. Schubert et al., 2014). This dataset will hopefully
+provide an intermediate non-extreme case study.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(magrittr)
+library(SummarizedBenchmark)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
+crc_data <- file.path(datdir, "crc_baxter_results.tar.gz")
+crc_dir <- file.path(datdir, "crc_baxter_results")
+
+otu_result_file <- file.path(resdir, "baxter-otus-results.rds")
+otu_bench_file <- file.path(resdir, "baxter-otus-benchmark.rds")
+gns_result_file <- file.path(resdir, "baxter-genus-results.rds")
+gns_bench_file <- file.path(resdir, "baxter-genus-benchmark.rds")
+```
+
+# Data Preparation
+
+```{r, baxter-download}
+if (!file.exists(crc_data)) {
+    download.file("https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz",
+                  destfile = crc_data)
+}
+
+if (!file.exists(file.path(crc_dir, "crc_baxter.metadata.txt"))) {
+    untar(crc_data, exdir = datdir)
+}
+```
+
+Next, we'll read in the unzipped OTU table and metadata files into R.
+
+```{r, baxter-readdata}
+## load OTU table and metadata
+otu <- read.table(file.path(crc_dir, "RDP",
+                            "crc_baxter.otu_table.100.denovo.rdp_assigned"))
+meta <- read.csv(file.path(crc_dir, "crc_baxter.metadata.txt"), sep='\t')
+
+## Keep only samples with the right DiseaseState metadata
+meta <- dplyr::filter(meta, DiseaseState %in% c("H", "CRC"))
+
+## add "X" in front of sample IDs because of how R read in the OTU table
+meta$Sample_Name_s <- paste0("X", meta$Sample_Name_s)
+
+## keep only samples with both metadata and 16S data
+keep_samples <- intersect(colnames(otu), meta$Sample_Name_s)
+otu <- otu[, keep_samples]
+meta <- dplyr::filter(meta, Sample_Name_s %in% keep_samples)
+```
+
+A brief aside: what's the count distribution of these OTUs?
+
+```{r, eval=FALSE}
+hist(colSums(otu))
+```
+
+Since we'll be using OTU-wise covariates, we shouldn't need to perform any
+filtering/cleaning of the OTUs, apart from removing any that are all zeros.
+(This may happen after removing shallow samples, I think.)
+We still apply a minimum threshold of 10 reads per OTU across all samples.
+After removing these shallow OTUs, we also get rid of any samples with too few reads. 
+We define the minimum number of reads per OTU in `min_otu`, and
+the minimum number of reads per sample in `min_sample`.
+
+After we've removed any shallow OTUs and samples, we'll convert the OTU table to
+relative abundances.
+
+```{r, baxter-cleandata}
+min_otu <- 10
+minp_otu <- 0.01
+min_sample <- 100
+
+## Remove OTUs w/ <= min reads, w/ <= min prop, samples w/ <= min reads
+otu <- otu[rowSums(otu) > min_otu, ]
+otu <- otu[rowSums(otu > 0) / ncol(otu) > minp_otu, ]
+otu <- otu[, colSums(otu) > min_sample]
+
+## Update metadata with new samples
+meta <- dplyr::filter(meta, Sample_Name_s %in% colnames(otu))
+
+## Remove empty OTUs
+otu <- otu[rowSums(otu) > 0, ]
+
+## Convert to relative abundance
+abun_otu <- t(t(otu) / rowSums(t(otu)))
+
+## Add pseudo counts
+zeroabun <- 0
+abun_otu <- abun_otu + zeroabun
+```
+
+# Data Analysis
+
+## Differential Testing
+
+Next, we need to calculate the pvalues, effect size, and standard error for each OTU.
+Here, we'll compare CRC vs. healthy. We won't consider the nonCRC adenoma patients.
+We'll put these results into a dataframe, and label the columns with the 
+standardized names for downstream use (`pval`, `SE`, `effect_size`, `test_statistic`).
+The test statistic is the one returned by `wilcox.test()`.
+
+Note that the effect here is calculated as logfold change of mean abundance in controls
+relative to cases (i.e. `log(mean_abun[controls]/mean_abun[cases])`).
+
+While we're at it, we'll also calculate the mean abundance and ubiquity (detection rate)
+of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
+for use in downstream steps.
+
+```{r, baxter-pvals}
+if (!file.exists(otu_result_file)) {
+    res <- test_microbiome(abundance = abun_otu, shift = zeroabun,
+                           is_case = meta$DiseaseState == "CRC")
+    saveRDS(res, file = otu_result_file)
+} else {
+    res <- readRDS(otu_result_file)
+}
+```
+
+Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
+
+```{r, baxter-addphylo}
+res <- tidyr::separate(res, otu, 
+                       c("kingdom", "phylum", "class", "order",
+                         "family", "genus", "species", "denovo"), 
+                       sep = ";", remove = FALSE)
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, baxter-ubi-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+```{r, baxter-ubi-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+Something weird is happening with p=0.20 and p=0.40 - maybe this has something to do with ties?
+Either way, ubiquity looks to be a bit informative (from the scatter plot, but not really the histograms...)
+
+### Mean Abundance (across non-zero samples)
+
+```{r, baxter-abun-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, baxter-abun-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+### Phylogeny
+
+Let's look at phylum-level stratification first. A priori, I *might* expect
+Proteobacteria to be enriched for low p-values? But I don't know if that's
+super legit, and Eric doesn't seem to think that phylogeny will be informative at all...
+
+```{r, baxter-phylo, fig.width=10, fig.height=6, eval=FALSE}
+ggplot(res, aes(x=pval)) +
+    geom_histogram() +
+    facet_wrap(~phylum, scales = "free")
+```
+
+Not really informative either.
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, baxter-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(otu_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = otu_bench_file)
+} else {
+    sb <- readRDS(otu_bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, baxter-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, baxter-plot, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+```{r, eval=FALSE}
+assays(sb)[["qvalue"]][, "ashs"] %>% max()
+sum(is.na(assays(sb)[["qvalue"]][, "scott-empirical"]))
+sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
+```
+
+
+# Data Analysis (genus-level)
+
+## Collapse to Genus
+
+```{r, baxter-genus}
+## add column with otu names
+genus_df <- as.data.frame(abun_otu)
+genus_df <- dplyr::as_tibble(genus_df, rownames = "otu")
+
+## just get genus information
+genus_df <- dplyr::mutate(genus_df, genus = sapply(strsplit(otu, ";"), `[`, 6))
+
+## gather into tidy format
+genus_df <- tidyr::gather(genus_df, key = "sample", value = "abun", -otu, -genus)
+
+## get rid of unannoated genera, and sum abundances for genera
+genus_df <- genus_df %>% 
+    dplyr::filter(genus != "g__") %>% 
+    dplyr::group_by(genus, sample) %>% 
+    dplyr::summarise(total_abun = sum(abun)) %>%
+    ungroup()
+
+## convert back to longform
+genus_df <- tidyr::spread(genus_df, sample, total_abun)
+genus_df <- as.data.frame(as.list(dplyr::select(genus_df, -genus)),
+                          row.names = genus_df$genus)
+
+## re-order columns to match metadata
+genus_df <- genus_df[, match(meta$Sample_Name_s, colnames(genus_df))]
+
+## use matrix
+genus <- as.matrix(genus_df)
+```
+
+## Differential Testing
+
+```{r, baxter-genus-pvals}
+if (!file.exists(gns_result_file)) {
+    res <- test_microbiome(abundance = genus, shift = zeroabun,
+                           is_case = meta$DiseaseState == "CRC")
+    saveRDS(res, file = gns_result_file)
+} else {
+    res <- readRDS(gns_result_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, baxter-genus-ubi, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+```{r, baxter-genus-ubi-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+Something weird is happening with p=0.20 and p=0.40 - maybe this has something to do with ties?
+Either way, ubiquity looks to be a bit informative (from the scatter plot, but not really the histograms...)
+
+### Mean Abundance (across non-zero samples)
+
+```{r, baxter-genus-abun, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, baxter-genus-abun-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, baxter-genus-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-genus-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = gns_bench_file)
+} else {
+    sb <- readRDS(gns_bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, baxter-genus-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, baxter-genus-plot, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, baxter-genus-overlap}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

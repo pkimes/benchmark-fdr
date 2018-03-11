@@ -1,0 +1,390 @@
+---
+title: "Case Study: scRNA-seq (Human data, MAST method)"
+author: "Ayshwarya Subramanian and Keegan Korthauer"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Summary
+
+For the application of differential gene expression, we look at scRNAseq and bulk RNAseq data. Here we discuss the analyses of scRNAseq.
+
+```{r echo=FALSE, results='asis'}
+library(knitr)
+df=data.frame(datasets=c("GSE84465","GSE94383"),
+              organism=c("human","mouse"),
+              technology=c("smart-seq","smart-seq2"),
+              comparison=c("Neoplastic vs Regular",
+                           "LPS vs No stimulation"))
+kable(df,caption="scRNAseq Datasets")
+df1=data.frame(DE_method=c("ScDD","MAST"),
+               input=c("count","tpm"),
+               output=c("p-val","p-val"))
+kable(df1,caption="DE methods")
+```
+
+We selected two datasets, one each from mouse and human. 
+These datasets come from the `Conquer` (Soneson et al., 2018) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+
+Here we are interested in performing differential expression analyses to determine
+which genes have different expression among the two biological groups in each comparison.
+We also apply two different analysis methods: MAST and scDD. In this vignette, we will
+explore the human dataset analysed with MAST.
+
+# Workspace setup
+
+The downloaded plate data are stored in R objects called `MultiAssayExperiment`; this package requires BioConductor release 3.5 and R version 3.4 or greater for installation. 
+
+```{r, workspace-setup, results='hide', message=FALSE, warning=FALSE}
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
+
+# packages for data analyses
+library(MultiAssayExperiment)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(UpSetR)
+library(hexbin)
+
+# packages for differential expression testing
+library(impute)
+library(scDD)
+library(EBSeq)
+library(edgeR)
+library(MAST)
+
+# summarizebenchmark
+library(SummarizedBenchmark)
+library(SingleCellExperiment)
+
+# useful libraries
+library(R.utils)
+library(BiocParallel)
+
+cores <- 8
+BiocParallel::register(MulticoreParam(workers = cores))
+
+sourceDirectory("../R/")
+```
+
+# Data preparation
+
+## Data download
+
+We first download the data in the data directory.`conquer` provides the processed datasets in convenient .rds files. First, we download the Human dataset:
+GSE84465.
+
+```{r, humandata-download}
+download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds",
+  destfile=paste0(datdir, "GSE84465.rds"))
+```
+
+## Data processing and filtering
+
+For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons. We do not filter genes as filtering may affect the subsequent false discovery control steps.  We only filter out genes that are expressed in 
+fewer than 1% of cells. 
+We will filter out cells with extremely low mapping rate
+(below 20%), as these represent poor quality cells that may end up having negative
+size factor estimates during normalization. For the same reason, we also filter cells
+which have extremely low proportion of genes detected (less than 5%).
+
+We'll extract two conditions: Neoplastic and Regular cells, as
+defined by their tsne clusters.
+
+```{r}
+datfile <- paste0(datdir, "human_GSE84465_mast.rds")
+
+if (!file.exists(datfile)){
+  
+  # load MultiAssayExperiment
+  humandata <- readRDS(paste0(datdir, "GSE84465.rds"))
+  
+  # exclude cells with extremely low mapping or feature rate (poor quality cells)
+  lowMap <- which(metadata(humandata)$salmon_summary$percent_mapped < 20 |
+                  colMeans(assay(experiments(humandata)[[1]], "count") > 0) < 0.05)
+  if (length(lowMap) > 0){
+    humandata <- humandata[, -lowMap]
+    message("Removed ", length(lowMap), " cells with mapping rate below 20%",
+            " or fewer than 5% of genes detected.")
+  }
+  
+  # subset by groups of interest
+  humandata <- humandata[, (colData(humandata)$characteristics_ch1.7 %in% 
+                         c("neoplastic: Neoplastic", "neoplastic: Regular")) &
+                         (colData(humandata)$characteristics_ch1.5 %in% 
+                         c("tsne cluster: 11",  "tsne cluster: 8"))]
+  cdata=colData(humandata)
+  cdata$group <- cdata$characteristics_ch1.7
+
+  # subset by gene expression TPM & count assays
+  humandata <- experiments(humandata)[[1]]
+  assays(humandata) <- assays(humandata)[c("TPM", "count")]
+  colData(humandata) <- cdata
+
+  # subset by genes with detection rate > 1%
+  humandata <- humandata[rowMeans(assay(humandata, "count") > 0) > 0.01, ]
+    
+  # remove spike-in controls 
+  humandata <- humandata[!grepl("ERCC-", rownames(humandata)),]
+ 
+  # save SummarizedExperiment 
+  saveRDS(humandata, datfile)
+}else{
+  humandata <- readRDS(datfile)
+}
+
+# look at number of cells in each group
+table(colData(humandata)$group)
+```
+
+For the human dataset, there are a total of `r ncol(humandata)` cells and `r nrow(humandata)` genes. 
+
+# Data analysis
+
+## Differential testing
+
+We perform differential expression testing using 
+MAST which has a hurdle model to account for zeroes.
+
+We apply MAST to the TPMs following the approach in Soneson et al. 
+
+```{r, MAST}
+# function to add MAST p-values
+compute_MAST_sc <- function(dat){
+  # check if already computed
+  if (! "mast_p" %in% colnames(rowData(dat))){
+    sca <- FromMatrix(exprsArray = log2(assay(dat, "TPM") + 1), 
+                    cData = data.frame(wellKey=colnames(dat), colData(dat)))
+    zlmdata <- zlm(~group, sca)
+
+    rowData(dat)$mast_p <- 
+        lrTest(zlmdata, "group")[, "hurdle", "Pr(>Chisq)"]
+  }else{
+     message("MAST p-values already computed.")
+  }
+  return(dat)
+}
+
+humandata <- compute_MAST_sc(humandata)
+
+# save results
+saveRDS(humandata, datfile)
+```
+
+## Covariate Diagnostics
+
+In scrnaseq data, strength of the signal can be a affected by the of level of gene expression. 
+We will explore two potential covariates related to expression level: mean nonzero expression 
+and detection rate (defined as the proportion of cells expressing the gene at a nonzero level). 
+These will also be added to the `rowData` slot of the `SummarizedExperiments`.
+
+```{r,cov}
+add_covariates_scrnaseq <- function(dat){
+  rowData(dat)$meanExp <- apply(assay(dat, "count"), 1, 
+                                function(x) mean(x[x>0]))
+  rowData(dat)$detection <- rowMeans(assay(dat, "count") > 0)
+  return(dat)
+}
+
+humandata <- add_covariates_scrnaseq(humandata)
+
+# save results
+saveRDS(humandata, datfile)
+```
+
+### Covariate one: Mean Nonzero Expression
+
+For each covariate, we'll examine the covariate diagnostic plots.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(data.frame(rowData(humandata)), 
+             pvalue="mast_p", covariate="meanExp") + 
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(data.frame(rowData(humandata)), 
+           pvalue="mast_p", covariate="meanExp", maxy=35,
+           main = "MAST, Covariate 1: Mean Nonzero Expression")
+```
+
+The mean nonzero expression appears to be informative and approximately satisfies the 
+assumptions 
+
+### Covariate two: Detection Rate
+
+Next we look at the detection rate covariate.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(data.frame(rowData(humandata)), 
+             pvalue="mast_p", covariate="detection") + 
+  ggtitle("MAST, Covariate 2: Detection Rate")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(data.frame(rowData(humandata)), 
+           pvalue="mast_p", covariate="detection", maxy=35,
+           main = "MAST, Covariate 2: Detection Rate") 
+```
+
+## Multiple-Testing Correction
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object.
+
+```{r, benchdesign, message=FALSE}
+bd <- initializeBenchDesign()
+```
+
+Now, we're ready to construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+                                        helper scripts). 
+                                        
+### Covariate one: mean nonzero expression
+
+First we'll include the mean nonzero expression covariate.
+
+```{r, sb1, results="hide", message=FALSE}
+res1 <- paste0(resdir, "sb_GSE84465_mast_mean.rds")
+
+if (!file.exists(res1)){
+  sb1 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
+                                   na.omit() %>%
+                                   mutate(pval=mast_p,
+                                          ind_covariate=meanExp), 
+                          ftCols = c("meanExp"),
+                          parallel=TRUE)
+
+  saveRDS(sb1, file=res1)
+}else{
+  sb1 <- readRDS(res1)
+}
+```
+
+### Covariate two: Detection Rate
+
+Now, we'll repeat the multiple testing correction using the other covariate (detection rate):
+
+```{r, sb2, results="hide", message=FALSE}
+res2 <- paste0(resdir, "sb_GSE84465_mast_det.rds")
+
+if (!file.exists(res2)){
+  sb2 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
+                                   na.omit() %>%
+                                   mutate(pval=mast_p,
+                                          ind_covariate=detection), 
+                          ftCols = c("detection"),
+                          parallel=TRUE)
+
+  saveRDS(sb2, file=res2)
+}else{
+  sb2 <- readRDS(res2)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays and 
+plot the results. We'll start with covariate one.
+
+### Covariate one: mean nonzero expression
+
+First, we have
+to rename the assay to 'qvalue'.
+
+```{r, metrics1}
+# rename assay to qvalue
+assayNames(sb1) <- "qvalue"
+sb1 <- addDefaultMetrics(sb1)
+```
+
+Now, we'll plot the results.
+
+```{r, plot1, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb1,
+                   supplementary=FALSE) +
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
+
+rejection_scatter_bins(sb1, covariate="meanExp", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
+
+# upset plot 
+plotFDRMethodsOverlap(sb1, 
+                      alpha=0.05, nsets=ncol(sb1),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE) 
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
+plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
+
+```
+
+```{r, fig.width=8, fig.height=3.5}
+covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate") +
+  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
+```
+
+### Covariate two: Detection Rate
+
+Next, we'll look at the performance metrics for the other covariate (detection rate).
+
+```{r, metrics2}
+# rename assay to qvalue
+assayNames(sb2) <- "qvalue"
+sb2 <- addDefaultMetrics(sb2)
+```
+
+Now, we'll plot the results.
+
+```{r, plot2, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb2, supplementary=FALSE) +
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
+rejection_scatter_bins(sb2, covariate="detection", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
+# upset plot 
+plotFDRMethodsOverlap(sb2, 
+                      alpha=0.05, nsets=ncol(sb2),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE)
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sb2)$ind_covariate <- mcols(sb2)$detection
+plotCovariateBoxplots(sb2, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
+  ggtitle("MAST, Covariate 2: Detection Rate")
+
+```
+
+```{r, fig.width=8, fig.height=3.5}
+covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate") +
+  ggtitle("MAST, Covariate 2: Detection Rate")
+```
+
+# Session Information
+
+```{r}
+sessionInfo()
+```
+

@@ -1,578 +1,399 @@
 ---
-title: "GWAS datasets for FDR benchmarking"
+title: "Case study: Genome-Wide Association Analyses (GWAS)"
 author: "Keegan Korthauer"
-date: "9/28/2017"
-output: html_document
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
-
+  
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### Summary
+# Summary
 
-Here are the GWAS datasets we will use to benchmark the FDR methods. For each one
-we provide the script to download the data and read into R. We'd like to verify 
-that each dataset contains the desired inputs:
+Here we will make use of the `SummarizedBenchmark` package to benchmark a 
+Genome-Wide Association Study (GWAS) dataset. We will examine a GWAS 
+meta-analysis for Body Mass Index (BMI), which was also included in the 
+Boca-Leek manuscript.
 
-- p-value
-- effect size
-- standard error
-- additional covariates (optional)
+# Workspace setup
 
-Note that while running all the bash code in this document will download the data, 
-some of it doesn't seem to work properly with knitting (e.g. the ftp download 
-in the second dataset), and I'm not committing 
-the data itself to this repo. Run the bash code in the terminal separately to 
-download the data yourself, and see the knitted `.html` document if you do not 
-wish to download the datasets but still wish to see the output.
+This analysis requires that the software PLINK (version 1.9) 
+is installed on your system.
+PLINK is freely available for download 
+[here](http://zzz.bwh.harvard.edu/plink/plink2.shtml).
 
-We'll also run the benchmark methods on each dataset and report the number of 
-discoveries for each one. At first, we'll demo on just a __**small subset of 
-SNPs**__, since the computation is time-intensive. After that is working 
-smoothly, we'll scale it up to the full set of SNPs.
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+# data and results directories
+system("mkdir -p DATA")
+system("mkdir -p RESULTS")
+datdir <- "DATA/"
+resdir <- "RESULTS/"
 
-### Workspace setup
-
-To run the benchmark methods on the GWAS datasets, we'll use some of the helper 
-and wrapper functions from the simulated data analysis. We also create and source
-an analgous version of the `sim_runner` function to apply to the real data.
-
-```{r, wkspace-setup}
-# Note that swfdr package depends on R version 3.4 or higher
-setwd("/n/irizarryfs01_backed_up/kkorthauer/FDR")
-source("benchmark-fdr/simulation_studies/R/simulation-helpers.R")
-source("benchmark-fdr/datasets/R/evaluation-helpers.R")
-datdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/DATA/GWAS/"
-resdir <- "/n/irizarryfs01_backed_up/kkorthauer/FDR/RESULTS/GWAS/"
-  
 # wrangling & plotting tools
 library(data.table)
 library(readxl)
+library(readr)
 library(dplyr)
 library(ggplot2)
 library(cowplot)
-library(UpSetR)
 
-# benchmark methods
-library(IHW)
-library(ashr)
-library(qvalue)
-library(swfdr)
-library(fdrtool)
+# comparison tools/functions
+library(R.utils)
+sourceDirectory("../R/")
 
-# constant parameters (for UpSet Plots)
-alpha.cutoff <- 0.05
+# set up parallel backend
+library(BiocParallel)
+cores <- 8
+multicoreParam <- MulticoreParam(workers = cores)
 ```
 
-### GWAS meta-analysis for BMI (included in Boca-Leek)
+# Data preparation
 
-Here we download and analyze the GWAS BMI dataset analyzed in the Boca-Leek paper. 
+We'll first download the GWAS summary statistics dataset from the 
+GIANT consortium data portal.
 
-#### Data download
+## Data download
 
-```{bash, GWAS1-download, eval=FALSE}
-curl -O "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+After downloading, we unzip the file, and delete the files we won't use (they provide results
+subsetted by ancestry and sex), keeping only the file with European ancestry and
+both sexes `BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt`. Note that
+the Boca-Leek paper also used the 'EuropeanOnly' subset, likely because using 
+all ancestries would require that we assess the impact of population stratification
+and adjust for it if present. For simplicity, we follow suit and use the homogeneous 
+subset to avoid the impact of population stratification on our results.
+
+
+```{r, GWAS1-download}
+if(!file.exists(paste0(datdir,"BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"))){
+  download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
+             destfile=paste0(datdir,"BMI.SNPadjSMK.zip")) 
+  unzip(paste0(datdir,"BMI.SNPadjSMK.zip"), exdir=datdir)
+  file.remove(paste0(datdir,"BMI.SNPadjSMK.zip"))
+  
+  dfiles <- list.files(path=datdir, pattern="BMI.SNPadjSMK.*.txt", 
+                     full.names = TRUE)
+  dfiles <- dfiles[!grepl("BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt", dfiles)]
+  file.remove(dfiles)
+}
 ```
 
-Next we unzip the file, and delete the files we won't use (they provide results
-subsetted by ancestry and sex), keeping only the file with all ancestries and
-both sexes `BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt`. Note that it seems that
-the Boca-Leek paper actually used the 'EuropeanOnly' subset, but it's not clear
-why (to me), and there's no reason we need to do the same.
+We also download the 1000 genomes CEU reference population data, which will be used to 
+determine which SNPs are LD buddies for the purposes of obtaining an independent set of SNPs.
 
-```{bash, GWAS1-unzip, eval=FALSE}
-unzip BMI.SNPadjSMK.zip
-rm BMI.SNPadjSMK.zip
-rm BMI.SNPadjSMK.Women.EuropeanOnly.txt
-rm BMI.SNPadjSMK.Women.AllAncestry.txt
-rm BMI.SNPadjSMK.Men.EuropeanOnly.txt
-rm BMI.SNPadjSMK.Men.AllAncestry.txt
-rm BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt
+```{r, GWAS1-refdata}
+reffile <- paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01")
+if (!file.exists(paste0(reffile, ".fam"))){
+  download.file(url="http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
+              destfile=paste0(reffile, ".zip"))
+  unzip(paste0(reffile, ".zip"))
+  file.remove(paste0(reffile, ".zip"))
+}
 ```
 
 Next, we'll read in the unzipped `.txt` file into R and verify that it contains
 the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS1-verify-contents}
-bmi <- fread(paste0(datdir, "BMI.SNPadjSMK.CombinedSexes.AllAncestry.txt"),
+bmi <- fread(paste0(datdir, "BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"),
              header=TRUE)
 dim(bmi)
 head(bmi)
 ```
 
 It looks like we have:
-
+  
 - `p_value`:p-value
 - `effect`:effect size
 - `stderr`:standard error
 - additional covariates: 
-    - `N`: Number of samples with this SNP - BMI association measured
-    - `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
- 
-for 2,458,133 SNPs.
+  - `N`: Number of samples with this SNP - BMI association measured
+- `Freq_Allele1_HapMapCEU`: Allele Frequency of Allele1, as measured in HapMapCEU
 
-#### Covariate Diagnostics
+for `r nrow(bmi)` SNPs.
 
-Here we examine whether the available covariates appear to be suitable for the  
-assumptions of the benchmark methods. The main assumption used by many methods 
-is that the covariate is independent of the p-value conditional on the null
-hypothesis. In other words, the covariate itself is not informative for whether
-the test should be rejected or not. If this is satisfied, the covariate still
-may or may not be useful. To assess whether the covariate is useful or not, we 
-look to see if there is an association between covariate values and p-values. 
-This is because under the alternative, we expect to see an enrichment of 
-rejections for certain values of the covariate (if it is indeed informative).
-In this section we examine two diagnostic plots for each of the covariates to 
-see if these conditions hold in this dataset.
+## Prune SNPs that are in Linkage Disequilibrium
 
-First, we will look at histograms of p-values stratified by covariate values. To
-stratify by continuous covariate values, we'll use quantiles.
+Since nearby SNPs in linkage disequilibrium may not constitute separate discoveries, we carry out 
+a pruning step. This commonly done by examining correlation of genotypes among nearby markers, but
+since we don't have the genotype data, we'll use the linkage disequilibrium results of common SNPs and 
+previously observed LD blocks. Specifically, we'll use the phase 3 data from 1000 genomes, restricted
+to the CEU population (since this most closely matches our population of European ancestry). This 
+reference data was downloaded in a previous code chunk. Here we read in the list of more than
+9 million SNPs with data in 1000 genomes and create a list of SNPs that overlap our set. We'll write 
+this list to a file that matches PLINK format.
 
-```{r, GWAS1-diag1, fig.width=9, fig.height=2.5}
-# Demo on a small subset of SNPs first (remove this later)
-bmi <- bmi[sample(1:nrow(bmi), 100000),]
+```{r, GWAS1-snplist, eval=TRUE}
+# load reference data 
+onekg <- fread(paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.bim"))$V2
 
-# First for the sample size covariate (N)
-strat_hist(bmi, pval="p_value", covariate="N", maxy=3)
+# construct input list of SNPs that overlap - 97.5% overlap
+bmi$BP <- as.numeric(unlist(lapply(strsplit(bmi$markername, ":"), function(x) x[[2]])))
+write_delim(bmi %>% dplyr::rename(CHR=chromosome, SNP=rs_id, A1=allele_1, A2=allele_2) %>%
+              mutate(P=0.5, F_A=Freq_Allele1_HapMapCEU, F_U=F_A, CHISQ=1, OR=1) %>% 
+              select(CHR, SNP, BP, A1, F_A, F_U, A2, CHISQ, P, OR) %>%
+              filter(SNP %in% onekg), 
+            path=paste0(datdir, "rslist.assoc"), delim="\t")
 
-# Next for the MAF covariate (Freq_Allele1_HapMapCEU)
-strat_hist(bmi %>% filter(!is.na(Freq_Allele1_HapMapCEU)),
-           pval="p_value", covariate="Freq_Allele1_HapMapCEU", maxy=3)
-
+ol <- sum(bmi$rs_id %in% onekg)/nrow(bmi)
+rm(onekg)
 ```
 
-Next we'll look at a scatter plot of p-values by the ranks of covariate values.
+It turns out that `r signif(ol*100, 3)` percent of SNPs in our set are included in the 1000 genomes 
+reference data. Next we'll use the PLINK software to read in our list of SNPs and the 1000 genomes
+linkage disequilibrium data to 'clump' the SNPs into independent sets of SNPs that have LD correlation (r squared)
+less than 0.2 with all neighbors within 250 kilobases of distance. We write the results to a file called `plink_clump.clumped`. We have to jump out of R here since PLINK is a command line tool.
 
-```{r, GWAS1-diag2, fig.width=7, fig.height=4}
-# First for the sample size covariate (N)
-rank_scatter(bmi, pval="p_value", covariate="N") 
-
-# Next for the MAF covariate (Freq_Allele1_HapMapCEU)
-rank_scatter(bmi, pval="p_value", covariate="Freq_Allele1_HapMapCEU") 
-
-# Take proximity to 0.5 as the actual covariate (according to previous plot)
-bmi <- bmi %>%
-        mutate(MAF.5=-abs(Freq_Allele1_HapMapCEU-0.5))
-rank_scatter(bmi, pval="p_value", covariate="MAF.5") 
+```{bash, clump, eval=FALSE}
+# use PLINK clumping tool to obtain a set of independent SNPs by LD
+plink \
+--bfile DATA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01 \
+--clump DATA/rslist.assoc \
+--clump-field P \
+--clump-p1 0.9999 \
+--clump-p2 0.9999 \
+--clump-r2 0.2 \
+--clump-kb 250 \
+--out DATA/plink_clump
 ```
 
-#### Running benchmark methods
+Next, we'll read in the clumped results and subset our data by our list of independent SNPs.
 
-First, we'll standardize the data frame to use the wrapper function. For now, we'll
-assume that there is only a single 'independent covariate' for those methods that 
-utilize this, and we'll use the sample size (number of subjects with that SNP
-measured). **Still to-do: consider multiple covariates for methods that allow this.**
+```{r, GWAS1-prune}
+clump <- fread(paste0(datdir, "plink_clump.clumped"))
 
-```{r, GWAS1-dat}
+# subset to include only the SNPs in the ld.list
+bmi <- bmi[bmi$rs_id %in% clump$SNP,]
+
+rm(clump)
+```
+
+After pruning, we are left with for `r nrow(bmi)` approximately independent SNPs.
+
+Before moving on, we'll rename the relevant columns so that they will use common terms
+across the different datasets. We'll also add a 'test_statistic' column.
+
+```{r, GWAS1-reformat}
 bmi <- bmi %>% 
-        rename(pval = p_value,
-               SE = stderr,
-               effect_size = effect,
-               ind_covariate = N) %>%
-        mutate(zscore = effect_size/SE)
+  dplyr::rename(pval = p_value,
+                SE = stderr,
+                effect_size = effect,
+                ind_covar_N = N,
+                ind_covar_AF = Freq_Allele1_HapMapCEU) %>%
+  mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size)) %>%
+  select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
-Now, we'll run the `run_benchmarks` helper function on the `bmi` data frame for
-several alpha values and plot the results. This is fairly computationally intensive 
-for some of the benchmark methods (since there are more than 2.5 million tests)
-and best run on a machine with lots of memory.
+# Data Analysis
 
-```{r, GWAS1-run, results="hide"}
-cutoffs <- c(0.01, 0.025, 0.05, 0.10, 0.20)
-resfile <- paste0(resdir, "bmi_results_",
-                  nrow(bmi), ".RData")
-if (!file.exists(resfile)){
-  t1 <- proc.time()
-  bmi_results <- run_benchmarks(dat=bmi, alphas=cutoffs, pvals=TRUE)
-  save(bmi_results, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(bmi), " SNPs."))
-}else{
-  load(resfile)
-}
+## Differential Testing
+Since we do not have access to the individual genotype information and since
+our data already contains the results of performing hypothesis tests of
+association of BMI with each SNP (including p-values and effect sizes), we 
+don't need to carry out any additional testing. We move on to checking the
+covariate diagnostics and adjusting for multiple comparisons.
 
-# plot N rejects vs FDR cutoff
-p <- ggplot(bmi_results$stats, aes(alpha, n_rejects, color=method)) +
-  geom_point() +
-  geom_line() +
-  xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("BMI GWAS Metanalysis with Sample Size Covariate") +
-  theme_classic()
-print(p)
+## Covariate Diagnostics
 
-# log-scale y axis
-print(p + scale_y_continuous(trans="log2") + 
-        ylab("Number of rejections (log2 scale)"))
+Here we look to see if the covariates do indeed look informative. First we look at 
+the sample size covariate.
+
+### Covariate one: Sample Size
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(bmi, pvalue="pval", covariate="ind_covar_N") + 
+  ggtitle("Covariate 1: Sample Size")
 ```
-
-Next, we look beyond the number of rejections for each method and examine
-the overlap between them. We'll use the Venn diagram alternative provided in the
-UpsetR package.
-
-```{r, GWAS1-upset, fig.width=9, fig.height=9}
-sig_df <- bmi_results$pvals %>%
-            mutate_all(function(x) 1*(x < alpha.cutoff))
-upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
-      order.by = c("freq"), decreasing = c(TRUE), 
-      sets.bar.color = "#56B4E9")
-```
-
-And we'll clean up the workspace before moving on to the next dataset.
-
-```{r, GWAS1-cleanup}
-rm(bmi)
-rm(bmi_results)
-```
-
-### GWAS for Asthma
-
-[This study by Moffatt et al. (2010, NEJM)](http://www.nejm.org/doi/full/10.1056/NEJMoa0906312?query=TOC) performed a large
-GWAS on  10,365 people with asthma and 16,110 controls 23 individual studies. 
-
-#### Data Download
-
-Let's download the data from the Gabriel site. The second file contains metadata
-for the columns in the main data file.
-
-```{bash, GWAS2-download, eval=FALSE}
-curl -O "https://beaune.cng.fr/gabriel/gabriel_results.zip"
-curl -O "https://beaune.cng.fr/gabriel/gabriel_results_description.xls"
-```
-
-Next we unzip the file and remove the zipped copy.
-
-```{bash, GWAS2-unzip, eval=FALSE}
-unzip gabriel_results.zip
-rm gabriel_results.zip
-```
-
-Next, we'll read in the unzipped `.txt` file and the results desription `.xls` 
-file into R and verify that it contains
-the necessary inputs to run the FDR benchmark comparisons.
-
-```{r, GWAS2-verify-contents}
-# read in meta-data
-meta <- read_xls(paste0(datdir, "gabriel_results_description.xls"))
-head(meta)
-dim(meta)
-
-# read in data
-asthma <- fread(paste0(datdir, 
-                "gabriel_asthma_meta-analysis_36studies_format_repository_NEJM.txt"),
-                header=TRUE)
-dim(asthma)
-
-# verify meta-data rows = data cols
-nrow(meta) == ncol(asthma)
-
-# remove study-specific columns
-empty <- which(!is.na(meta$description))
-asthma <- asthma %>%
-            select(empty)
-meta <- meta %>% 
-            slice(empty)
-
-# remove SNPs with missing effect size/pvalues
-asthma <- asthma %>% 
-            filter(!is.na(P_fix) & !is.na(theta_fix))
-
-dim(asthma)
-head(asthma)
-```
-
-It looks like we have:
-
-- `P_fix` and `P_ran`:p-values for fixed and random effect models
-- `theta_fix` and `theta_ran`:effect size for fixed and random effect models
-- `se_theta_fix` and `se_theta_ran`:standard error for fixed and random effect models
-- additional covariates: 
-    - `no_studies_meta`: Number of studies included in the meta-analysis with this SNP
-    - `freq_all_1_max` and `freq_all_1_min`: Maximum and Minimum Allele Frequency of Allele 1 across samples
  
-for 546,182 SNPs.
-
-
-#### Covariate Diagnostics
-
-First, we will look at histograms of p-values stratified by covariate values. To
-stratify by continuous covariate values, we'll use quantiles.
-
-```{r, GWAS2-diag1, fig.width=9, fig.height=2.5}
-# Demo on a small subset of SNPs first (remove this later)
-asthma <- asthma[sample(1:nrow(asthma), 100000),]
-
-# First for the sample size covariate (no_studies_meta)
-strat_hist(asthma, pval="P_fix", covariate="no_studies_meta", maxy=1.3)
-
-# Next for the MAF covariate (freq_all_1_max)
-strat_hist(asthma %>% filter(!is.na(freq_all_1_max)),
-           pval="P_fix", covariate="freq_all_1_max", maxy=1.3)
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_N", maxy=2) 
 ```
 
-Next we'll look at a scatter plot of p-values by the ranks of covariate values.
+### Covariate two: Minor Allele Frequency
 
-```{r, GWAS2-diag2, fig.width=7, fig.height=4}
-# First for the sample size covariate (N)
-rank_scatter(asthma, pval="P_fix", covariate="no_studies_meta") 
+Next we look at the allele frequency covariate.
 
-# Next for the MAF covariate (freq_all_1_max)
-rank_scatter(asthma, pval="P_fix", covariate="freq_all_1_max") 
-
-# Take distance to 0.5 as the actual covariate 
-asthma <- asthma %>%
-        mutate(MAF.5=abs(freq_all_1_max-0.5))
-rank_scatter(asthma, pval="P_fix", covariate="MAF.5") 
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF") +
+  ggtitle("Covariate 1: Minor allele frequency")
 ```
-
-#### Running benchmark methods
-
-First, we'll standardize the data frame to use the wrapper function. For now, we'll
-assume that there is only a single 'independent covariate' for those methods that 
-utilize this, and we'll use the sample size (number of studies with that SNP
-measured). We'll also focus on the fixed effects tests first.
-**Still to-do: consider multiple covariates for methods that allow this.**
-
-```{r, GWAS2-dat}
-asthma <- asthma %>% 
-        rename(pval = P_fix,
-               SE = se_theta_fix,
-               effect_size = theta_fix,
-               ind_covariate = no_studies_meta) %>%
-        mutate(zscore = effect_size/SE)
-```
-
-Now, we'll run the `run_benchmarks` helper function on the `asthma` data frame for
-several alpha values and plot the results. This is fairly computationally intensive 
-for some of the benchmark methods
-(since there are more than 500 thousand tests)
-and best run on a machine with lots of memory.
-
-```{r, GWAS2-run, results="hide"}
-# use same cutoffs as for the bmi study (defined above)
-resfile <- paste0(resdir, "asthma_results_",
-                  nrow(asthma), ".RData")
-if (!file.exists(resfile)){
-  t1 <- proc.time()
-  asthma_results <- run_benchmarks(dat=asthma, alphas=cutoffs, pvals=TRUE)
-  save(asthma_results, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(asthma), " SNPs."))
-}else{
-  load(resfile)
-}
-
-# plot N rejects vs FDR cutoff
-p <- ggplot(asthma_results$stats, aes(alpha, n_rejects, color=method)) +
-  geom_point() +
-  geom_line() +
-  xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("Asthma GWAS Metanalysis with Sample Size Covariate") +
-  theme_classic()
-print(p)
-
-# log-scale y axis
-print(p + scale_y_continuous(trans="log2") + 
-        ylab("Number of rejections (log2 scale)"))
-```
-
-Next, we look beyond the number of rejections for each method and examine
-the overlap between them. We'll use the Venn diagram alternative provided in the
-UpsetR package.
-
-```{r, GWAS2-upset, fig.width=9, fig.height=9}
-sig_df <- asthma_results$pvals %>%
-            mutate_all(function(x) 1*(x < alpha.cutoff))
-upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
-      order.by = c("freq"), decreasing = c(TRUE), 
-      sets.bar.color = "#56B4E9")
-```
-
-And we'll clean up the workspace before moving on to the next dataset.
-
-```{r, GWAS2-cleanup}
-rm(asthma)
-rm(asthma_results)
-```
-
-### GWAS for Lipid Levels
-
-[This study by Willer et al. (2013, Nature Genetics)](http://www.nature.com/ng/journal/v45/n11/full/ng.2797.html) performed a large
-GWAS on 188,577 and measured blood lipid levels (as well as several cardiovascular traits).
-
-#### Data Download 
-
-Let's download the data from the University of Michigan site. The download page 
-has a handy [metadata table](http://csg.sph.umich.edu//abecasis/public/lipids2013/)
-that describes the contents of the columns in the results files. 
-
-There are several types of results files to download (in terms of which phenotype to analyze):
-
-- LDL Cholesterol
-- HDL Cholesterol
-- Triglycerides
-- Total Cholesterol
-
-As well as two types of analyses: 
-
-- Joint analyses of GWAS and Metabochip
-- analysis of Metabochip
-
-We would like to look at the joint analysis of GWAS + Metabochip since we'd like 
-to look at all available SNPs (not just those that have previously shown a possible
-association with CVD). We could choose any or all of the traits, but I'll go ahead
-and proceed with Triglycerides since I'm curious about the role of genetic variation 
-on Triglyceride levels.
-
-```{bash, GWAS3-download, eval=FALSE}
-curl -O "http://csg.sph.umich.edu/abecasis/public/lipids2013/jointGwasMc_TG.txt.gz"
-```
-
-Next we uncompress the file.
-
-```{bash, GWAS3-unzip, eval=FALSE}
-gunzip jointGwasMc_TG.txt.gz 
-```
-
-Next, we'll read in the uncompressed `.txt` file into R and verify that it contains
-the necessary inputs to run the FDR benchmark comparisons.
-
-```{r, GWAS3-verify-contents}
-# read in data
-trig <- fread(paste0(datdir, "jointGwasMc_TG.txt"), header=TRUE)
-dim(trig)
-head(trig)
-```
-
-It looks like we have:
-
-- `P_value`:p-value
-- `beta`:effect size
-- `SE`:standard error
-- additional covariates: 
-    - `N`: The number of individuals analyzed for this marker.
-    - `Freq.A1.1000G.EUR`: Frequency of allele A1 from 1000G EUR sample.
  
-for 2,439,432 SNPs.
-
-#### Covariate Diagnostics
-
-First, we will look at histograms of p-values stratified by covariate values. To
-stratify by continuous covariate values, we'll use quantiles.
-
-```{r, GWAS3-diag1, fig.width=9, fig.height=2.5}
-# Demo on a small subset of SNPs first (remove this later)
-trig <- trig[sample(1:nrow(trig), 100000),]
-
-# First for the sample size covariate (no_studies_meta)
-strat_hist(trig, pval="P-value", covariate="N", maxy=1.3)
-
-# Next for the MAF covariate (Freq.A1.1000G.EUR)
-strat_hist(trig %>% filter(!is.na(Freq.A1.1000G.EUR)),
-           pval="P-value", covariate="Freq.A1.1000G.EUR", maxy=1.3)
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=2)
 ```
 
-Next we'll look at a scatter plot of p-values by the ranks of covariate values.
+## Multiple-Testing Correction
 
-```{r, GWAS3-diag2, fig.width=7, fig.height=4}
-# First for the sample size covariate (N)
-rank_scatter(trig, pval="P-value", covariate="N") 
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object.
 
-# Next for the MAF covariate (Freq.A1.1000G.EUR)
-rank_scatter(trig, pval="P-value", covariate="Freq.A1.1000G.EUR") 
+```{r, GWAS1-benchdesign, message=FALSE}
+bd <- initializeBenchDesign()
 ```
 
-#### Running benchmark methods
+Now, we're ready to construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+                                        helper scripts). 
+                                        
+### Covariate one: Sample size
 
-First, we'll standardize the data frame to use the wrapper function. For now, we'll
-assume that there is only a single 'independent covariate' for those methods that 
-utilize this, and we'll use the sample size (number of individuals with that SNP
-measured). 
-**Still to-do: consider multiple covariates for methods that allow this.**
+First we'll include the sample size covariate.
 
-Note that for this dataset, all reported effect sizes are positive. This is because
-the alleles (A1 and A2) have been ordered such that the direction of effect are 
-consistent. Since Scott assumes that the Z-scores are standard normal, we can't 
-apply this method to a set of all positive Z-scores. To recover the direction of 
-effect, we use the `Freq.A1.1000G.EUR` (allele frequency of A1) variable,
-and use it to determine whether
-`A1` (allele 1) is the reference allele or not. If the allele frequence of A1 is
-greater than 0.5, we consider it the reference allele. Then we'll use the 
-comparison of reference to minor as the positive direction. That is,
-if A2 was reference,
-then effect direction is negative. Otherwise it is positive. Since some of the
-SNPs are missing the reference allele information, we cannot determine their 
-direction of effect and they will be removed.
+```{r, GWAS1-sb, results="hide", message=FALSE}
+resN <- paste0(resdir, "bmi_N_summarizedBenchmark_",
+               nrow(bmi), ".RData")
 
-```{r, GWAS3-dat}
-trig <- trig %>% 
-        rename(pval = "P-value",
-               SE = se,
-               effect_size = beta,
-               ind_covariate = N)%>%
-        mutate(zscore = effect_size/SE)
-
-# add effect size
-trig <- trig %>% 
-       mutate(A2.reference = Freq.A1.1000G.EUR < 0.5) %>%
-       mutate(zscore = zscore * (1-2*A2.reference))
-
-# remove SNPs with missing values for zscore (couldn't determine direction of 
-# effect)
-trig <- trig %>% 
-  filter(!is.na(zscore))
-```
-
-Now, we'll run the `run_benchmarks` helper function on the `trig` data frame for
-several alpha values and plot the results. This is fairly computationally intensive 
-for some of the benchmark methods
-(since there are more than 500 thousand tests)
-and best run on a machine with lots of memory.
-
-```{r, GWAS3-run, results="hide"}
-# use same cutoffs as for the bmi study (defined above)
-resfile <- paste0(resdir, "trig_results_",
-                  nrow(trig), ".RData")
-if (!file.exists(resfile)){
+duration <- NA
+if (!file.exists(resN)){
   t1 <- proc.time()
-  trig_results <- run_benchmarks(dat=trig, alphas=cutoffs, pvals=TRUE)
-  save(trig_results, file=resfile)
-  message(paste0("Took ", round((proc.time()-t1)[3],1),
-                 " seconds for ", nrow(trig), " SNPs."))
+  sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
+                          ftCols = c("ind_covar_N"),
+                          parallel=TRUE, BPPARAM=multicoreParam)
+  metadata(sbN)$data_download_link <- 
+    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+  saveRDS(sbN, file=resN)
+  duration <- round((proc.time()-t1)[3]/60,1)
 }else{
-  load(resfile)
+  sbN <- readRDS(resN)
 }
+```
 
-# plot N rejects vs FDR cutoff
-p <- ggplot(trig_results$stats, aes(alpha, n_rejects, color=method)) +
-  geom_point() +
-  geom_line() +
-  xlab("FDR cutoff") + ylab("Number of rejections") +
-  ggtitle("Triglyceride GWAS Metanalysis with Sample Size Covariate") +
-  theme_classic()
-print(p)
+```{r, echo=FALSE}
+if(!is.na(duration)){
+  message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+          cores, " cores.")
+}
+```
 
-# log-scale y axis
-print(p + scale_y_continuous(trans="log2") + 
-        ylab("Number of rejections (log2 scale)"))
+### Covariate two: Minor Allele Frequency
+
+Now, we'll repeat the multiple testing correction using the other covariate (AF):
+
+```{r, GWAS1-sb2, results="hide", message=FALSE}
+resAF <- paste0(resdir, "bmi_AF_summarizedBenchmark_",
+nrow(bmi), ".RData")
+
+duration <- NA
+if (!file.exists(resAF)){
+  t1 <- proc.time()
+  sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
+                                    filter(!is.na(ind_covariate))), 
+                            ftCols = c("ind_covar_AF"),
+                            parallel=TRUE, BPPARAM=multicoreParam)
+  metadata(sbAF)$data_download_link <-    
+    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+  saveRDS(sbAF, file=resAF)
+  duration <- round((proc.time()-t1)[3]/60,1)
+}else{
+  sbAF <- readRDS(resAF)
+}
+```
+
+```{r, echo=FALSE}
+if(!is.na(duration)){
+  message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+  cores, " cores.")
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays and 
+plot the results. We'll start with covariate one.
+
+### Covariate one: Sample Size
+
+First, we have
+to rename the assay to 'qvalue'.
+
+```{r, GWAS1-metrics}
+# rename assay to qvalue
+assayNames(sbN) <- "qvalue"
+sbN <- addDefaultMetrics(sbN)
+```
+
+Now, we'll plot the results.
+
+```{r, GWAS1-plot, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sbN,
+                   supplementary=FALSE) +
+  ggtitle("Covariate 1: Sample size")
+
+rejection_scatter_bins(sbN, covariate="ind_covar_N", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("Covariate 1: Sample size")
+
+# upset plot 
+plotFDRMethodsOverlap(sbN, 
+                      alpha=0.05, nsets=ncol(sb),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE) 
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
+plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
+  ggtitle("Covariate 1: Sample size")
 
 ```
 
-Next, we look beyond the number of rejections for each method and examine
-the overlap between them. We'll use the Venn diagram alternative provided in the
-UpsetR package.
-
-```{r, GWAS3-upset, fig.width=9, fig.height=9}
-sig_df <- trig_results$pvals %>%
-            mutate_all(function(x) 1*(x < alpha.cutoff))
-upset(sig_df, nsets = 9, nintersects = 30, mb.ratio = c(0.5, 0.5),
-      order.by = c("freq"), decreasing = c(TRUE), 
-      sets.bar.color = "#56B4E9")
+```{r, fig.width=8, fig.height=3.5}
+mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
+covariateHeatmap(sbN, alpha=0.05, covname="tstat")
+covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N")
 ```
 
-And we'll clean up the workspace before moving on to the next dataset.
+### Covariate two: Minor Allele Frequency
 
-```{r, GWAS3-cleanup}
-rm(trig)
-rm(trig_results)
+Next, we'll look at the performance metrics for the other covariate (minor
+allele frequency).
+
+```{r, GWAS1-metrics2}
+# rename assay to qvalue
+assayNames(sbAF) <- "qvalue"
+sbAF <- addDefaultMetrics(sbAF)
+```
+
+Now, we'll plot the results.
+
+```{r, GWAS1-plot2, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sbAF, supplementary=FALSE) +
+  ggtitle("Covariate 2: Minor allele frequency")
+
+rejection_scatter_bins(sbAF, covariate="ind_covar_AF", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("Covariate 2: Minor allele frequency")
+
+# upset plot 
+plotFDRMethodsOverlap(sbAF, 
+                      alpha=0.05, nsets=ncol(sbAF),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE)
+
+# properties of method-exclusive discoveries
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
+             "scott-empirical", "scott-theoretical")
+mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
+plotCovariateBoxplots(sbAF, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
+  ggtitle("Covariate 2: Minor allele frequency")
+```
+
+```{r, fig.width=8, fig.height=3.5}
+mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
+covariateHeatmap(sbAF, alpha=0.05, covname="tstat")
+covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF")
+```
+
+# Session Information
+
+```{r}
+sessionInfo()
 ```

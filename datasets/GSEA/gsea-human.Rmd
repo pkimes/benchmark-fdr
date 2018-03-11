@@ -1,0 +1,244 @@
+---
+title: "Case Study: Gene Set Enrichment Analysis (Human Data Set)"
+author: "Alejandro Reyes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+**Some sort of summary of the analysis.**
+
+# Workspace Setup
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(DESeq2)
+library(EnsDb.Hsapiens.v86)
+library(biomaRt)
+library(goseq)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
+## intermediary files we create below
+count_file <- file.path(datdir, "human-counts.rds")
+deseq_file <- file.path(datdir, "human-deseq.rds")
+goset_file <- file.path(datdir, "human-gosets.rds")
+result_file <- file.path(resdir, "human-results.rds")
+bench_file <- file.path(resdir, "human-benchmark.rds")
+```
+
+
+# Data Preparation
+
+Download *DESeqDataSet* if not present locally.
+	    
+```{r, message=FALSE}
+if (!file.exists(count_file)) {
+    ## download.file("", destfile = count_file)
+}
+dsdObject <- readRDS(count_file)
+```
+
+**What are we doing here?**
+
+```{r}
+levels(colData(dsdObject)$individual) <- gsub("GTEX-", "", levels(colData(dsdObject)$individual))
+```
+
+We only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
+
+```{r}
+gnType <- genes(EnsDb.Hsapiens.v86, column = "gene_biotype")
+protGenes <- gnType$gene_id[gnType$gene_biotype == "protein_coding"]
+dsdObject <- dsdObject[rownames(dsdObject) %in% protGenes, ]
+```
+
+# Data Analysis
+
+## Enrichment Analysis
+
+**Add description of what's going on.**
+We first test for differentially expressed genes using DESeq2 and use genes with adjusted p-value less than 0.1.
+
+```{r deseq2, message=FALSE}
+if (!file.exists(deseq_file)) {
+    dsdObject <- DESeq(dsdObject)
+    res <- results(dsdObject, independentFiltering = FALSE)
+    saveRDS(res, file = deseq_file)
+} else {
+    res <- readRDS(deseq_file)
+}
+
+genes <- as.numeric(res$padj < 0.1)
+names(genes) <- rownames(res)
+```
+
+We next determine the gene sets associated with each gene.
+
+```{r goseq, message=FALSE}
+if (!file.exists(goset_file)) {
+    mart <- useMart("ensembl", "hsapiens_gene_ensembl")
+    goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
+                    filters = "ensembl_gene_id", values = rownames(res))
+    goSets <- goSets[!nchar( goSets$go_id ) == 0, ]
+    goSets <- with(goSets, split(go_id, ensembl_gene_id))
+    saveRDS(goSets, file = goset_file)
+} else {
+    goSets <- readRDS(goset_file)
+}
+```
+
+Now we are ready to perform gene set enrichment analysis using `goseq`.
+
+```{r}
+if (!file.exists(result_file)) {
+    ## get median transcript length for bias adjustment
+    txByGene <- transcriptsBy(EnsDb.Hsapiens.v86, "gene")
+    geneLength <- sapply(width(txByGene), median)
+    geneLength <- geneLength[names(genes)]
+    genes[is.na(genes)] <- 0
+
+    ## perform gsea
+    pwf <- nullp(genes, bias.data = geneLength)
+    goRes <- goseq(pwf, gene2cat = goSets)
+
+    saveRDS(goRes, file = result_file)
+} else {
+    goRes <- readRDS(result_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here, we can see that the covariant variable is actually informative.
+
+### Gene Set Size
+
+**Add description of independent covariate.**
+
+```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
+              covariate = "numInCat", bins = 50, funx = log2, 
+              funfill = log10_trans()) +
+    ylim(0, 12) +
+    ggtitle("Over-represented gene sets") +
+    xlab(expression(log[10]~"(# of genes)")) +
+    ylab(expression(-log[10]~"(p-value)") ) 
+```
+
+```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+    strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
+```
+ 
+## Multiple-Testing Correction
+
+Generating the *SummarizedBenchmark* object:
+ 
+```{r runningBenckmark, message=FALSE}
+## rename columns and prepare for benchmarking
+res <- dplyr:::select(goRes, c("over_represented_pvalue", "numInCat")) %>%
+    dplyr:::rename(pval = over_represented_pvalue, ind_covariate = numInCat)
+res$pval <- pmin(res$pval, 1)
+
+## generate default BenchDesign
+bd <- initializeBenchDesign()
+
+## run benchmark
+if (!file.exists(bench_file)) {
+    sGSEA <- buildBench(bd, res, ftCols = "ind_covariate")
+    saveRDS(sGSEA, file = bench_file)
+} else {
+    sGSEA <- readRDS(bench_file)
+}
+```
+
+## Benchmark Metrics
+
+```{r}
+assayNames(sGSEA) <- "qvalue"
+sGSEA <- addDefaultMetrics(sGSEA)
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+```
+
+```{r plottingResults}
+rejections_scatter(sGSEA, as_fraction=FALSE, supplementary=FALSE)
+```
+  
+```{r}
+plotFDRMethodsOverlap(sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
+```
+
+Gene set size of overlaps.
+
+```{r}
+methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
+plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2)
+plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
+```
+
+
+# Data Analysis (Null Comparison)
+
+**Add description.**
+
+## Create Null Data
+
+```{r, eval=FALSE }
+nms <- names( genes )
+xx <- seq_len(length(nms))
+gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
+names( gns ) <- nms
+pwf <- nullp( gns, bias.data=geneLength )
+goRes <- goseq( pwf, gene2cat=goSets )
+res <- goRes %>%
+    dplyr::filter( numDEInCat > 0 ) %>%
+    dplyr::select( c("over_represented_pvalue", "numInCat") ) %>%
+    dplyr::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
+```
+
+## Multiple-Testing Correction
+
+```{r}
+pr <- buildBench(bd, res, ftCols = "ind_covariate")
+assayNames(pr) <- "qvalue"
+pr <- addDefaultMetrics(pr)
+```
+
+## Benchmark Metrics
+
+```{r}
+estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
+    dplyr::filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
+    dplyr::select( blabel, value )
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
