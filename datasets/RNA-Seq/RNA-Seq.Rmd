@@ -1,6 +1,6 @@
 ---
 title: "Case Study: RNA-Seq Differential Analysis"
-author: "Chinmay Shukla"
+author: "Chinmay Shukla, Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
     html_document:
@@ -16,7 +16,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-**Add brief summary of analysis goals and data set.**
+**Add brief summary of analysis goals and details of data set.**
+This data set includes 30 samples each from two regions of the human basal ganglia,
+the nucleus accumbens and the putamen, obtained from the GTEx project.
+Gene-level read counts were obtined by **fill**...
 
 # Workspace Setup
 
@@ -38,31 +41,25 @@ resdir <- "results"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
+## intermediary files we create below
+count_file <- file.path(datdir, "brain-counts.rds")
+result_file <- file.path(resdir, "brain-results.rds")
+bench_file <- file.path(resdir, "brain-benchmark.rds")
+
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
-##multicoreParam <- MulticoreParam(workers = cores)
 multicoreParam <- SerialParam()
 ```
 
 # Data Preparation
 
+The pre-computed set of samples can 
+
 ```{r, dsd-download}
-dsd_data <- file.path(datdir, "dsdObjects.RData")
-if (!file.exists(dsd_data)) {
-    download.file("https://www.dropbox.com/s/8hf0ccl27ircodz/dsdObjects.RData?dl=1",
-                  destfile = dsd_data)
+if (!file.exists(count_file)) {
+    download.file("", destfile = count_file)
 }
-load(dsd_data)
-```
-
-**Add details on content of data and subsetting.**
-
-```{r}
-## Filter to include samples from only 2 tissues
-tissues <-  c('Brain - Nucleus accumbens (basal ganglia)',
-              'Brain - Putamen (basal ganglia)')
-filteredDsd1 <- dsd1[, colData(dsd1)$tissue %in% tissues]
-filteredDsd1$tissue <- droplevels(filteredDsd1$tissue)
+dsd <- readRDS(count_file)
 ```
 
 # Data Analysis
@@ -72,15 +69,14 @@ filteredDsd1$tissue <- droplevels(filteredDsd1$tissue)
 **Add details on how testing is performed.**
 
 ```{r}
-res_rda <- file.path(resdir, "dsd1-results.rda")
-if (!file.exists(res_rda)) {
+if (!file.exists(result_file)) {
     ## build DESeq object and run DESeq2
-    dds <- DESeq(filteredDsd1, parallel = TRUE, BPPARAM = multicoreParam)
+    dds <- DESeq(dsd, parallel = TRUE, BPPARAM = multicoreParam)
     res <- results(dds, independentFiltering = FALSE)
 
-    save(dds, res, file = res_rda)
+    saveRDS(res, file = result_file)
 } else {
-    load(res_rda)
+    res <- readRDS(result_file)
 }
 ```
 
@@ -119,15 +115,19 @@ strat_hist(geneExp, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
-
 ## Multiple-Testing Correction
 
 We use the common `BenchDesign` with the set of multiple testing correction
 methods already included.
 
 ```{r}
-bd <- initializeBenchDesign()
-sb <- buildBench(bd, data = geneExp, ftCols = "ind_covariate")
+if (!file.exists(bench_file)) {
+    bd <- initializeBenchDesign()
+    sb <- buildBench(bd, data = geneExp, ftCols = "ind_covariate")
+    saveRDS(sb, file = bench_file)
+} else {
+    sb <- readRDS(bench_file)
+}
 ```
 
 ## Benchmark Metrics
