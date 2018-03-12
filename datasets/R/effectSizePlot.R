@@ -96,11 +96,14 @@ return(p)
 #' @param nbins positive inter value indicating how many bins to divide the 
 #' covariate values into for the heatmap rows. Defaults to 50.
 #' @param trans character indicating a transformation to apply to the scale
-#' of fill (default NULL means no transformation). 
+#' of fill (e.g. "log1p"). The default NULL means no transformation. 
+#' @param linePlot logical whether to plot a line plot (smoothed density) 
+#' instead of heatmap (default is FALSE).
 #' 
 #' @return a ggplot object
 covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, 
-                             covname, trans = NULL){
+                             covname, trans = NULL, 
+                             linePlot = FALSE){
   
   summarize_one_item <- function(object, alpha, nbins){
     object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ))
@@ -131,7 +134,6 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
     df <- as.tibble(df) %>%
       group_by(method, bin) %>%
       summarize(nsig = mean(nsig / tot)*100) %>%
-      mutate(nsig = ifelse(nsig == 0, NA, nsig)) %>%
       na.omit()
   }else if ("SummarizedBenchmark" %in% class(sbl)){
     df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins) %>%
@@ -148,10 +150,13 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
     ylab(paste0(covname, " percentile")) +
     labs(fill="Mean % Significant")
   
+  mpoint <- median(df$nsig)
+  
   if(!is.null(trans)){
-    p <- p + viridis::scale_fill_viridis(trans = trans) 
+    p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"), 
+                                  trans=trans, na.value = "white")
   }else{
-    p <- p + viridis::scale_fill_viridis() 
+    p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"))
   }
   
   p <- p + ggtitle(paste0(covname, " by significance at alpha ", alpha))
