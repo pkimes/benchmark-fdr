@@ -28,8 +28,8 @@ separate peak calling algorithm, e.g. _MACS_. Differential peaks are called amon
 combined set of significant peaks across samples using methods originally developed for
 differential expression testing, namely _DESeq2_ or _edgeR_.
 
-For this analysis, peak calls are obtained from the ENCODE Project pipeline, and
-testing is performed using _DiffBind_ and _DESeq2_.
+For this analysis, peak calls are made using MACS2 on reads aligned using the _Rsubread_ package,
+and testing is performed using _DiffBind_ and _DESeq2_.
 
 # Workspace Setup
 
@@ -63,45 +63,31 @@ multicoreParam <- MulticoreParam(workers = cores)
 
 # Data Preparation
 
-We downloaded the peak calls directly from the UCSC ENCODE portal.
-
-```{r}
-broad_url <- "http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeBroadHistone/"
-broad_peaks <- c("wgEncodeBroadHistoneGm12878H3k4me3StdPkRep1.narrowPeak.gz",
-                 "wgEncodeBroadHistoneGm12878H3k04me3StdPkRep2V2.narrowPeak.gz",
-                 "wgEncodeBroadHistoneK562H3k4me3StdPkRep1.narrowPeak.gz",
-                 "wgEncodeBroadHistoneK562H3k4me3StdPkRep2.narrowPeak.gz")
-
-for (i_peak in broad_peaks) {
-    if (!file.exists(file.path(datdir, i_peak))) {
-        download.file(paste0(broad_url, i_peak),
-                      destfile = file.path(datdir, i_peak))
-    }
-}
-
-uw_url <- "http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwHistone/"
-uw_peaks <- c("wgEncodeUwHistoneGm12878H3k4me3StdPkRep1.narrowPeak.gz",
-              "wgEncodeUwHistoneGm12878H3k4me3StdPkRep2.narrowPeak.gz",
-              "wgEncodeUwHistoneK562H3k4me3StdPkRep1.narrowPeak.gz",
-              "wgEncodeUwHistoneK562H3k4me3StdPkRep2.narrowPeak.gz")
-
-for (i_peak in uw_peaks) {
-    if (!file.exists(file.path(datdir, i_peak))) {
-        download.file(paste0(uw_url, i_peak),
-                      destfile = file.path(datdir, i_peak))
-    }
-}
-```
-
 We determine sample metadata from the file names.
 
 ```{r}
-peakfiles <- file.path(datdir, c(broad_peaks, uw_peaks))
-labs <- gsub("wgEncode(.*)Histone.*", "\\1", basename(peakfiles))
-cells <- gsub("wgEncode.*Histone(.*)H3k.*", "\\1", basename(peakfiles))
-
-meta <- data.frame(cellline = cells, lab = labs, file = peakfiles,
+## create metadata table
+sortedfiles <- list.files(datdir, pattern = "\\.sorted\\.bam$", full.names = TRUE)
+labs <- gsub("wgEncode(.*)Histone.*", "\\1", basename(sortedfiles))
+cells <- gsub("wgEncode.*Histone(.*)H3k.*", "\\1", basename(sortedfiles))
+meta <- data.frame(cellline = cells, lab = labs, sortedfile = sortedfiles,
+                   peakfile = gsub("\\.bam$", "_peaks.narrowPeak", sortedfiles),
                    stringsAsFactors = FALSE)
+```
+
+We call peaks using MACS using reads aligned in `ChIPseq-csaw.Rmd`. 
+
+```{r}
+for (i in seq_len(nrow(meta))) {
+    i_bam <- meta$sortedfile[i]
+    i_peak <- meta$peakfile[i]
+    if (!file.exists(i_peak)) {
+        code <- sprintf("macs2 callpeak -t %s -f BAM -g hs -n %s -q 0.1",
+                        i_bam, gsub("\\.bam", "", i_bam))
+        code <- system(code)
+        stopifnot(code == 0L)
+    }
+}
 ```
 
 ## Read Counting 
