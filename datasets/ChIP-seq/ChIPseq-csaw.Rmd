@@ -57,6 +57,7 @@ dir.create(resdir, showWarnings = FALSE)
 
 ## intermediary files we create below
 count_file <- file.path(resdir, "h3k4me3-csaw-counts.rds")
+filtered_file <- file.path(resdir, "h3k4me3-csaw-counts-filtered.rds")
 result_file <- file.path(resdir, "h3k4me3-csaw-results.rds")
 bench_file <- file.path(resdir, "h3k4me3-csaw-benchmark.rds")
 
@@ -148,7 +149,7 @@ Standard set of parameters are defined for the analysis. Only the canonical set 
 
 ```{r}
 std_chr <- paste0("chr", c(1:19, "X", "Y"))
-param <- readParam(minq = 15, discard = bl, restrict = std_chr)
+param <- readParam(minq = 20, discard = bl, restrict = std_chr)
 ```
 
 ## Read Counting 
@@ -157,7 +158,7 @@ We count reads within sliding windows across the genome.
 
 ```{r count, results = 'hide', message = FALSE, warning = FALSE}
 if (file.exists(count_file)) {
-    filtered_cnts <- readRDS(count_file)
+    win_cnts <- readRDS(count_file)
 } else {
     ## Broad samples have quality score w/ phred offset +33 (standard)
     b_meta <- meta[meta$lab == "Broad", ]
@@ -205,8 +206,10 @@ if (file.exists(count_file)) {
     unlink(temp_dir, recursive = TRUE)
     
     ## index bam files
-    indexBam(meta$sortedfile)
-
+    if (any(!file.exists(paste0(meta$sortedfile, ".bai")))) {
+        indexBam(meta$sortedfile)
+    }
+    
     ## use correlateReads to determine fragment length (remove dups)
     b_x <- correlateReads(b_meta$sortedfile, param = reform(param, dedup = TRUE))
     u_x <- correlateReads(u_meta$sortedfile, param = reform(param, dedup = TRUE))
@@ -216,14 +219,26 @@ if (file.exists(count_file)) {
     ## count reads in sliding windows (keep dups)
     win_cnts <- windowCounts(meta$sortedfile, param = param, width = 150,
                              ext = list(rep(c(b_frag_len, u_frag_len), each = 4), 150))
-    
+
+    ## save unfiltered counts
+    saveRDS(win_cnts, file = count_file)
+}
+```
+
+We can apply prefiltering on windows with low abundance as described in Lun and Smyth (2016).
+
+```{r}
+if (file.exists(filtered_file)) {
+    filtered_cnts <- readRDS(filtered_file)
+} else {
     ## filter windows by abundance
     bins <- windowCounts(meta$sortedfile, bin = TRUE, width = 2000, param = param)
     filter_stat <- filterWindows(win_cnts, bins, type = "global")
-    keep <- filter_stat$filter > log2(3)
+    keep <- filter_stat$filter > log2(2)
     filtered_cnts <- win_cnts[keep, ]
     
-    saveRDS(filtered_cnts, file = count_file)
+    ## save filtered counts
+    saveRDS(filtered_cnts, file = filtered_file)
 }
 ```
 
@@ -231,7 +246,7 @@ if (file.exists(count_file)) {
 
 ## Differential Testing
 
-We use _edgeR_ to test for differential binding.
+We use _edgeR_ to test for differential binding with the filtered data.
 
 ```{r test, results='hide', message=FALSE, warning=FALSE}
 if (file.exists(result_file)) {
@@ -264,6 +279,54 @@ if (file.exists(result_file)) {
                    best_logFC = tab_best$logFC)
     
     saveRDS(res_ranges, file = result_file)
+}
+
+## covert to df for downstream analysis
+res_df <- as.data.frame(res_ranges)
+```
+
+## Covariate Diagnostics
+
+### Number of Windows
+
+```{r, nwin-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "nWindows") +
+    ggtitle("Number of windows as independent covariate") +
+    xlab("Number of Windows")
+```
+
+```{r, nwin-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 35, numQ = 5)
+```
+
+### Region Width
+
+```{r, width-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "width") +
+    ggtitle("Region width as independent covariate") +
+    xlab("Region Width")
+```
+
+```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 5)
+```
+
+## Multiple-Testing Correction
+
+We use the common `BenchDesign` with the set of multiple testing correction
+methods already included. We use the width of the regions as the independent
+covariate.
+
+```{r}
+if (!file.exists(bench_file)) {
+    res_df$ind_covariate <- res_df$width
+    res_df$pval <- res_df$PValue
+
+    bd <- initializeBenchDesign()
+    sb <- buildBench(bd, data = res_df, ftCols = "ind_covariate")
+    saveRDS(sb, file = bench_file)
+} else {
+    sb <- readRDS(bench_file)
 }
 ```
 
