@@ -158,7 +158,7 @@ if (file.exists(result_file)) {
                                   colData = as.data.frame(meta),
                                   design = ~ lab + cellline)
     dds <- DESeq(dds, fitType = "mean")
-    dat <- as.data.frame(results(dds))
+    dat <- as.data.frame(results(dds, independentFiltering  = FALSE))
     colnames(dat) <- c('ind_covariate', 'effect_size', 'SE',
                        'stat', 'pval', 'padj')
     ## compute test-statistic from p-value for ASH
