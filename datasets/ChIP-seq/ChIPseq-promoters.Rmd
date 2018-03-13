@@ -52,9 +52,9 @@ dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 ## intermediary files we create below
-count_file <- file.path(resdir, "h3k4me3-promotors-counts.rda")
-result_file <- file.path(resdir, "h3k4me3-promotors-results.rda")
-bench_file <- file.path(resdir, "h3k4me3-promotors-benchmark.rda")
+count_file <- file.path(resdir, "h3k4me3-promotors-counts.rds")
+result_file <- file.path(resdir, "h3k4me3-promotors-results.rds")
+bench_file <- file.path(resdir, "h3k4me3-promotors-benchmark.rds")
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
@@ -127,7 +127,7 @@ We count reads for all promoter regions.
 
 ```{r count, results='hide', message=FALSE, warning=FALSE}
 if (file.exists(count_file)) {
-    load(count_file)
+    rc <- readRDS(count_file)
 } else {
     anno <- data.frame(GeneID = seq_len(length(prom)),
                        Chr = seqnames(prom),
@@ -140,7 +140,7 @@ if (file.exists(count_file)) {
                         minOverlap = 50,
                         readExtension3 = 150,
                         ignoreDup = TRUE)$counts
-    save(rc, file = count_file)
+    saveRDS(rc, file = count_file)
 }
 ```
 
@@ -150,15 +150,15 @@ if (file.exists(count_file)) {
 
 We test for differential peaks at each of the .
 
-```{r count, results='hide', message=FALSE, warning=FALSE}
+```{r chipseq-deseq, results='hide', message=FALSE, warning=FALSE}
 if (file.exists(result_file)) {
-    load(result_file)
+    dat <- readRDS(result_file)
 } else {
     dds <- DESeqDataSetFromMatrix(countData = rc,
                                   colData = as.data.frame(meta),
                                   design = ~ lab + cellline)
     dds <- DESeq(dds, fitType = "mean")
-    dat <- as.data.frame(results(dds, independentFiltering  = FALSE))
+    dat <- as.data.frame(results(dds))
     colnames(dat) <- c('ind_covariate', 'effect_size', 'SE',
                        'stat', 'pval', 'padj')
     ## compute test-statistic from p-value for ASH
@@ -168,7 +168,7 @@ if (file.exists(result_file)) {
                          test_statistic = test_statistic * sign(effect_size))
     ## remove regions with effect sizes = NA
     dat <- dat[!is.na(dat$effect_size), ]
-    save(dat, file = result_file)
+    saveRDS(dat, file = result_file)
 }
 ```
 
@@ -196,22 +196,17 @@ strat_hist(dat, pvalue = "pval", covariate = "ind_covariate", maxy = 2)
 ## Multiple-Testing Correction
 
 We use the common `BenchDesign` with the set of multiple testing correction
-methods already included.
-
-```{r, chipseq-benchdesign}
-bd <- initializeBenchDesign()
-```
-
-Now, we're ready to construct the `SummarizedBenchmark` object, which will run
-the functions specified in each method.
+methods already included. Now, we're ready to construct the `SummarizedBenchmark`
+object, which will run the functions specified in each method.
 
 ```{r, chipseq-sb, results="hide", message=FALSE}
 if (file.exists(bench_file)) {
-    load(bench_file)
+    sb <- readRDS(bench_file)
 } else {
+    bd <- initializeBenchDesign()
     sb <- buildBench(bd, data = dat, ftCols = c("ind_covariate"),
                      parallel = TRUE, BPPARAM = multicoreParam)
-    save(sb, file = bench_file)
+    saveRDS(sb, file = bench_file)
 }
 ```
 
