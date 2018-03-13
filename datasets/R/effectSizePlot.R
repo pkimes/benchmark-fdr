@@ -132,9 +132,11 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
     df <- lapply(sbl, summarize_one_item, alpha=alpha, nbins=nbins)
     df <- bind_rows(df, .id = "rep")
     df <- as.tibble(df) %>%
-      group_by(method, bin) %>%
-      summarize(nsig = mean(nsig / tot)*100) %>%
-      na.omit()
+        mutate(prop = nsig / tot) %>%
+        group_by(method, bin) %>%
+        summarize(nsig = mean(prop)*100,
+                  se = sd(prop * 100) / sqrt(n())) %>%
+        na.omit()
   }else if ("SummarizedBenchmark" %in% class(sbl)){
     df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins) %>%
       mutate(nsig = nsig/tot*100)
@@ -143,20 +145,45 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
          "a list of SummarizedBenchmark objects.")
   }
   
-  p <- ggplot(df, aes(x = as.factor(method), y = bin/nbins)) +
-         geom_raster(aes(fill = nsig)) +
-    xlab("Method") +
-    scale_y_continuous(labels = scales::percent) +
-    ylab(paste0(covname, " percentile")) +
-    labs(fill="Mean % Significant")
-  
-  mpoint <- median(df$nsig)
-  
-  if(!is.null(trans)){
-    p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"), 
-                                  trans=trans, na.value = "white")
+  if (linePlot){
+    p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = method)) +
+      geom_line(alpha = 3/4) +
+      geom_errorbar(aes(ymin = nsig - se, ymax = nsig + se),
+                    width=0.01, alpha=1/3,) +
+      ylab("Mean % Significant") +
+      scale_x_continuous(labels = scales::percent) +
+      xlab(paste0(covname, " percentile")) +
+      labs(color="Method") + 
+      viridis::scale_color_viridis("Method", discrete = TRUE,
+                                   guide = guide_legend(ncol = 2))
+    
+    if (!is.list(sbl)){
+      p <- p + ylab("% Significant")
+    }
+    
+    if(!is.null(trans)){
+      p <- p + scale_y_continuous(trans=trans)
+    }
   }else{
-    p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"))
+    p <- ggplot(df, aes(x = as.factor(method), y = bin/nbins)) +
+         geom_raster(aes(fill = nsig)) +
+      xlab("Method") +
+      scale_y_continuous(labels = scales::percent) +
+      ylab(paste0(covname, " percentile")) +
+      labs(fill="Mean % Significant")
+    
+    if (!is.list(sbl)){
+      p <- p + labs(fill = "% Significant")
+    }
+    
+    mpoint <- median(df$nsig)
+    
+    if(!is.null(trans)){
+      p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"), 
+                                    trans=trans, na.value = "white")
+    }else{
+      p <- p + scale_fill_gradientn(colors=RColorBrewer::brewer.pal(8, "BuGn"))
+    }
   }
   
   p <- p + ggtitle(paste0(covname, " by significance at alpha ", alpha))

@@ -364,8 +364,13 @@ plotsim_average(res5, met="rejections",filter_set = excludeSet,
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(null5, alpha=0.05, covname="log2FC")
-covariateHeatmap(null5, alpha=0.05, covname="ind_covariate")
+covariateHeatmap(null5, alpha=0.05, covname="log2FC", trans="log1p")
+covariateHeatmap(null5, alpha=0.05, covname="ind_covariate", trans="log1p")
+
+covariateHeatmap(null5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p", linePlot = TRUE)
+covariateHeatmap(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE, trans="log1p")
 
 if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -412,8 +417,13 @@ plotsim_average(res10, met="rejections",filter_set = excludeSet,
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(null10, alpha=0.05, covname="log2FC")
-covariateHeatmap(null10, alpha=0.05, covname="ind_covariate")
+covariateHeatmap(null10, alpha=0.05, covname="log2FC", trans="log1p")
+covariateHeatmap(null10, alpha=0.05, covname="ind_covariate", trans="log1p")
+
+covariateHeatmap(null10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p", linePlot = TRUE)
+covariateHeatmap(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE, trans="log1p")
 
 if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -464,8 +474,13 @@ plotsim_average(res5d, met="FDR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(de5, alpha=0.05, covname="log2FC")
+covariateHeatmap(de5, alpha=0.05, covname="log2FC", trans="log1p")
 covariateHeatmap(de5, alpha=0.05, covname="ind_covariate")
+
+covariateHeatmap(de5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p", linePlot = TRUE)
+covariateHeatmap(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE)
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -515,8 +530,13 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(de10, alpha=0.05, covname="log2FC")
+covariateHeatmap(de10, alpha=0.05, covname="log2FC", trans="log1p")
 covariateHeatmap(de10, alpha=0.05, covname="ind_covariate")
+
+covariateHeatmap(de10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p", linePlot = TRUE)
+covariateHeatmap(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE)
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
