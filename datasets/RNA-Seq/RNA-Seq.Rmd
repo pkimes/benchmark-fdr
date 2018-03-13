@@ -104,10 +104,9 @@ geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
 ### Mean Coverage
 
 ```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
-gp <- rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
+rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
     ggtitle("Mean coverage as independent covariate") +
     xlab("Mean Expression")
-ggsave("temp.png", gp, width = 4.5, height = 3.5)
 ```
 
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
