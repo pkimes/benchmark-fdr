@@ -105,7 +105,8 @@ which have extremely low proportion of genes detected (less than 5%).
 
 This dataset (from PMC5810554) contains cells from four Glioblastoma patients, 
 sampled from both the tumor core as well as the tissue peripheral to the tumor. 
-We'll compare the Immune cells in the tumor vs periphery.
+We'll compare the Neoplastic cells in the tumor core vs periphery. We'll exclude 
+the two samples where only a few neoplastic cells were found in the periphery.
 
 ```{r}
 datfile <- paste0(datdir, "human_GSE84465_mast.rds")
@@ -125,9 +126,9 @@ if (!file.exists(datfile)){
   }
   
   # subset by groups of interest
-  humandata <- humandata[, (colData(humandata)$tissue.ch1 %in% 
-                         c(" Tumor", " Periphery")) &
-                         colData(humandata)$cell.type.ch1 == " Immune cell" ]
+  humandata <- humandata[, colData(humandata)$patient.id.ch1 %in% 
+                           c(" BT_S4", " BT_S2") &
+                           colData(humandata)$cell.type.ch1 == " Neoplastic" ]
   cdata=colData(humandata)
   cdata$group <- cdata$tissue.ch1
 
@@ -219,7 +220,7 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="meanExp", maxy=35,
+           pvalue="mast_p", covariate="meanExp", maxy=12,
            main = "MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
@@ -238,7 +239,7 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="detection", maxy=35,
+           pvalue="mast_p", covariate="detection", maxy=12,
            main = "MAST, Covariate 2: Detection Rate") 
 ```
 

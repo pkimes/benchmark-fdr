@@ -13,7 +13,8 @@ export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/rstudio/0.98.1103-fasrc01/bin/pan
 
 # change filename to Rmd to be knitted
 # make sure number of cores used in Rmd matches sbatch param -n
-R -e "rmarkdown::render('scrnaseq-mouse-scdd.Rmd', clean=FALSE)"
 R -e "rmarkdown::render('scrnaseq-mouse-mast.Rmd', clean=FALSE)"
-R -e "rmarkdown::render('scrnaseq-human-scdd.Rmd', clean=FALSE)"
+R -e "rmarkdown::render('scrnaseq-mouse-scdd.Rmd', clean=FALSE)"
 R -e "rmarkdown::render('scrnaseq-human-mast.Rmd', clean=FALSE)"
+R -e "rmarkdown::render('scrnaseq-human-scdd.Rmd', clean=FALSE)"
+
