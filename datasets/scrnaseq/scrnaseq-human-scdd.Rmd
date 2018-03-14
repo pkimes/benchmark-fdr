@@ -104,8 +104,9 @@ We will filter out cells with extremely low mapping rate
 size factor estimates during normalization. For the same reason, we also filter cells
 which have extremely low proportion of genes detected (less than 5%).
 
-We'll extract two conditions: Neoplastic and Regular cells, as
-defined by their tsne clusters. 
+This dataset (from PMC5810554) contains cells from four Glioblastoma patients, 
+sampled from both the tumor core as well as the tissue peripheral to the tumor. 
+We'll compare the Immune cells in the tumor vs periphery.
 
 ```{r}
 datfile <- paste0(datdir, "human_GSE84465_scdd.rds")
@@ -125,12 +126,11 @@ if (!file.exists(datfile)){
   }
   
   # subset by groups of interest
-  humandata <- humandata[, (colData(humandata)$characteristics_ch1.7 %in% 
-                         c("neoplastic: Neoplastic", "neoplastic: Regular")) &
-                         (colData(humandata)$characteristics_ch1.5 %in% 
-                         c("tsne cluster: 11",  "tsne cluster: 8"))]
+  humandata <- humandata[, (colData(humandata)$tissue.ch1 %in% 
+                         c(" Tumor", " Periphery")) &
+                         colData(humandata)$cell.type.ch1 == " Immune cell" ]
   cdata=colData(humandata)
-  cdata$group <- cdata$characteristics_ch1.7
+  cdata$group <- cdata$tissue.ch1
 
   # subset by gene expression TPM & count assays
   humandata <- experiments(humandata)[[1]]
