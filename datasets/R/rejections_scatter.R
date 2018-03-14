@@ -38,7 +38,7 @@ rejections_scatter <- function( sb, as_fraction=FALSE, supplementary=TRUE ){
   }
   plotDF %>%
     ggplot( aes(alpha, value/deno, col=blabel) ) +
-    geom_line() + geom_point() +
+    geom_line(alpha = 3/4) + geom_point(alpha = 3/4) +
     xlab(expression(paste("Nominal"~alpha))) +
     ylab(yl)
 }
@@ -100,7 +100,8 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
   }
   plotDF %>%
     ggplot( aes(alpha, value, col=blabel) ) +
-    geom_line() + geom_point() + facet_wrap(~bin, ncol=ncol_facet ) +
+    geom_line(alpha = 3/4) + geom_point(alpha = 3/4) + 
+    facet_wrap(~bin, ncol=ncol_facet ) +
     xlab(expression(paste("Nominal"~alpha))) +
     ylab(yl)
 }
