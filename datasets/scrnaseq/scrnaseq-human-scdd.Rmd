@@ -87,9 +87,12 @@ We first download the data in the data directory.`conquer` provides the processe
 GSE84465.
 
 ```{r, humandata-download}
-download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds",
-  destfile=paste0(datdir, "GSE84465.rds"))
+datfile <- paste0(datdir, "GSE84465.rds")
 
+if (!file.exists(datfile)){
+  download.file("http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE84465.rds",
+    destfile=datfile)
+}
 ```
 
 ## Data processing and filtering
@@ -347,6 +350,10 @@ plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxN
 ```{r, fig.width=8, fig.height=3.5}
 covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate") +
   ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
+
+covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE) +
+  ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
 ```
 
 ### Covariate two: Detection Rate
@@ -387,6 +394,10 @@ plotCovariateBoxplots(sb2, alpha=0.1, nsets=6, methods=methods, maxNum=3) +
 
 ```{r, fig.width=8, fig.height=3.5}
 covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate") +
+  ggtitle("scDD, Covariate 2: Detection Rate")
+
+covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 linePlot = TRUE) +
   ggtitle("scDD, Covariate 2: Detection Rate")
 ```
 

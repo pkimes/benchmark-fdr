@@ -346,8 +346,13 @@ plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxN
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
-covariateHeatmap(sbN, alpha=0.05, covname="tstat")
-covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N")
+covariateHeatmap(sbN, alpha=0.05, covname="tstat", trans = "log1p")
+covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N", trans = "log1p")
+
+covariateHeatmap(sbN, alpha=0.05, covname="tstat", nbins=25, 
+                 linePlot = TRUE, trans="log1p")
+covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
+                 linePlot = TRUE, trans="log1p")
 ```
 
 ### Covariate two: Minor Allele Frequency
@@ -388,8 +393,13 @@ plotCovariateBoxplots(sbAF, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
-covariateHeatmap(sbAF, alpha=0.05, covname="tstat")
+covariateHeatmap(sbAF, alpha=0.05, covname="tstat", trans = "log1p")
 covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF")
+
+covariateHeatmap(sbAF, alpha=0.05, covname="tstat", nbins=25, 
+                 linePlot = TRUE, trans = "log1p")
+covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25, 
+                 linePlot = TRUE)
 ```
 
 # Session Information
