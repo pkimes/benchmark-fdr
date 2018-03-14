@@ -148,8 +148,6 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
   if (linePlot){
     p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = method)) +
       geom_line(alpha = 3/4) +
-      geom_errorbar(aes(ymin = nsig - se, ymax = nsig + se),
-                    width=0.01, alpha=1/3,) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
@@ -158,7 +156,10 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
                                    guide = guide_legend(ncol = 2))
     
     if (!is.list(sbl)){
-      p <- p + ylab("% Significant")
+      p <- p + ylab("% Significant") 
+    }else{
+      p <- p + geom_errorbar(aes(ymin = nsig - se, ymax = nsig + se),
+                    width=0.01, alpha=1/3)
     }
     
     if(!is.null(trans)){
