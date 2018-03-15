@@ -65,7 +65,7 @@ dsd <- readRDS(count_file)
 
 ## Differential Testing
 
-We use DESeq2 to test each gene for differential gene expression between the two cell types. We set the parameter `independentFiltering=FALSE` to skip the independent filtering step. This step would be redundant with some of the FDR control methods that use gene expression as an independent covariate to gain power. 
+We use DESeq2 to test each gene for differential gene expression between the two cell types. We set the parameter `independentFiltering=FALSE` to skip the independent filtering step, as this step would be redundant with some of the FDR control methods that use gene expression as an independent covariate to increase power. 
 
 ```{r}
 if (!file.exists(result_file)) {
