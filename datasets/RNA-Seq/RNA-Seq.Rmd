@@ -16,10 +16,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-**Add brief summary of analysis goals and details of data set.**
-This data set includes 30 samples each from two regions of the human basal ganglia,
-the nucleus accumbens and the putamen, obtained from the GTEx project.
-Gene-level read counts were obtined by **fill**...
+The objective of this document is benchmark methods to control FDR in the context of differential gene expression.  
+
+The first dataset consists of 10 samples each from two regions of the human basal ganglia, the nucleus accumbens and the putamen, obtained from the GTEx project. Shortly, samples were downloaded using the \emph{Short Read Archive Toolkit} and mapped to the human reference genome version GRCh38 using \emph{STAR v2.4.2a}. \emph{htseq-count} was used to tabulate the number of uniquely mapping reads for each gene. 
 
 # Workspace Setup
 
@@ -53,11 +52,11 @@ multicoreParam <- SerialParam()
 
 # Data Preparation
 
-The pre-computed set of samples can 
+We use script `downloadAndSubset.R` to pre-process the data. This script downloads a DESeqDataSet object containing gene level counts for a subset of the GTEx data. Then, it further subsets it keeping samples from only females and two cell types,  nucleus accumbens and the putamen.
 
 ```{r, dsd-download}
 if (!file.exists(count_file)) {
-    download.file("", destfile = count_file)
+    source("downloadAndSubset.R")
 }
 dsd <- readRDS(count_file)
 ```
@@ -66,21 +65,20 @@ dsd <- readRDS(count_file)
 
 ## Differential Testing
 
-**Add details on how testing is performed.**
+We use DESeq2 to test each gene for differential gene expression between the two cell types. We set the parameter `independentFiltering=FALSE` to skip the independent filtering step. This step would be redundant with some of the FDR control methods that use gene expression as an independent covariate to gain power. 
 
 ```{r}
 if (!file.exists(result_file)) {
     ## build DESeq object and run DESeq2
     dds <- DESeq(dsd, parallel = TRUE, BPPARAM = multicoreParam)
     res <- results(dds, independentFiltering = FALSE)
-
     saveRDS(res, file = result_file)
 } else {
     res <- readRDS(result_file)
 }
 ```
 
-**Add details on filtering.**
+ We reformat DESeqResuls object into a normal data.frame for further analysis.
 
 ```{r}
 ## build input data.frame
@@ -94,12 +92,11 @@ geneExp <- dplyr::as_tibble(geneExp)
 
 ## filter data
 geneExp <- na.omit(geneExp)
-geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
 ```
 
 ## Covariate Diagnostics
 
-**Add description of covariates.**
+In RNA-seq differential expression analysis, it is very well established that the mean expression is an informative covariate that is independent under the null and that can be used to increase power while keeping FDR control (DESeq2 paper).
 
 ### Mean Coverage
 
@@ -109,7 +106,17 @@ rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
     xlab("Mean Expression")
 ```
 
+We noticed some discreteness in the distribution of p-values towards values close to 1 that was particularly pronounced in the first covariate bin. The overall distribution of p-values could violate some of the assumptions of the FDR control methods.   
+
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(geneExp, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 25)
+```
+
+These discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow( dplyr::filter(geneExp, ind_covariate <= 1) )` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing this very lowly expressed genes. 
+
+```{r}
+geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
 strat_hist(geneExp, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
@@ -134,9 +141,13 @@ if (!file.exists(bench_file)) {
 ```{r}
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
+estimatePerformanceMetrics( sb, tidy=TRUE ) %>%
+  filter( performanceMetric == "rejections" ) %>%
+  select( blabel, performanceMetric, alpha, value ) %>%
+  arrange( desc(value) )
 ```
 
-**Add description of results.**
+ash was the method that rejected a larger number of hypothesis, followed by lfdr and scott-theorethical. 
 
 ```{r, rnaseq-scatter}
 rejections_scatter(sb, supplementary = FALSE)
