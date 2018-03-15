@@ -20,7 +20,7 @@ library(recount)
 ```
 
 ## Data from Recount
-We select uniformly processed RNAseq datasets from the (Recount2)[https://jhubiostatistics.shinyapps.io/recount/] data repository. The data are available in the form of Ranged Summarized Experiments. We select 2 human datasets. 
+We select uniformly processed RNAseq datasets from the [Recount2](https://jhubiostatistics.shinyapps.io/recount/) data repository. The data are available in the form of Ranged Summarized Experiments. We select 2 human datasets. 
 
 We first download Dataset 1, which looks at bulk RNA-seq from bloood and immune cells from healthy individuals and individuals with Type-1 Diabetes (and other disease phenotypes), before and 24h after treatment with IFN-beta. We select two-groups: Diabetes and healthy. The presence of multiple groups allows for complex designs for differential expression testing. 
 
