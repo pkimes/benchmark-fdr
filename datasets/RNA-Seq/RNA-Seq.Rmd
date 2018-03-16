@@ -1,6 +1,6 @@
 ---
 title: "Case Study: RNA-Seq Differential Analysis (basal ganglia)"
-author: "Chinmay Shukla, Patrick Kimes"
+author: "Chinmay Shukla, Alejandro Reyes, Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
     html_document:
