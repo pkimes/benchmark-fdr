@@ -1,0 +1,165 @@
+---
+title: "Case Study: RNA-Seq Differential Analysis (mir200c knockdown)"
+author: "Alejandro Reyes"
+date: "3/16/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+As a second RNA-seq dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [@Kim_2013].  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gaining from using modern FDR control methods.
+
+# Workspace Setup
+
+```{r, workspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(DESeq2)
+library(SummarizedBenchmark)
+library(BiocParallel)
+library(recount)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
+## intermediary files we create below
+count_path <- file.path(datdir, "SRP030475")
+count_file <- file.path(count_path, 'rse_gene.Rdata')
+bench_file <- file.path(resdir, "mir200c-benchmark.rds")
+
+
+## set up parallel backend
+cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+multicoreParam <- SerialParam()
+```
+
+
+# Data Preparation
+
+We will download the pre-processed gene level counts available through recount2.
+
+```{r}
+if( !file.exists( count_file ) ){
+    download_study('SRP030475', outdir=count_path)
+}
+
+load(count_file)
+dsd <- scale_counts(rse_gene)
+```
+
+We next subset for samples containing the control samples and the samples where mir200c was knocked down. Recount2 downloads data as a RangeSummarizedExperiment object, so we convert this into a DESeqDataSet object. 
+
+```{r}
+dsd <- dsd[,grepl("WT|200c", colData(dsd)$title)]
+colData(dsd)$mir200c <- factor(ifelse( grepl( "WT", colData(dsd)$title), "WT", "KO"))
+dsd <- as( dsd, "DESeqDataSet" )
+storage.mode(assays(dsd)[["counts"]]) <- "integer"
+```
+
+# Data Analysis
+
+## Differential testing
+
+Then, we set the design parameter to test for differences in expression upon mir200c knockout and run DESeq2. Similarly to the previous dataset, we set the parameter `independentFiltering=FALSE`.
+
+```{r}
+design(dsd) <- ~ mir200c
+dsd <- DESeq(dsd)
+res <- results(dsd, independentFiltering=FALSE) %>% 
+  as.data.frame(  ) %>%
+  na.omit() %>% 
+  dplyr::select( pvalue, baseMean, log2FoldChange, lfcSE, stat ) %>%
+  dplyr::rename( pval=pvalue, ind_covariate=baseMean, 
+          effect_size=log2FoldChange, SE=lfcSE, 
+          test_statistic=stat ) 
+head( res )
+```
+
+## Mean Counts
+
+As with the previous example, the mean counts is an informative covariate. 
+
+```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter( res, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Mean coverage as independent covariate") +
+    xlab("Mean Expression")
+```
+
+Similarly to the first dataset, keeping all the tests results in a strange discretness. This is removed once we filter very lowly expressed genes. For the first covariate bin, however, there is a strange behaviour in which the distribution seems a bit skewed towards larger p-values. 
+
+```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist( res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 7.5)
+res <- filter(res, ind_covariate > 1 )
+strat_hist( res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 3)
+```
+
+## Multiple-Testing Correction
+
+We use the common `BenchDesign` with the set of multiple testing correction methods already included.
+
+```{r}
+if (!file.exists(bench_file)) {
+    bd <- initializeBenchDesign(nmids=10000)
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = bench_file)
+} else {
+    sb <- readRDS(bench_file)
+}
+```
+
+There are some warnings from both `BH` and `scott-empirical`. However, they do return results. I tried to increase the `nmids` parameter but did not help.
+
+```{r}
+head( assays( sb )[["bench"]] )
+```
+
+## Benchmark Metrics
+
+Scott empirical rejects many more hypothesis than the rest of the methods, followed by lfdr and IHW.
+
+```{r}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+estimatePerformanceMetrics( sb, tidy=TRUE ) %>%
+  filter( performanceMetric == "rejections", alpha == 0.1 ) %>%
+  select( blabel, performanceMetric, alpha, value ) %>%
+  arrange( desc(value) )
+```
+
+```{r}
+rejections_scatter(sb, supplementary = FALSE)
+rejection_scatter_bins(sb, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+```
+
+```{r}
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf", "scott-empirical")
+plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
+                      methods = methods, trans = log2, maxNum = 5)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
