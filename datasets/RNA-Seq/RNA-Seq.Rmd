@@ -1,5 +1,5 @@
 ---
-title: "Case Study: RNA-Seq Differential Analysis"
+title: "Case Study: RNA-Seq Differential Analysis (basal ganglia)"
 author: "Chinmay Shukla, Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -51,9 +51,8 @@ cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
 multicoreParam <- SerialParam()
 ```
 
-# Dataset 1
 
-## Data Preparation
+# Data Preparation
 
 We use script `downloadAndSubset.R` to pre-process the data. This script downloads a DESeqDataSet object containing gene level counts for a subset of the GTEx data. Then, it further subsets it keeping samples from only females and two cell types,  nucleus accumbens and the putamen.
 
@@ -64,9 +63,9 @@ if (!file.exists(count_file)) {
 dsd <- readRDS(count_file)
 ```
 
-## Data Analysis
+# Data Analysis
 
-### Differential Testing
+## Differential Testing
 
 We use DESeq2 to test each gene for differential gene expression between the two cell types. We set the parameter `independentFiltering=FALSE` to skip the independent filtering step, as this step would be redundant with some of the FDR control methods that use gene expression as an independent covariate to increase power. 
 
@@ -97,11 +96,11 @@ geneExp <- dplyr::as_tibble(geneExp)
 geneExp <- na.omit(geneExp)
 ```
 
-### Covariate Diagnostics
+## Covariate Diagnostics
 
 In RNA-seq differential expression analysis, it is very well established that the mean expression is an informative covariate that is independent under the null and that can be used to increase power while keeping FDR control (DESeq2 paper).
 
-### Mean Counts
+## Mean Counts
 
 ```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
@@ -124,7 +123,7 @@ strat_hist(geneExp, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
-### Multiple-Testing Correction
+## Multiple-Testing Correction
 
 We use the common `BenchDesign` with the set of multiple testing correction
 methods already included.
@@ -139,7 +138,7 @@ if (!file.exists(bench_file)) {
 }
 ```
 
-### Benchmark Metrics
+## Benchmark Metrics
 
 ```{r}
 assayNames(sb) <- "qvalue"
@@ -167,107 +166,6 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```{r, rnaseq-boxplots}
 ## properties of method-exclusive discoveries
 methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
-plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
-                      methods = methods, trans = log2, maxNum = 5)
-```
-
-# Dataset 2
-
-As a second dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [@Kim_2013].  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gaining from using modern FDR control methods.
-
-## Data Preparation
-
-We will download the pre-processed gene level counts available through recount2.
-
-```{r}
-download_study('SRP030475')
-load(file.path('SRP030475', 'rse_gene.Rdata'))
-dsd <- scale_counts(rse_gene)
-```
-
-We then subset for samples containing the control samples and the samples where mir200c was knocked down. Recount2 downloads data as a RangeSummarizedExperiment object, so we convert this into a DESeqDataSet object. 
-
-```{r}
-dsd <- dsd[,grepl("WT|200c", colData(dsd)$title)]
-colData(dsd)$mir200c <- factor(ifelse( grepl( "WT", colData(dsd)$title), "WT", "KO"))
-dsd <- as( dsd, "DESeqDataSet" )
-storage.mode(assays(dsd)[["counts"]]) <- "integer"
-```
-
-## Data Analysis
-
-### Differential testing
-
-Then, we set the design parameter to test for differences in expression upon mir200c knockout and run DESeq2. Similarly to the previous dataset, we set the parameter `independentFiltering=FALSE`.
-
-```{r}
-design(dsd) <- ~ mir200c
-dsd <- DESeq(dsd)
-res <- results(dsd, independentFiltering=FALSE) %>% 
-  as.data.frame(  ) %>%
-  na.omit() %>% 
-  select( pvalue, baseMean, log2FoldChange, lfcSE, stat ) %>%
-  rename( pval=pvalue, ind_covariate=baseMean, 
-          effect_size=log2FoldChange, SE=lfcSE, 
-          test_statistic=stat ) 
-head( res )
-```
-
-### Mean Counts
-
-As with the previous example, the mean counts is an informative covariate. 
-
-```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
-rank_scatter( res, pvalue = "pval", covariate = "ind_covariate") +
-    ggtitle("Mean coverage as independent covariate") +
-    xlab("Mean Expression")
-```
-
-Similarly to the first dataset, keeping all the tests results in a strange discretness. This is removed once we filter very lowly expressed genes. 
-
-```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist( res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 7.5)
-res <- filter(res, ind_covariate > 1 )
-strat_hist( res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 3)
-```
-
-### Multiple-Testing Correction
-
-We use the common `BenchDesign` with the set of multiple testing correction
-methods already included.
-
-```{r}
-bd <- initializeBenchDesign()
-sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-```
-
-### Benchmark Metrics
-
-```{r}
-assayNames(sb) <- "qvalue"
-sb <- addDefaultMetrics(sb)
-estimatePerformanceMetrics( sb, tidy=TRUE ) %>%
-  filter( performanceMetric == "rejections" ) %>%
-  select( blabel, performanceMetric, alpha, value ) %>%
-  arrange( desc(value) )
-```
-
-```{r}
-rejections_scatter(sb, supplementary = FALSE)
-rejection_scatter_bins(sb, covariate = "ind_covariate",
-                       bins = 4, supplementary = FALSE)
-```
-
-```{r}
-plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
-                      order.by = "freq", decreasing = TRUE,
-                      supplementary = FALSE)
-```
-
-```{r}
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf", "scott-empirical")
 plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
                       methods = methods, trans = log2, maxNum = 5)
 ```

@@ -34,7 +34,7 @@ sample_info <- data.frame(run = colData(dat1)$run,
     group = ifelse(grepl('Type 1 Diabetes', as.data.frame(colData(dat1))$characteristics), 'Diabetes', ifelse(grepl('Healthy Control', as.data.frame(colData(dat1))$characteristics),'Healthy','Other')), sequencing_depth = colData(dat1)$reads_downloaded)
 ## Add sample information for DE analysis
 colData(dat1)$group <- sample_info$group
-
+ncol(dat1)
 ```
 
 We next download Dataset 2, which looks at bulk RNA-seq from hematopoietic stem and progenitor cells from healthy individuals and individuals at risk for MDS(Myelodysplastic syndromes). 
