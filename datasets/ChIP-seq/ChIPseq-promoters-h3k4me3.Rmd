@@ -118,7 +118,8 @@ human genome assembly hg19 (GRCh37).
 
 ```{r}
 prom <- promoters(genes(TxDb.Hsapiens.UCSC.hg19.knownGene))
-seqlevels(prom, force = TRUE) <- seqlevels(prom)[!grepl("_", seqlevels(prom))]
+prom <- keepSeqlevels(prom, paste0("chr", c(1:22, "X", "Y", "M")),
+                      pruning.mode = "coarse")
 ```
 
 ## Read Counting
@@ -190,7 +191,8 @@ rank_scatter(dat, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, chipseq-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(dat, pvalue = "pval", covariate = "ind_covariate", maxy = 2)
+strat_hist(dat, pvalue = "pval", covariate = "ind_covariate",
+           maxy = 10)
 ```
 
 ## Multiple-Testing Correction
@@ -227,7 +229,7 @@ rejections_scatter(sb, supplementary = FALSE)
 rejection_scatter_bins(sb, covariate = "ind_covariate",
                        bins = 4, supplementary = FALSE)
 
-plotFDRMethodsOverlap(sb,  alpha = 0.05, nsets = ncol(sb),
+plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
                       order.by = "freq", decreasing = TRUE,
                       supplementary = FALSE)
 
