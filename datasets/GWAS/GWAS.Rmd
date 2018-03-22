@@ -152,16 +152,17 @@ less than 0.2 with all neighbors within 250 kilobases of distance. We write the 
 
 ```{r, clump}
 ## use PLINK clumping tool to obtain a set of independent SNPs by LD
-if (!dir.exists(plink_clump)) {
-    system(paste("plink",
-                 "--bfile DATA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01",
-                 "--clump DATA/rslist.assoc",
-                 "--clump-field P",
-                 "--clump-p1 0.9999",
-                 "--clump-p2 0.9999",
-                 "--clump-r2 0.2",
-                 "--clump-kb 250",
-                 "--out DATA/plink_clump"))
+if (!file.exists(file.path(datdir, "plink_clump.clumped"))) {
+    code <- paste("plink",
+                  "--bfile", file.path(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01"),
+                  "--clump", file.path(datdir, "rslist.assoc"),
+                  "--clump-field P",
+                  "--clump-p1 0.9999",
+                  "--clump-p2 0.9999",
+                  "--clump-r2 0.2",
+                  "--clump-kb 250",
+                  "--out", file.path(datdir, "plink_clump"))
+    system(code)
 }
 ```
 
