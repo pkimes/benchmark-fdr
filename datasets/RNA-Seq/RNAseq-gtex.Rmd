@@ -96,7 +96,7 @@ In RNA-seq differential expression analysis, it is very well established that th
 ### Mean Counts
 
 ```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
-rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
+rank_scatter(res, pvalue = "pval", covariate = "ind_covariate") +
     ggtitle("Mean coverage as independent covariate") +
     xlab("Mean Expression")
 ```
@@ -104,15 +104,15 @@ rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
 We noticed some discreteness in the distribution of p-values towards values close to 1 that was particularly pronounced in the first covariate bin. The overall distribution of p-values could violate some of the assumptions of the FDR control methods.   
 
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(geneExp, pvalue = "pval",
+strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
-These discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow(dplyr::filter(geneExp, ind_covariate <= 1))` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing this very lowly expressed genes. 
+These discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow(dplyr::filter(res, ind_covariate <= 1))` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing this very lowly expressed genes. 
 
 ```{r}
-geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
-strat_hist(geneExp, pvalue = "pval",
+res <- dplyr::filter(res, ind_covariate >= 1)
+strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
@@ -126,7 +126,7 @@ if (file.exists(bench_file)) {
     sb <- readRDS(bench_file)
 } else {
     bd <- initializeBenchDesign()
-    sb <- buildBench(bd, data = geneExp, ftCols = "ind_covariate")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     saveRDS(sb, file = bench_file)
 }
 ```

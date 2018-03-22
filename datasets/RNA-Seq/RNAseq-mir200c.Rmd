@@ -103,11 +103,12 @@ rank_scatter(res, pvalue = "pval", covariate = "ind_covariate") +
     xlab("Mean Expression")
 ```
 
-Similarly to the GTEx dataset, keeping all the tests results in a strange discretness. This is removed once we filter very lowly expressed genes. For the first covariate bin, however, there is a strange behaviour in which the distribution seems a bit skewed towards larger p-values. 
+Similarly to the GTEx dataset, keeping all the tests results in a strange discreteness. This is removed once we filter very lowly expressed genes. For the first covariate bin, however, there is a strange behaviour in which the distribution seems a bit skewed towards larger p-values. 
 
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 7.5)
+
 res <- filter(res, ind_covariate > 1)
 strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 3)
