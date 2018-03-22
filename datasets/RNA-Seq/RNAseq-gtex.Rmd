@@ -75,7 +75,6 @@ if (file.exists(result_file)) {
     res <- readRDS(result_file)
 } else {
     dds <- DESeq(dsd, parallel = TRUE, BPPARAM = multicoreParam)
-    res <- results(dds, independentFiltering = FALSE)
     res <- results(dds, independentFiltering = FALSE) %>% 
         as.data.frame() %>%
         na.omit() %>% 
