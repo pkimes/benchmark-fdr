@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-As a second RNA-seq dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [(Kim et al., 2013)](http://dx.doi.org/10.1038/nsmb.2701).  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gaining from using modern FDR control methods.
+As a second RNA-seq dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [(Kim et al., 2013)](http://dx.doi.org/10.1038/nsmb.2701).  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gained using modern FDR control methods.
 
 # Workspace Setup
 
@@ -57,7 +57,7 @@ load(count_file)
 dsd <- scale_counts(rse_gene)
 ```
 
-We next subset for samples containing the control samples and the samples where mir200c was knocked down. Recount2 downloads data as a RangeSummarizedExperiment object, so we convert this into a DESeqDataSet object. 
+We next subset for samples containing the control samples and the samples where mir200c was knocked down. recount2 downloads data as a RangeSummarizedExperiment object, so we convert this into a DESeqDataSet object. 
 
 ```{r}
 dsd <- dsd[, grepl("WT|200c", colData(dsd)$title)]
@@ -93,7 +93,7 @@ if (file.exists(result_file)) {
 
 ## Covariate Diagnostics
 
-As with the GTEx example, the mean counts is an informative covariate.
+As with the GTEx example, the mean counts is used as the informative covariate.
 
 ### Mean Counts
 
@@ -103,7 +103,9 @@ rank_scatter(res, pvalue = "pval", covariate = "ind_covariate") +
     xlab("Mean Expression")
 ```
 
-Similarly to the GTEx dataset, keeping all the tests results in a strange discreteness. This is removed once we filter very lowly expressed genes. For the first covariate bin, however, there is a strange behaviour in which the distribution seems a bit skewed towards larger p-values. 
+Similar to the GTEx dataset, keeping all the tests results in a strange discreteness.
+This is removed once we filter very lowly expressed genes.
+For the first covariate bin, however, there is a strange behaviour in which the distribution seems a bit skewed towards larger p-values. 
 
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue = "pval",
@@ -128,7 +130,8 @@ if (file.exists(bench_file)) {
 }
 ```
 
-There are some warnings from both `BH` and `scott-empirical`. However, they do return results. I tried to increase the `nmids` parameter but did not help.
+There are some warnings from both `BH` and `scott-empirical`. However, they do return results.
+I tried to increase the `nmids` parameter for Scott's FDR Regression but this does not appear to make a difference.
 
 ```{r}
 head(assays(sb)[["bench"]])
@@ -136,7 +139,7 @@ head(assays(sb)[["bench"]])
 
 ## Benchmark Metrics
 
-Scott empirical rejects many more hypothesis than the rest of the methods, followed by lfdr and IHW.
+`scott-empirical` rejects many more hypothesis than the rest of the methods, followed by `lfdr` and `ihw`.
 
 ```{r}
 assayNames(sb) <- "qvalue"

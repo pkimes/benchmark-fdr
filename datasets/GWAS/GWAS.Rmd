@@ -29,26 +29,26 @@ PLINK is freely available for download
 [here](http://zzz.bwh.harvard.edu/plink/plink2.shtml).
 
 ```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
-# data and results directories
-system("mkdir -p DATA")
-system("mkdir -p RESULTS")
-datdir <- "DATA/"
-resdir <- "RESULTS/"
-
-# wrangling & plotting tools
 library(data.table)
 library(readxl)
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(cowplot)
+library(BiocParallel)
 
-# comparison tools/functions
-library(R.utils)
-sourceDirectory("../R/")
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+# data and results directories
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
 
 # set up parallel backend
-library(BiocParallel)
 cores <- 8
 multicoreParam <- MulticoreParam(workers = cores)
 ```
@@ -70,14 +70,14 @@ subset to avoid the impact of population stratification on our results.
 
 
 ```{r, GWAS1-download}
-if(!file.exists(paste0(datdir,"BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"))){
-  download.file(url="http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
-             destfile=paste0(datdir,"BMI.SNPadjSMK.zip")) 
-  unzip(paste0(datdir,"BMI.SNPadjSMK.zip"), exdir=datdir)
-  file.remove(paste0(datdir,"BMI.SNPadjSMK.zip"))
+if (!file.exists(file.path(datdir, "BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"))) {
+  download.file(url = "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip", 
+             destfile = file.path(datdir, "BMI.SNPadjSMK.zip")) 
+  unzip(file.path(datdir, "BMI.SNPadjSMK.zip"), exdir = datdir)
+  file.remove(file.path(datdir,"BMI.SNPadjSMK.zip"))
   
-  dfiles <- list.files(path=datdir, pattern="BMI.SNPadjSMK.*.txt", 
-                     full.names = TRUE)
+  dfiles <- list.files(path = datdir, pattern = "BMI.SNPadjSMK.*.txt", 
+                       full.names = TRUE)
   dfiles <- dfiles[!grepl("BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt", dfiles)]
   file.remove(dfiles)
 }
@@ -87,12 +87,12 @@ We also download the 1000 genomes CEU reference population data, which will be u
 determine which SNPs are LD buddies for the purposes of obtaining an independent set of SNPs.
 
 ```{r, GWAS1-refdata}
-reffile <- paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01")
-if (!file.exists(paste0(reffile, ".fam"))){
-  download.file(url="http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
-              destfile=paste0(reffile, ".zip"))
-  unzip(paste0(reffile, ".zip"))
-  file.remove(paste0(reffile, ".zip"))
+reffile <- file.path(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01")
+if (!file.exists(paste0(reffile, ".fam"))) {
+    download.file("http://neurogenetics.qimrberghofer.edu.au/iSECA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.zip", 
+                  destfile = paste0(reffile, ".zip"))
+    unzip(paste0(reffile, ".zip"), exdir = datdir)
+    file.remove(paste0(reffile, ".zip"))
 }
 ```
 
@@ -100,8 +100,8 @@ Next, we'll read in the unzipped `.txt` file into R and verify that it contains
 the necessary inputs to run the FDR benchmark comparisons.
 
 ```{r, GWAS1-verify-contents}
-bmi <- fread(paste0(datdir, "BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"),
-             header=TRUE)
+bmi <- fread(file.path(datdir, "BMI.SNPadjSMK.CombinedSexes.EuropeanOnly.txt"),
+             header = TRUE)
 dim(bmi)
 head(bmi)
 ```
@@ -130,15 +130,16 @@ this list to a file that matches PLINK format.
 
 ```{r, GWAS1-snplist, eval=TRUE}
 # load reference data 
-onekg <- fread(paste0(datdir, "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.bim"))$V2
+onekg <- fread(file.path(datdir,  "1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01.bim"))$V2
 
 # construct input list of SNPs that overlap - 97.5% overlap
 bmi$BP <- as.numeric(unlist(lapply(strsplit(bmi$markername, ":"), function(x) x[[2]])))
-write_delim(bmi %>% dplyr::rename(CHR=chromosome, SNP=rs_id, A1=allele_1, A2=allele_2) %>%
-              mutate(P=0.5, F_A=Freq_Allele1_HapMapCEU, F_U=F_A, CHISQ=1, OR=1) %>% 
-              select(CHR, SNP, BP, A1, F_A, F_U, A2, CHISQ, P, OR) %>%
-              filter(SNP %in% onekg), 
-            path=paste0(datdir, "rslist.assoc"), delim="\t")
+write_delim(bmi %>%
+            dplyr::rename(CHR=chromosome, SNP=rs_id, A1=allele_1, A2=allele_2) %>%
+            mutate(P=0.5, F_A=Freq_Allele1_HapMapCEU, F_U=F_A, CHISQ=1, OR=1) %>% 
+            select(CHR, SNP, BP, A1, F_A, F_U, A2, CHISQ, P, OR) %>%
+            filter(SNP %in% onekg), 
+            path=file.path(datdir,  "rslist.assoc"), delim="\t")
 
 ol <- sum(bmi$rs_id %in% onekg)/nrow(bmi)
 rm(onekg)
@@ -149,26 +150,28 @@ reference data. Next we'll use the PLINK software to read in our list of SNPs an
 linkage disequilibrium data to 'clump' the SNPs into independent sets of SNPs that have LD correlation (r squared)
 less than 0.2 with all neighbors within 250 kilobases of distance. We write the results to a file called `plink_clump.clumped`. We have to jump out of R here since PLINK is a command line tool.
 
-```{bash, clump, eval=FALSE}
-# use PLINK clumping tool to obtain a set of independent SNPs by LD
-plink \
---bfile DATA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01 \
---clump DATA/rslist.assoc \
---clump-field P \
---clump-p1 0.9999 \
---clump-p2 0.9999 \
---clump-r2 0.2 \
---clump-kb 250 \
---out DATA/plink_clump
+```{r, clump}
+## use PLINK clumping tool to obtain a set of independent SNPs by LD
+if (!dir.exists(plink_clump)) {
+    system(paste("plink",
+                 "--bfile DATA/1000G_20101123_v3_GIANT_chr1_23_minimacnamesifnotRS_CEU_MAF0.01",
+                 "--clump DATA/rslist.assoc",
+                 "--clump-field P",
+                 "--clump-p1 0.9999",
+                 "--clump-p2 0.9999",
+                 "--clump-r2 0.2",
+                 "--clump-kb 250",
+                 "--out DATA/plink_clump"))
+}
 ```
 
 Next, we'll read in the clumped results and subset our data by our list of independent SNPs.
 
 ```{r, GWAS1-prune}
-clump <- fread(paste0(datdir, "plink_clump.clumped"))
+clump <- fread(file.path(datdir, "plink_clump.clumped"))
 
 # subset to include only the SNPs in the ld.list
-bmi <- bmi[bmi$rs_id %in% clump$SNP,]
+bmi <- bmi[bmi$rs_id %in% clump$SNP, ]
 
 rm(clump)
 ```
@@ -180,13 +183,13 @@ across the different datasets. We'll also add a 'test_statistic' column.
 
 ```{r, GWAS1-reformat}
 bmi <- bmi %>% 
-  dplyr::rename(pval = p_value,
-                SE = stderr,
-                effect_size = effect,
-                ind_covar_N = N,
-                ind_covar_AF = Freq_Allele1_HapMapCEU) %>%
-  mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size)) %>%
-  select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
+    dplyr::rename(pval = p_value,
+                  SE = stderr,
+                  effect_size = effect,
+                  ind_covar_N = N,
+                  ind_covar_AF = Freq_Allele1_HapMapCEU) %>%
+    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size)) %>%
+    select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
 # Data Analysis
@@ -249,7 +252,7 @@ resN <- paste0(resdir, "bmi_N_summarizedBenchmark_",
                nrow(bmi), ".RData")
 
 duration <- NA
-if (!file.exists(resN)){
+if (!file.exists(resN)) {
   t1 <- proc.time()
   sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
                           ftCols = c("ind_covar_N"),
@@ -264,7 +267,7 @@ if (!file.exists(resN)){
 ```
 
 ```{r, echo=FALSE}
-if(!is.na(duration)){
+if (!is.na(duration)) {
   message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
           cores, " cores.")
 }
@@ -282,7 +285,7 @@ duration <- NA
 if (!file.exists(resAF)){
   t1 <- proc.time()
   sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
-                                    filter(!is.na(ind_covariate))), 
+                                  filter(!is.na(ind_covariate))), 
                             ftCols = c("ind_covar_AF"),
                             parallel=TRUE, BPPARAM=multicoreParam)
   metadata(sbAF)$data_download_link <-    
@@ -321,13 +324,12 @@ Now, we'll plot the results.
 
 ```{r, GWAS1-plot, results="hide"}
 # plot nrejects by method overall and stratified by covariate
-rejections_scatter(sbN,
-                   supplementary=FALSE) +
-  ggtitle("Covariate 1: Sample size")
+rejections_scatter(sbN, supplementary=FALSE) +
+    ggtitle("Covariate 1: Sample size")
 
 rejection_scatter_bins(sbN, covariate="ind_covar_N", bins=4,
                        supplementary=FALSE) +
-  ggtitle("Covariate 1: Sample size")
+    ggtitle("Covariate 1: Sample size")
 
 # upset plot 
 plotFDRMethodsOverlap(sbN, 
@@ -340,9 +342,9 @@ methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
              "scott-empirical", "scott-theoretical")
 mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
 plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
-  ggtitle("Covariate 1: Sample size")
-
+    ggtitle("Covariate 1: Sample size")
 ```
+
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
