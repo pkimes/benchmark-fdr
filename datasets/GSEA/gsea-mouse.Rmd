@@ -57,7 +57,8 @@ Download *DESeqDataSet* if not present locally.
 
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    ## download.file("", destfile = count_file)
+    download.file("https://www.dropbox.com/s/jq6giqeclxcdypq/mouse-counts.rds?dl=1",
+                  destfile = count_file)
 }
 dseHSCMPP <- readRDS(count_file)
 ```

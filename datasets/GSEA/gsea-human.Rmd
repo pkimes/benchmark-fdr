@@ -51,19 +51,15 @@ bench_file <- file.path(resdir, "human-benchmark.rds")
 
 # Data Preparation
 
-Download *DESeqDataSet* if not present locally.
+**Some sort of summary of the data set.**  
+We download a *DESeqDataSet* if not present locally.
 	    
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    ## download.file("", destfile = count_file)
+    download.file("https://www.dropbox.com/s/itrs2a6cnmurnck/human-counts.rds?dl=1",
+                  destfile = count_file)
 }
 dsdObject <- readRDS(count_file)
-```
-
-**What are we doing here?**
-
-```{r}
-levels(colData(dsdObject)$individual) <- gsub("GTEX-", "", levels(colData(dsdObject)$individual))
 ```
 
 We only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
