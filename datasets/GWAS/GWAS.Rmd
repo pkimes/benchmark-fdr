@@ -249,21 +249,20 @@ the functions specified in each method (these are actually sourced in from the
 First we'll include the sample size covariate.
 
 ```{r, GWAS1-sb, results="hide", message=FALSE}
-resN <- paste0(resdir, "bmi_N_summarizedBenchmark_",
-               nrow(bmi), ".RData")
+resN <- file.path(resdir, paste0("bmi_N_summarizedBenchmark_", nrow(bmi), ".rds"))
 
 duration <- NA
 if (!file.exists(resN)) {
-  t1 <- proc.time()
-  sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
-                          ftCols = c("ind_covar_N"),
-                          parallel=TRUE, BPPARAM=multicoreParam)
-  metadata(sbN)$data_download_link <- 
-    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-  saveRDS(sbN, file=resN)
-  duration <- round((proc.time()-t1)[3]/60,1)
-}else{
-  sbN <- readRDS(resN)
+    t1 <- proc.time()
+    sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
+                             ftCols = c("ind_covar_N"),
+                             parallel=TRUE, BPPARAM=multicoreParam)
+    metadata(sbN)$data_download_link <- 
+                    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+    saveRDS(sbN, file=resN)
+    duration <- round((proc.time()-t1)[3]/60,1)
+} else {
+    sbN <- readRDS(resN)
 }
 ```
 
@@ -279,29 +278,28 @@ if (!is.na(duration)) {
 Now, we'll repeat the multiple testing correction using the other covariate (AF):
 
 ```{r, GWAS1-sb2, results="hide", message=FALSE}
-resAF <- paste0(resdir, "bmi_AF_summarizedBenchmark_",
-nrow(bmi), ".RData")
+resAF <- file.path(resdir, paste0("bmi_AF_summarizedBenchmark_", nrow(bmi), ".rds"))
 
 duration <- NA
-if (!file.exists(resAF)){
-  t1 <- proc.time()
-  sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
-                                  filter(!is.na(ind_covariate))), 
-                            ftCols = c("ind_covar_AF"),
-                            parallel=TRUE, BPPARAM=multicoreParam)
-  metadata(sbAF)$data_download_link <-    
-    "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-  saveRDS(sbAF, file=resAF)
-  duration <- round((proc.time()-t1)[3]/60,1)
-}else{
-  sbAF <- readRDS(resAF)
+if (!file.exists(resAF)) {
+    t1 <- proc.time()
+    sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
+                                    filter(!is.na(ind_covariate))), 
+                              ftCols = c("ind_covar_AF"),
+                              parallel=TRUE, BPPARAM=multicoreParam)
+    metadata(sbAF)$data_download_link <-    
+                     "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+    saveRDS(sbAF, file = resAF)
+    duration <- round((proc.time()-t1)[3]/60, 1)
+} else {
+    sbAF <- readRDS(resAF)
 }
 ```
 
 ```{r, echo=FALSE}
-if(!is.na(duration)){
-  message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
-  cores, " cores.")
+if (!is.na(duration)) {
+    message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+            cores, " cores.")
 }
 ```
 
