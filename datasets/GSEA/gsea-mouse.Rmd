@@ -57,7 +57,7 @@ Download *DESeqDataSet* if not present locally.
 
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/jq6giqeclxcdypq/mouse-counts.rds?dl=1",
+    download.file("https://www.dropbox.com/s/jq6giqeclxcdypq/gsea-mouse-counts.rds?dl=1",
                   destfile = count_file)
 }
 dseHSCMPP <- readRDS(count_file)
@@ -90,7 +90,7 @@ We next determine the gene sets associated with each gene.
 
 ```{r goseq, message=FALSE}
 if (!file.exists(goset_file)) {
-    mart <- useMart("ensembl", "mmusculus_gene_ensembl")
+    mart <- useMart("ensembl", "mmusculus_gene_ ensembl")
     goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
                     filters = "ensembl_gene_id", values = rownames(res))
     goSets <- goSets[!nchar(goSets$go_id) == 0, ]

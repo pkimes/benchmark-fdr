@@ -56,7 +56,7 @@ We download a *DESeqDataSet* if not present locally.
 	    
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/itrs2a6cnmurnck/human-counts.rds?dl=1",
+    download.file("https://www.dropbox.com/s/itrs2a6cnmurnck/gsea-human-counts.rds?dl=1",
                   destfile = count_file)
 }
 dsdObject <- readRDS(count_file)
