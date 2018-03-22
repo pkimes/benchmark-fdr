@@ -54,11 +54,12 @@ multicoreParam <- SerialParam()
 
 # Data Preparation
 
-We use script `downloadAndSubset.R` to pre-process the data. This script downloads a DESeqDataSet object containing gene level counts for a subset of the GTEx data. Then, it further subsets it keeping samples from only females and two cell types,  nucleus accumbens and the putamen.
+We download a DESeqDataSet object containing gene level counts for a subset of the GTEx data. The data set includes  females and two cell types, nucleus accumbens and the putamen.
 
 ```{r, dsd-download}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/pptxqnpsmdkyhcf/brain-counts.rds?dl=1", destfile=count_file)
+    download.file("https://www.dropbox.com/s/pptxqnpsmdkyhcf/brain-counts.rds?dl=1",
+                  destfile = count_file)
 }
 dsd <- readRDS(count_file)
 ```
