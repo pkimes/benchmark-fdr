@@ -14,4 +14,5 @@ export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/rstudio/0.98.1103-fasrc01/bin/pan
 
 # change filename to Rmd to be knitted. ncores is passed in through environment
 # variable SLURM_NTASKS
-R -e "rmarkdown::render('RNA-Seq.Rmd')"
+R -e "rmarkdown::render('RNAseq-gtex.Rmd')"
+R -e "rmarkdown::render('RNAseq-mir200c.Rmd')"
