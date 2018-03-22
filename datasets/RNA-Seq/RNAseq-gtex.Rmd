@@ -54,11 +54,11 @@ multicoreParam <- SerialParam()
 
 # Data Preparation
 
-We download a DESeqDataSet object containing gene level counts for a subset of the GTEx data. The data set includes  females and two cell types, nucleus accumbens and the putamen.
+We download a DESeqDataSet object containing gene level counts for a subset of the GTEx data. The data set includes females and two cell types, nucleus accumbens and the putamen.
 
 ```{r, dsd-download}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/pptxqnpsmdkyhcf/brain-counts.rds?dl=1",
+    download.file("https://www.dropbox.com/s/9g06cx9vyonhdao/rnaseq-brain-counts.rds?dl=1",
                   destfile = count_file)
 }
 dsd <- readRDS(count_file)
@@ -71,37 +71,29 @@ dsd <- readRDS(count_file)
 We use DESeq2 to test each gene for differential gene expression between the two cell types. We set the parameter `independentFiltering=FALSE` to skip the independent filtering step, as this step would be redundant with some of the FDR control methods that use gene expression as an independent covariate to increase power. 
 
 ```{r}
-if (!file.exists(result_file)) {
-    ## build DESeq object and run DESeq2
+if (file.exists(result_file)) {
+    res <- readRDS(result_file)
+} else {
     dds <- DESeq(dsd, parallel = TRUE, BPPARAM = multicoreParam)
     res <- results(dds, independentFiltering = FALSE)
+    res <- results(dds, independentFiltering = FALSE) %>% 
+        as.data.frame() %>%
+        na.omit() %>% 
+        dplyr::select(pvalue, baseMean, log2FoldChange, lfcSE, stat) %>%
+        dplyr::rename(pval = pvalue,
+                      ind_covariate = baseMean, 
+                      effect_size = log2FoldChange,
+                      SE = lfcSE, 
+                      test_statistic = stat)
     saveRDS(res, file = result_file)
-} else {
-    res <- readRDS(result_file)
 }
-```
-
- We reformat DESeqResuls object into a normal data.frame for further analysis.
-
-```{r}
-## build input data.frame
-geneExp <- data.frame(geneName = rownames(res),
-                      pval = res$pvalue,
-                      SE = res$lfcSE, 
-                      ind_covariate = res$baseMean,
-                      effect_size = res$log2FoldChange,
-                      test_statistic = res$stat)
-geneExp <- dplyr::as_tibble(geneExp)
-
-## filter data
-geneExp <- na.omit(geneExp)
 ```
 
 ## Covariate Diagnostics
 
-In RNA-seq differential expression analysis, it is very well established that the mean expression is an informative covariate that is independent under the null and that can be used to increase power while keeping FDR control (DESeq2 paper).
+In RNA-seq differential expression analysis, it is very well established that the mean expression is an informative covariate that is independent under the null and that can be used to increase power while keeping FDR control.
 
-## Mean Counts
+### Mean Counts
 
 ```{r, meancov-diag-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(geneExp, pvalue = "pval", covariate = "ind_covariate") +
@@ -116,7 +108,7 @@ strat_hist(geneExp, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
-These discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow( dplyr::filter(geneExp, ind_covariate <= 1) )` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing this very lowly expressed genes. 
+These discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow(dplyr::filter(geneExp, ind_covariate <= 1))` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing this very lowly expressed genes. 
 
 ```{r}
 geneExp <- dplyr::filter(geneExp, ind_covariate >= 1)
@@ -130,12 +122,12 @@ We use the common `BenchDesign` with the set of multiple testing correction
 methods already included.
 
 ```{r}
-if (!file.exists(bench_file)) {
+if (file.exists(bench_file)) {
+    sb <- readRDS(bench_file)
+} else {
     bd <- initializeBenchDesign()
     sb <- buildBench(bd, data = geneExp, ftCols = "ind_covariate")
     saveRDS(sb, file = bench_file)
-} else {
-    sb <- readRDS(bench_file)
 }
 ```
 
@@ -144,10 +136,10 @@ if (!file.exists(bench_file)) {
 ```{r}
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-estimatePerformanceMetrics( sb, tidy=TRUE ) %>%
-  filter( performanceMetric == "rejections" ) %>%
-  select( blabel, performanceMetric, alpha, value ) %>%
-  arrange( desc(value) )
+estimatePerformanceMetrics(sb, tidy = TRUE) %>%
+    filter(performanceMetric == "rejections") %>%
+    select(blabel, performanceMetric, alpha, value) %>%
+    arrange(desc(value))
 ```
 
 ash was the method that rejected a larger number of hypothesis, followed by lfdr and scott-theorethical. 
