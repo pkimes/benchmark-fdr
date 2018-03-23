@@ -1,42 +1,43 @@
 ---
-title: "Benchmarking FDR Methods - Simulation Summarized ROC / UpsetR Plots"
-author: "Rafalab Journal Club Members"
-date: "`r Sys.Date()`"
+title: "Simulation Study"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
-  html_document:
-    toc: true
-    toc_float: true
-    highlight: tango
-    number_sections: true
-    code_folding: hide
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+        code_folding: hide
 ---
 
 ```{r, echo = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, fig.width = 14, fig.height = 6)
 ```
 
-<!-- ######################################################################## -->
-## Workspace Setup
-<!-- ######################################################################## -->
+# Summary
 
-```{r, load-libraries, message=FALSE}
-library("SummarizedBenchmark")
-library("tidyverse")
-```
-
-```{r, helper-functions, message=FALSE}
-source("../R/plotsim_aggupset.R")
-```
-
-In contrast to the t-test simulations, underlying data was not simulated in this series of simulations. Instead, for each simulation, a collection (20,000) of test statistics
-were directly sampled from univariate distributions (Normal, non-central-t, or non-central-chi-squared). Test statistics corresponding to null tests are sampled with non-centrality
-parameter zero, and non-null tests are sampled with some non-zero non-centrality parameter, determined based on the simulation setting. In these simulations, the magnitude of
-the non-centrality parameter for each test can be understood as the effect size or signal in that test. The univariate distributions (Normal, t, chi-squared) are the variyng
-sampling distributions that may be encountered under different testing scenarios (e.g. Student's t-test or Pearson's goodness-of-fit).
+For each simulation, a collection (20,000) of test statistics were directly
+sampled from univariate distributions (Normal, non-central-t, or
+non-central-chi-squared). Test statistics corresponding to null tests are
+sampled with non-centrality parameter zero, and non-null tests are sampled
+with some non-zero non-centrality parameter, determined based on the
+simulation setting. In these simulations, the magnitude of the non-centrality
+parameter for each test can be understood as the effect size or signal in
+that test. The univariate distributions (Normal, t, chi-squared) are the variyng
+sampling distributions that may be encountered under different testing scenarios
+(e.g. Student's t-test or Pearson's goodness-of-fit).
 
 Since ASH requires standard errors, the true standard errors is provided to the method.
 
-All simulation settings were carried out with an independent covariate. Both settings where the covariate was informative and uninformative were considered. Additionally, several different informative covariates were considered. Following the approach of Boca and Leek (2015) and Chen, Robinson and Storey (2017), we sampled the independent covariate for each test uniformly from the interval [0, 1]. Whether the covariate was informative or uninformative was determined by a functional relationship between the value of the covariate and the probability of the corresponding test being null. The following relationships were considered:
+All simulation settings were carried out with an independent covariate. Both
+settings where the covariate was informative and uninformative were considered.
+Additionally, several different informative covariates were considered. Following
+the approach of Boca and Leek (2015) and Chen, Robinson and Storey (2017), we
+sampled the independent covariate for each test uniformly from the interval [0, 1].
+Whether the covariate was informative or uninformative was determined by a functional
+relationship between the value of the covariate and the probability of the
+corresponding test being null. The following relationships were considered:
 
 - pi0(x) = pi0 (`uniform-80`)
 - pi0(x) = pi0 (`uniform-90`)
@@ -48,15 +49,28 @@ All simulation settings were carried out with an independent covariate. Both set
 - pi0(x) = 1 - x^3 ... (`cubic-90`, 90% pi0)
 - pi0(x) = 1 - x^3 ... (`cubic-95`, 95% pi0)
 
-Here, we only consider a subset of the entire set of simulation settings. Namely, we look at: [1] null simulations, [2] non-null simulations with an informative covariate (cubic), and [3] non-null simulations with an uninformative covariate. For each of the 3 simulation sets, we further consider three different sampling distributions of the test statistics (Normal, t, chi-squared).
+Here, we only consider a subset of the entire set of simulation settings.
+Namely, we look at: [1] null simulations, [2] non-null simulations with an
+informative covariate (cubic), and [3] non-null simulations with an uninformative
+covariate. For each of the 3 simulation sets, we further consider three different
+sampling distributions of the test statistics (Normal, t, chi-squared).
 
-Performance is evaluated with: the false positive rate (FPR), true positive rate (TPR), and method overlaps (upset plots). For null simulations, since FPR and TPR are useless, we instead plot the proportion of rejected tests.
+Performance is evaluated with: the false positive rate (FPR), true positive rate (TPR),
+and method overlaps (upset plots). For null simulations, since FPR and TPR are useless,
+we instead plot the proportion of rejected tests.
 
-<!-- ######################################################################## -->
-## Local Helper Functions
-<!-- ######################################################################## -->
+# Workspace Setup
 
-```{r}
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library("SummarizedBenchmark")
+library("tidyverse")
+
+source(file.path("..", "R", "plotsim_aggupset.R"))
+```
+
+# Helper Functions
+
+```{r helper-preclean}
 preclean <- function(res, merge_ihw = TRUE, supplementary = FALSE) {
     ## set of method names
     method_names <- unique(res$blabel)
@@ -82,7 +96,9 @@ preclean <- function(res, merge_ihw = TRUE, supplementary = FALSE) {
     }
     return(res)
 }
+```
 
+```{r helper-myplot}
 myplot <- function(res, metrics = c("TPR", "FPR"), alpha_max = 1) {
     gp <- res %>%
         filter(performanceMetric %in% metrics) %>%
@@ -114,18 +130,19 @@ myplot <- function(res, metrics = c("TPR", "FPR"), alpha_max = 1) {
 }
 ```
 
-<!-- ######################################################################## -->
-## Null Simulations
-<!-- ######################################################################## -->
 
-First, we look at the null simulation settings to assess which methods control false discoveries when no truly significant tests are present. The TPR is not reported here because there are no "true positivies" in the null setting.
+# Null Simulations
+
+First, we look at the null simulation settings to assess which methods control
+false discoveries when no truly significant tests are present. The TPR is not
+reported here because there are no "true positivies" in the null setting.
 
 - *null* (pi0 = 100) simulations across *noise distributions*
   1. *null* (pi0 = 100) simulations across *Gaussian*
   2. *null* (pi0 = 100) simulations across *t*
   3. *null* (pi0 = 100) simulations across *chi-squared*
 
-### Normal
+## Normal
 
 ```{r, fig.width = 7, fig.height = 6}
 ## common suffix 
@@ -138,7 +155,7 @@ myplot(mets, metrics = "rejectprop") +
     ggtitle("Distribution: normal, pi0: 100% (100 replications)")
 ```
 
-### t (10 dof)
+## t (10 dof)
 
 ```{r, fig.width = 7, fig.height = 6}
 ## common suffix 
@@ -151,7 +168,7 @@ myplot(mets, metrics = "rejectprop") +
     ggtitle("Distribution: t (10 dof), pi0: 100% (100 replications)")
 ```
 
-### chi-sq (4 dof)
+## chi-sq (4 dof)
 
 ```{r, fig.width = 7, fig.height = 6}
 ## common suffix 
@@ -165,9 +182,7 @@ myplot(mets, metrics = "rejectprop") +
 ```
 
 
-<!-- ######################################################################## -->
-## Informative Covariate Simulations
-<!-- ######################################################################## -->
+# Informative Covariate Simulations
 
 Next, we consider simulations where a truly informative covariate is present.
 
@@ -176,7 +191,7 @@ Next, we consider simulations where a truly informative covariate is present.
   2. *cubic-informative*, *non-null* (pi0 = 80,90,95) simulations across *t*
   3. *cubic-informative*, *non-null* (pi0 = 80,90,95) simulations across *chi-squared*
 
-### Normal
+## Normal
 
 ```{r}
 ## common suffix 
@@ -211,7 +226,7 @@ Also looking at varying pi0s (only showing FPR/TPR).
     ggtitle("Distribution: normal, pi0: 95% (100 replications)")
 ```
 
-### t (10 dof)
+## t (10 dof)
 
 ```{r}
 rds_name <- "M100/altnoise-bl-cubic-90-0.8/results-altnoise_t_df10_bimodal-M100.rds"
@@ -245,7 +260,7 @@ Also looking at varying pi0s (only showing FPR/TPR).
     ggtitle("Distribution: t (10 dof), pi0: 95% (100 replications)")
 ```
 
-### chi-sq (4 dof)
+## chi-sq (4 dof)
 
 ```{r}
 ## common suffix 
@@ -280,9 +295,8 @@ Also looking at varying pi0s (only showing FPR/TPR).
     ggtitle("Distribution: chi-squared (4 dof), pi0: 95% (100 replications)")
 ```
 
-<!-- ######################################################################## -->
-## Uninformative Covariate Simulations
-<!-- ######################################################################## -->
+
+# Uninformative Covariate Simulations
 
 Finally, we consider simulations with non-null (alternative) tests are present. 
 
@@ -291,7 +305,7 @@ Finally, we consider simulations with non-null (alternative) tests are present.
   2. *uninformative*, *non-null* (pi0 = 80,90,95) simulations across *t*
   3. *uninformative*, *non-null* (pi0 = 80,90,95) simulations across *chi-squared*
 
-### Normal
+## Normal
 
 ```{r}
 ## common suffix 
@@ -333,7 +347,7 @@ Also looking at varying pi0s (only showing FPR/TPR).
     ggtitle("Distribution: normal, pi0: 99% (100 replications)")
 ```
 
-### t (10 dof)
+## t (10 dof)
 
 ```{r}
 rds_name <- "M100/altnoise-uniform/results-altnoise_t_df10_bimodal-M100.rds"
@@ -351,7 +365,7 @@ aggupset(res, alpha = 0.05)
 
 *Need to run with different pi0 values.*
 
-### chi-sq (4 dof)
+## chi-sq (4 dof)
 
 ```{r}
 rds_name <- "M100/altnoise-uniform/results-altnoise_chisq_df4_shift3sq-M100.rds"

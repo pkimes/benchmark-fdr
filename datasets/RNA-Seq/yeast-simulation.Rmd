@@ -28,7 +28,7 @@ comparison and add in artificial differences to a subset of genes to define
 Processed count table is made available by the authors in their paper codebase 
 [GitHub repository](https://github.com/bartongroup/profDGE48). 
 
-In this Rmd we will carry out the steps in `yeast48-benchmarkFDR.Rmd` for multiple
+In this Rmd we will carry out simulations for multiple
 replicates, and plot results averaging over the replications.
 
 # Set up workspace
@@ -78,7 +78,7 @@ Snf2 condition and one file for the wild type condition. The Snf2 condition is a
 strain that has the transcriptional regulator gene Snf2 knocked out. Each of these
 files is a compressed `tar.gz` archive that contains a 
 single bam file for each replicate in each condition, which we'll place in a subdirectory
-called `data`.
+called `r datdir`.
 
 ```{r, download}
 download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz",
@@ -120,7 +120,7 @@ counts <- files %>%
 # Analysis of full 48v48 (non-null)
 
 Here we'll carry out an analysis of the full dataset, comparing the controls to the
-knowckout samples. The fold changes observed in this comparison will be used when 
+knockout samples. The fold changes observed in this comparison will be used when 
 generating the non-null simulated data in the following sections.
 
 We're ready to construct a DESeq2 object. First we pull out the feature names and
@@ -158,7 +158,7 @@ sum(resFULL$padj < 0.05, na.rm=T, independentFiltering = F)
 
 ## Check assumptions
 
-There are many thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
+There are several thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
 
 ```{r}
 geneExp <- tbl_df(data.frame(geneName=rownames(resFULL), 
