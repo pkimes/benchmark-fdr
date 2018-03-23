@@ -116,8 +116,8 @@ covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50,
       select(truth, covname, bonf, bh,
              qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
              "scott-empirical") %>%
-      rename("scott-theoretical"="scott-t") %>%
-      rename("scott-empirical"="scott-e") %>%
+      rename("scott-t" = "scott-theoretical") %>%
+      rename("scott-e" = "scott-empirical") %>%
       mutate(bin = ntile(abs(get(covname)), nbins)) %>%
       gather(method, significant, -covname, -bin) %>%
       group_by(method, bin) %>%
