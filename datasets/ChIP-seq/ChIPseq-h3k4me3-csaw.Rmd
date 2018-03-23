@@ -3,7 +3,7 @@ title: "Case Study: ChIP-seq Differential Peak Calling (csaw)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
-   html_document:
+    html_document:
         toc: true
         toc_float: true
         highlight: tango
@@ -296,7 +296,7 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "nWindows") +
 ```
 
 ```{r, nwin-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 35, numQ = 5)
+strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 35, numQ = 3)
 ```
 
 ### Region Width
@@ -308,7 +308,7 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "width") +
 ```
 
 ```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 5)
+strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 3)
 ```
 
 ## Multiple-Testing Correction
@@ -328,6 +328,32 @@ if (!file.exists(bench_file)) {
 } else {
     sb <- readRDS(bench_file)
 }
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, chipseq-metrics}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, chipseq-plot, results="hide"}
+rejections_scatter(sb, supplementary = FALSE)
+rejection_scatter_bins(sb, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+
+plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+
+methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
+plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
+                      methods = methods, trans = log2, maxNum = 5)
 ```
 
 # Session Info
