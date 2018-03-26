@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-**Some sort of summary of the analysis.**
+The objective of this document is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). In order to get a list of genes, we will use RNA-seq data consisting on cortex and cerebellum samples of a subset of the GTEx data. 
 
 # Workspace Setup
 
@@ -48,11 +48,9 @@ result_file <- file.path(resdir, "human-results.rds")
 bench_file <- file.path(resdir, "human-benchmark.rds")
 ```
 
-
 # Data Preparation
 
-**Some sort of summary of the data set.**  
-We download a *DESeqDataSet* if not present locally.
+The dataset consists of 10 samples (6 cerebellum and 4 cortex samples), all from male individuals. We download a *DESeqDataSet* if not present locally and modify the design to test for differences in gene expression between cerebellums and cortex.
 	    
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
@@ -60,9 +58,10 @@ if (!file.exists(count_file)) {
                   destfile = count_file)
 }
 dsdObject <- readRDS(count_file)
+design( dsdObject ) <- ~ tissue
 ```
 
-We only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
+To keep running times short, we only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
 
 ```{r}
 gnType <- genes(EnsDb.Hsapiens.v86, column = "gene_biotype")
@@ -74,8 +73,7 @@ dsdObject <- dsdObject[rownames(dsdObject) %in% protGenes, ]
 
 ## Enrichment Analysis
 
-**Add description of what's going on.**
-We first test for differentially expressed genes using DESeq2 and use genes with adjusted p-value less than 0.1.
+Next, we run DESeq2 to retrieve a list of differentially expressed genes at a FDR of 10%. 
 
 ```{r deseq2, message=FALSE}
 if (!file.exists(deseq_file)) {
@@ -90,7 +88,7 @@ genes <- as.numeric(res$padj < 0.1)
 names(genes) <- rownames(res)
 ```
 
-We next determine the gene sets associated with each gene.
+Next we’ll use the biomaRt package to download and associate GO annotations for each gene. 
 
 ```{r goseq, message=FALSE}
 if (!file.exists(goset_file)) {
@@ -105,7 +103,7 @@ if (!file.exists(goset_file)) {
 }
 ```
 
-Now we are ready to perform gene set enrichment analysis using `goseq`.
+Finally, we’ll perform a gene set enrichment analysis with goseq. goseq performs GSEA and adjusts for gene length biases. The bias is represented in the plot below, with gene length bin on the x-axis and proportion of genes detected to be differentially expressed on the y-axis.
 
 ```{r}
 if (!file.exists(result_file)) {
@@ -131,7 +129,7 @@ Here, we can see that the covariant variable is actually informative.
 
 ### Gene Set Size
 
-**Add description of independent covariate.**
+We will explore whether the size of the gene set can be used as a covariate for modern multiple-testing correction methods in the context of GSEA. In the plot below, the log10 of the p-values is plotted as a function of the size of the gene set. There is a pattern in which gene sets with a higher number of genes tend to have smaller p-values, which is indicative that gene set size is an informative covariate. 
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
 rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
@@ -143,6 +141,8 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
     ylab(expression(-log[10]~"(p-value)") ) 
 ```
 
+We can also explore if the covariate seems to be independent under the null. 
+
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
 ## filter numInCat below only used for plotting
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
@@ -153,7 +153,7 @@ dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
  
 ## Multiple-Testing Correction
 
-Generating the *SummarizedBenchmark* object:
+We then execute the benchDesign and generate a *SummarizedBenchmark* object containing multiple-testing corrections using several methods. 
  
 ```{r runningBenckmark, message=FALSE}
 ## rename columns and prepare for benchmarking
@@ -195,34 +195,6 @@ Gene set size of overlaps.
 methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
 plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2)
 plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
-```
-
-
-# Data Analysis (Null Comparison)
-
-**Add description.**
-
-## Create Null Data
-
-```{r, eval=FALSE }
-nms <- names( genes )
-xx <- seq_len(length(nms))
-gns <- 1*( xx %in% sample( xx, 1000, replace=FALSE ) )
-names( gns ) <- nms
-pwf <- nullp( gns, bias.data=geneLength )
-goRes <- goseq( pwf, gene2cat=goSets )
-res <- goRes %>%
-    dplyr::filter( numDEInCat > 0 ) %>%
-    dplyr::select( c("over_represented_pvalue", "numInCat") ) %>%
-    dplyr::rename( pval = over_represented_pvalue, ind_covariate = numInCat )
-```
-
-## Multiple-Testing Correction
-
-```{r}
-pr <- buildBench(bd, res, ftCols = "ind_covariate")
-assayNames(pr) <- "qvalue"
-pr <- addDefaultMetrics(pr)
 ```
 
 ## Benchmark Metrics

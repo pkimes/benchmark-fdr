@@ -16,9 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-**Some sort of summary of the analysis.**
-Same analysis but using the HSC-MPP dataset from Nina.  
-**Who is Nina?**
+The objective of this vignette is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). To do this, we will use mouse data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The dataset consists of RNA-seq data from mouse hematopoietic stem cells and 4 multipotent progenitor lineages. We will test for difference in gene expression between two different cell fractions and perform GSEA in the resulting list of genes. 
 
 # Workspace Setup
 
@@ -53,7 +51,7 @@ bench_file <- file.path(resdir, "mouse-benchmark.rds")
 
 # Data Preparation
 
-Download *DESeqDataSet* if not present locally.
+The data has been preprocessed and saved as a DESeqDataset object. The following lines of code download this *DESeqDataSet* if it is not present locally.
 
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
@@ -63,14 +61,13 @@ if (!file.exists(count_file)) {
 dseHSCMPP <- readRDS(count_file)
 ```
 
-**Why no filtering on gene_biotype == "protein_coding" for this data?**
+**Why no filtering on gene_biotype == "protein_coding" for this data? AR: I think I did this in the other vignette to keep running times short. This shouldn't change the result since anyway protein coding genes are those with GO categories and genes without GO assignments are ignored.**
 
 # Data Analysis
 
 ## Enrichment Analysis
 
-**Add description of what's going on.**
-We first test for differentially expressed genes using DESeq2 and use genes with adjusted p-value less than 0.1.
+In order to get a list of genes to test for GSEA, we will test each gene for differential gene expression between hematopoietic stem cells and multipotent progenitors (fraction 1). To do this, we will run DESeq2 to retrieve genes differentially expressed at a FDR of 10%.
 
 ```{r deseq2, message=FALSE}
 if (!file.exists(deseq_file)) {
@@ -86,7 +83,7 @@ genes <- as.numeric(res$padj < 0.1)
 names(genes) <- rownames(res)
 ```
 
-We next determine the gene sets associated with each gene.
+We next use biomaRt to get the relations between GO categories and genes.
 
 ```{r goseq, message=FALSE}
 if (!file.exists(goset_file)) {
@@ -123,11 +120,11 @@ if (!file.exists(result_file)) {
 
 ## Covariate Diagnostics
 
-Here, we can see that the covariant variable is actually informative.
+Here, we can see that the size of the gene set is actually informative.
 
 ### Gene Set Size
 
-**Add description of independent covariate.**
+In the following plot, we explore the relationship between the p-value and the gene set size. We can see that this covariate is actually informative. 
 
 ```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
 rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
@@ -138,6 +135,8 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
     xlab(expression(log[10]~"(# of genes)")) +
     ylab(expression(-log[10]~"(p-value)")) 
 ```
+
+And at the same time, it seems to be fair to assume that it is independent under the null hypothesis.
 
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
 ## filter numInCat below only used for plotting
