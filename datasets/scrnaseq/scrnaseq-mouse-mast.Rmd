@@ -22,10 +22,10 @@ library(knitr)
 df=data.frame(datasets=c("GSE84465","GSE94383"),
               organism=c("human","mouse"),
               technology=c("smart-seq","smart-seq2"),
-              comparison=c("Neoplastic vs Regular",
+              comparison=c("Tumor core vs Periphery",
                            "LPS vs No stimulation"))
 kable(df,caption="scRNAseq Datasets")
-df1=data.frame(DE_method=c("ScDD","MAST"),
+df1=data.frame(DE_method=c("scDD","MAST"),
                input=c("count","tpm"),
                output=c("p-val","p-val"))
 kable(df1,caption="DE methods")
@@ -44,38 +44,30 @@ explore the mouse dataset analysed with MAST.
 The downloaded plate data are stored in R objects called `MultiAssayExperiment`; this package requires BioConductor release 3.5 and R version 3.4 or greater for installation. 
 
 ```{r, workspace-setup, results='hide', message=FALSE, warning=FALSE}
-system("mkdir -p DATA")
-system("mkdir -p RESULTS")
-datdir <- "DATA/"
-resdir <- "RESULTS/"
-
-# packages for data analyses
 library(MultiAssayExperiment)
+library(SingleCellExperiment)
 library(dplyr)
 library(ggplot2)
 library(cowplot)
-library(UpSetR)
-library(hexbin)
-
-# packages for differential expression testing
 library(impute)
-library(scDD)
-library(EBSeq)
 library(edgeR)
 library(MAST)
-
-# summarizebenchmark
-library(SummarizedBenchmark)
-library(SingleCellExperiment)
-
-# useful libraries
-library(R.utils)
 library(BiocParallel)
 
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+# data and results directories
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
+# set up parallel backend
 cores <- 8
 BiocParallel::register(MulticoreParam(workers = cores))
-
-sourceDirectory("../R/")
 ```
 
 # Data preparation
@@ -85,7 +77,7 @@ sourceDirectory("../R/")
 We first download the data in the data directory. `conquer` provides the processed datasets in convenient .rds files. We download the Mouse data from GSE94383
 
 ```{r, mousedata-download}
-datfile <- paste0(datdir,"GSE94383.rds")
+datfile <- file.path(datdir,"GSE94383.rds")
 
 if (!file.exists(datfile)){
   download.file(url="http://imlspenticton.uzh.ch/robinson_lab/conquer/data-mae/GSE94383.rds",
@@ -102,15 +94,16 @@ We will filter out cells with extremely low mapping rate
 size factor estimates during normalization. For the same reason, we also filter cells
 which have extremely low proportion of genes detected (less than 5%).
 
+*Add More detail on the experiments here*
 We'll extract two conditions: No stimulation versus LPS at 150 min.
 
 ```{r}
-datfile <- paste0(datdir, "mouse_GSE94383_mast.rds")
+datfile <- file.path(datdir, "mouse_GSE94383_mast.rds")
 
 if (!file.exists(datfile)){
 
   # load MultiAssayExperiment
-  mousedata=readRDS(paste0(datdir,"GSE94383.rds"))
+  mousedata=readRDS(file.path(datdir,"GSE94383.rds"))
   
   # exclude cells with extremely low mapping or feature rate (poor quality cells)
   lowMap <- which(metadata(mousedata)$salmon_summary$percent_mapped < 20 |
@@ -136,8 +129,12 @@ if (!file.exists(datfile)){
   assays(mousedata) <- assays(mousedata)[c("TPM", "count")]
   colData(mousedata) <- cdata
 
-  # subset by genes with detection rate > 1%
-  mousedata <- mousedata[rowMeans(assay(mousedata, "count") > 0) > 0.01, ]
+  # subset by genes with detection rate > 5% in at least one condition
+  levs <- unique(colData(mousedata)$group)
+  mousedata <- mousedata[rowMeans(assay(mousedata, "count")[, 
+                            colData(mousedata)$group == levs[1]] > 0) > 0.05 |
+                         rowMeans(assay(mousedata, "count")[, 
+                            colData(mousedata)$group == levs[2]] > 0) > 0.05, ]
   
   # remove spike-in controls
   mousedata <- mousedata[!grepl("ERCC-", rownames(mousedata)),]
@@ -220,7 +217,7 @@ rank_scatter(data.frame(rowData(mousedata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(mousedata)),
-           pvalue="mast_p", covariate="meanExp", maxy=16,
+           pvalue="mast_p", covariate="meanExp", maxy=20,
            main = "MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
@@ -239,7 +236,7 @@ rank_scatter(data.frame(rowData(mousedata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(mousedata)), 
-           pvalue="mast_p", covariate="detection", maxy=16,
+           pvalue="mast_p", covariate="detection", maxy=20,
            main = "MAST, Covariate 2: Detection Rate")
 ```
 
@@ -262,7 +259,7 @@ the functions specified in each method (these are actually sourced in from the
 First we'll include the mean nonzero expression covariate.
 
 ```{r, sb1, results="hide", message=FALSE}
-res1 <- paste0(resdir, "sb_GSE94383_mast_mean.rds")
+res1 <- file.path(resdir, "sb_GSE94383_mast_mean.rds")
 
 if (!file.exists(res1)){
   sb1 <- bd %>% buildBench(data.frame(rowData(mousedata)) %>% 
@@ -283,7 +280,7 @@ if (!file.exists(res1)){
 Now, we'll repeat the multiple testing correction using the other covariate (detection rate):
 
 ```{r, sb2, results="hide", message=FALSE}
-res2 <- paste0(resdir, "sb_GSE94383_mast_det.rds")
+res2 <- file.path(resdir, "sb_GSE94383_mast_det.rds")
 
 if (!file.exists(res2)){
   sb2 <- bd %>% buildBench(data.frame(rowData(mousedata)) %>% 
