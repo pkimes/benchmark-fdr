@@ -329,20 +329,10 @@ plotFDRMethodsOverlap(sb1,
                       alpha=0.05, nsets=ncol(sb1),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE) 
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
-plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
-  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
-
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
-covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate") +
-  ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
-
+mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
 covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
                  linePlot = TRUE, trans = "log1p") +
   ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
@@ -374,20 +364,10 @@ plotFDRMethodsOverlap(sb2,
                       alpha=0.05, nsets=ncol(sb2),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE)
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sb2)$ind_covariate <- mcols(sb2)$detection
-plotCovariateBoxplots(sb2, alpha=0.1, nsets=6, methods=methods, maxNum=3) +
-  ggtitle("MAST, Covariate 2: Detection Rate")
-
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
-covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate") +
-  ggtitle("MAST, Covariate 2: Detection Rate")
-
+mcols(sb2)$ind_covariate <- mcols(sb2)$detection
 covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate", nbins=25, 
                  linePlot = TRUE) +
   ggtitle("MAST, Covariate 2: Detection Rate")

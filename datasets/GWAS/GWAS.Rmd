@@ -335,21 +335,12 @@ plotFDRMethodsOverlap(sbN,
                       alpha=0.05, nsets=ncol(sb),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE) 
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
-plotCovariateBoxplots(sbN, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
-    ggtitle("Covariate 1: Sample size")
 ```
 
 
 ```{r, fig.width=8, fig.height=3.5}
+mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
 mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
-covariateHeatmap(sbN, alpha=0.05, covname="tstat", trans = "log1p")
-covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N", trans = "log1p")
-
 covariateHeatmap(sbN, alpha=0.05, covname="tstat", nbins=25, 
                  linePlot = TRUE, trans="log1p")
 covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
@@ -383,20 +374,11 @@ plotFDRMethodsOverlap(sbAF,
                       alpha=0.05, nsets=ncol(sbAF),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE)
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
-plotCovariateBoxplots(sbAF, alpha=0.1, nsets=6, methods=methods, maxNum=3)+
-  ggtitle("Covariate 2: Minor allele frequency")
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
+mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
 mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
-covariateHeatmap(sbAF, alpha=0.05, covname="tstat", trans = "log1p")
-covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF")
-
 covariateHeatmap(sbAF, alpha=0.05, covname="tstat", nbins=25, 
                  linePlot = TRUE, trans = "log1p")
 covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25, 

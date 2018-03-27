@@ -351,20 +351,10 @@ plotFDRMethodsOverlap(sb1,
                       alpha=0.05, nsets=ncol(sb1),
                       order.by="freq", decreasing=TRUE,
                       supplementary=FALSE) 
-
-# properties of method-exclusive discoveries
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf",
-             "scott-empirical", "scott-theoretical")
-mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
-plotCovariateBoxplots(sb1, alpha=0.1, nsets=6, methods=methods, trans=log2, maxNum=3) +
-  ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
-
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
-covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate") +
-  ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
-
+mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
 covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
                  linePlot = TRUE, trans = "log1p") +
   ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
