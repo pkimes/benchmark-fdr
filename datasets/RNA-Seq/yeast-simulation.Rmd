@@ -41,24 +41,16 @@ library(dplyr)
 library(readr)
 library(ggplot2)
 library(magrittr)
-library(R.utils)
 library(cowplot)
 library(purrr)
 library(DESeq2)
 library(tibble)
 library(ggthemes)
 
-# benchmark methods
-library(IHW)
-library(ashr)
-library(qvalue)
-library(swfdr)
-library(fdrtool)
-library(FDRreg)
-
-# comparison tools/functions
-library(SummarizedBenchmark)
-sourceDirectory("../R/")
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
 
 # set up data / results directories
 datdir <- "yeast-data"
@@ -82,18 +74,18 @@ called `r datdir`.
 
 ```{r, download}
 download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/Snf2_countdata.tar.gz",
-              destfile = paste0(datdir, "/Snf2_countdata.tar.gz"))
+              destfile = file.path(datdir, "Snf2_countdata.tar.gz"))
 download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Preprocessed_data/WT_countdata.tar.gz", 
-              destfile = paste0(datdir, "/WT_countdata.tar.gz"))
+              destfile = file.path(datdir, "WT_countdata.tar.gz"))
 
-gunzip(paste0(datdir, "/Snf2_countdata.tar.gz")) 
-gunzip(paste0(datdir, "/WT_countdata.tar.gz")) 
+gunzip(file.path(datdir, "Snf2_countdata.tar.gz")) 
+gunzip(file.path(datdir, "WT_countdata.tar.gz")) 
 
-untar(paste0(datdir, "/Snf2_countdata.tar"), exdir = datdir) 
-untar(paste0(datdir, "/WT_countdata.tar"), exdir = datdir) 
+untar(file.path(datdir, "Snf2_countdata.tar"), exdir = datdir) 
+untar(file.path(datdir, "WT_countdata.tar"), exdir = datdir) 
 
-file.remove(paste0(datdir, "/Snf2_countdata.tar"), 
-            paste0(datdir, "/WT_countdata.tar"))
+file.remove(file.path(datdir, "Snf2_countdata.tar"), 
+            file.path(datdir, "WT_countdata.tar"))
 ```
 
 Each of the data files contains two columns, one with a gene/feature name, and one
@@ -339,7 +331,7 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 225
 sampleSize <- 5
 nDE <- 0
-resfile <- paste0(resdir, "/null5.rds")
+resfile <- file.path(resdir, "null5.rds")
 
 if (!file.exists(resfile)){
   null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -364,13 +356,10 @@ plotsim_average(res5, met="rejections",filter_set = excludeSet,
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(null5, alpha=0.05, covname="log2FC", trans="log1p")
-covariateHeatmap(null5, alpha=0.05, covname="ind_covariate", trans="log1p")
-
-covariateHeatmap(null5, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p", linePlot = TRUE)
-covariateHeatmap(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE, trans="log1p")
+covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -392,7 +381,7 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 837
 sampleSize <- 10
 nDE <- 0
-resfile <- paste0(resdir, "/null10.rds")
+resfile <- file.path(resdir, "null10.rds")
 
 if (!file.exists(resfile)){
   null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -417,13 +406,10 @@ plotsim_average(res10, met="rejections",filter_set = excludeSet,
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(null10, alpha=0.05, covname="log2FC", trans="log1p")
-covariateHeatmap(null10, alpha=0.05, covname="ind_covariate", trans="log1p")
-
-covariateHeatmap(null10, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p", linePlot = TRUE)
-covariateHeatmap(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE, trans="log1p")
+covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -448,7 +434,7 @@ This will be done for 100 random splits.
 rseed <- 198
 sampleSize <- 5
 nDE <- 500
-resfile <- paste0(resdir, "/de5.rds")
+resfile <- file.path(resdir, "de5.rds")
 
 if (!file.exists(resfile)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -474,13 +460,10 @@ plotsim_average(res5d, met="FDR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(de5, alpha=0.05, covname="log2FC", trans="log1p")
-covariateHeatmap(de5, alpha=0.05, covname="ind_covariate")
-
-covariateHeatmap(de5, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p", linePlot = TRUE)
-covariateHeatmap(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE)
+covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -504,7 +487,7 @@ This will be done for 100 random splits.
 rseed <- 961
 sampleSize <- 10
 nDE <- 500
-resfile <- paste0(resdir, "/de10.rds")
+resfile <- file.path(resdir, "de10.rds")
 
 if(!file.exists(resfile)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -530,13 +513,10 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateHeatmap(de10, alpha=0.05, covname="log2FC", trans="log1p")
-covariateHeatmap(de10, alpha=0.05, covname="ind_covariate")
-
-covariateHeatmap(de10, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p", linePlot = TRUE)
-covariateHeatmap(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE)
+covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
