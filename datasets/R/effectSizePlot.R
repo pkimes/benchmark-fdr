@@ -75,7 +75,7 @@ return(p)
 }
 
 
-#' Function to create heatmap of percentage significance for different covariate 
+#' Function to create lineplot of percentage significance for different covariate 
 #' value bins.
 #' 
 #' Assumes that covariates are found 
@@ -94,16 +94,18 @@ return(p)
 #' @param covname character that specifies column name of rowData to use for 
 #' y-axis (e.g. effect size, or ind_covariate)
 #' @param nbins positive inter value indicating how many bins to divide the 
-#' covariate values into for the heatmap rows. Defaults to 50.
+#' covariate values into for the x-axis (lineplot) or rows (heatmap). 
+#' Defaults to 50.
 #' @param trans character indicating a transformation to apply to the scale
-#' of fill (e.g. "log1p"). The default NULL means no transformation. 
+#' of the y-axis (lineplot) or fill (heatmap). For example, "log1p" applies 
+#' the log(x+1) transform. The default NULL means no transformation. 
 #' @param linePlot logical whether to plot a line plot (smoothed density) 
-#' instead of heatmap (default is FALSE).
+#' (default is TRUE). If false, will plot a heatmap.
 #' 
 #' @return a ggplot object
-covariateHeatmap <- function(sbl, alpha=0.05, nbins = 50, 
+covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50, 
                              covname, trans = NULL, 
-                             linePlot = FALSE){
+                             linePlot = TRUE){
   
   summarize_one_item <- function(object, alpha, nbins){
     object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ))

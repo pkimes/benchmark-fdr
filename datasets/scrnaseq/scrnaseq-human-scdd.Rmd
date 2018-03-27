@@ -349,8 +349,7 @@ plotFDRMethodsOverlap(sb1,
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
-covariateHeatmap(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE) +
+covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25) +
   ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
 ```
 
@@ -384,8 +383,7 @@ plotFDRMethodsOverlap(sb2,
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sb2)$ind_covariate <- mcols(sb2)$detection
-covariateHeatmap(sb2, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 linePlot = TRUE) +
+covariateLinePlot(sb2, alpha=0.05, covname="ind_covariate", nbins=25) +
   ggtitle("scDD, Covariate 2: Detection Rate")
 ```
 

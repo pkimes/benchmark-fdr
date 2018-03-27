@@ -341,9 +341,9 @@ plotFDRMethodsOverlap(sbN,
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
 mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
-covariateHeatmap(sbN, alpha=0.05, covname="tstat", nbins=25, 
+covariateLinePlot(sbN, alpha=0.05, covname="tstat", nbins=25, 
                  linePlot = TRUE, trans="log1p")
-covariateHeatmap(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
+covariateLinePlot(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
                  linePlot = TRUE, trans="log1p")
 ```
 
@@ -379,9 +379,9 @@ plotFDRMethodsOverlap(sbAF,
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
 mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
-covariateHeatmap(sbAF, alpha=0.05, covname="tstat", nbins=25, 
+covariateLinePlot(sbAF, alpha=0.05, covname="tstat", nbins=25, 
                  linePlot = TRUE, trans = "log1p")
-covariateHeatmap(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25, 
+covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25, 
                  linePlot = TRUE)
 ```
 
