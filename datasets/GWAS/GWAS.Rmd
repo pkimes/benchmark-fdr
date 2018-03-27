@@ -404,7 +404,7 @@ plotFDRMethodsOverlap(sbAF,
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sbAF)$effect_size <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
-covariateLinePlot(sbAF, alpha=0.05, covname="tstat", nbins=25, 
+covariateLinePlot(sbAF, alpha=0.05, covname="effect_size", nbins=25, 
                  trans = "log1p")
 covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25)
 ```

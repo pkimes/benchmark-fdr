@@ -9,7 +9,6 @@
 #SBATCH -e render-%j.err  # Standard error
 
 module load plink
-export SLURM_NTASKS
 export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/rstudio/0.98.1103-fasrc01/bin/pandoc/"
 
 # change filename to Rmd to be knitted. 
