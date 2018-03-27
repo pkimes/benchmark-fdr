@@ -46,6 +46,7 @@ library(purrr)
 library(DESeq2)
 library(tibble)
 library(ggthemes)
+library(R.utils)
 
 ## load helper functions
 for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
@@ -165,12 +166,27 @@ geneExp <- tbl_df(data.frame(geneName=rownames(resFULL),
 geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
 ```
 
-Check unimodal assumption (for ash).
+We'll create a plot to examine the distribution of effect sizes, since
+the ash method assumes that the distribution of true (unobserved) effect
+sizes is unimodal.
 
 ```{r}
-ggplot(data=geneExp, aes(test_statistic)) +
+ggplot(data=geneExp, aes(effect_size)) +
   geom_histogram(bins=30)
 ```
+
+We'll also explore how the standard error (used by ash) 
+correlates with the independent covariate (used by methods that incorporate 
+covariates), in order to get an idea of how these pieces of information relate
+to one another.
+
+```{r}
+ggplot(data=geneExp, aes(x = ind_covariate, y = SE)) +
+  geom_hex(bins = 100) +
+  scale_x_continuous(trans="log10") +
+  xlab("Covariate: Mean gene expression") 
+```
+
 
 Look at covariate diagnostic plots.
 

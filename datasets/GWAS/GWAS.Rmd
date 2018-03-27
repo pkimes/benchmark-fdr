@@ -202,6 +202,33 @@ association of BMI with each SNP (including p-values and effect sizes), we
 don't need to carry out any additional testing. We move on to checking the
 covariate diagnostics and adjusting for multiple comparisons.
 
+## Check Assumptions for ash
+
+We'll create a plot to examine the distribution of effect sizes, since
+the ash method assumes that the distribution of true (unobserved) effect
+sizes is unimodal.
+
+```{r}
+ggplot(data=bmi, aes(effect_size)) +
+  geom_histogram(bins=30)
+```
+
+We'll also explore how the standard error (used by ash) 
+correlates with the independent covariates (used by methods that incorporate 
+covariates), in order to get an idea of how these pieces of information relate
+to one another.
+
+```{r}
+ggplot(data=bmi, aes(x = ind_covar_N, y = SE)) +
+  geom_hex(bins=125) +
+  xlab("Covariate: Sample Size")
+
+ggplot(data=bmi, aes(x = ind_covar_AF, y = SE)) +
+  geom_hex(bins = 125)+
+  xlab("Covariate: Minor allele frequency") 
+```
+
+
 ## Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative. First we look at 
@@ -339,12 +366,11 @@ plotFDRMethodsOverlap(sbN,
 
 
 ```{r, fig.width=8, fig.height=3.5}
-mcols(sbN)$ind_covariate <- mcols(sbN)$ind_covar_N
-mcols(sbN)$tstat <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
-covariateLinePlot(sbN, alpha=0.05, covname="tstat", nbins=25, 
-                 linePlot = TRUE, trans="log1p")
+mcols(sbN)$effect_size <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
+covariateLinePlot(sbN, alpha=0.05, covname="effect_size", nbins=25, 
+                 trans="log1p")
 covariateLinePlot(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
-                 linePlot = TRUE, trans="log1p")
+                 trans="log1p")
 ```
 
 ### Covariate two: Minor Allele Frequency
@@ -377,12 +403,10 @@ plotFDRMethodsOverlap(sbAF,
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
-mcols(sbAF)$ind_covariate <- abs(mcols(sbAF)$ind_covar_AF-0.5)
-mcols(sbAF)$tstat <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
+mcols(sbAF)$effect_size <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
 covariateLinePlot(sbAF, alpha=0.05, covname="tstat", nbins=25, 
-                 linePlot = TRUE, trans = "log1p")
-covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25, 
-                 linePlot = TRUE)
+                 trans = "log1p")
+covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25)
 ```
 
 # Session Information
