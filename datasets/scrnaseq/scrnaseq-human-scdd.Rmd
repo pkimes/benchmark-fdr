@@ -187,9 +187,7 @@ compute_scdd_sc <- function(dat){
              prior_param = list(alpha=0.01, mu0=0, s0=0.01, a0=0.01, b0=0.01), 
              testZeroes = TRUE,
              categorize = FALSE))
-    rowData(dat)$scdd_p_nonzero <- res$nonzero.pvalue
-    rowData(dat)$scdd_p_zero <- res$zero.pvalue
-    rowData(dat)$scdd_p_combined <- res$combined.pvalue
+    rowData(dat)$scdd_p <- res$combined.pvalue
   }else{
      message("scDD p-values already computed.")
   }
@@ -229,13 +227,13 @@ For each covariate, we'll examine the covariate diagnostic plots.
 
 ```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
 rank_scatter(data.frame(rowData(humandata)), 
-             pvalue="scdd_p_combined", covariate="meanExp") + 
+             pvalue="scdd_p", covariate="meanExp") + 
   ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
 ```
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="scdd_p_combined", covariate="meanExp", maxy=12,
+           pvalue="scdd_p", covariate="meanExp", maxy=9,
            main = "scDD, Covariate 1: Mean Nonzero Expression") 
 ```
 
@@ -248,13 +246,13 @@ Next we look at the detection rate covariate.
 
 ```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
 rank_scatter(data.frame(rowData(humandata)), 
-             pvalue="scdd_p_combined", covariate="detection") + 
+             pvalue="scdd_p", covariate="detection") + 
   ggtitle("scDD, Covariate 2: Detection Rate")
 ```
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="scdd_p_combined", covariate="detection", maxy=12,
+           pvalue="scdd_p", covariate="detection", maxy=9,
            main = "scDD, Covariate 2: Detection Rate") 
 ```
 ## Multiple-Testing Correction
@@ -270,7 +268,7 @@ Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
                                         helper scripts). 
                                         
-### Covariate one: Mean expression
+### Covariate one: Mean nonzero expression
 
 First we'll include the mean nonzero expression covariate.
 
@@ -279,8 +277,8 @@ res1 <- file.path(resdir, "sb_GSE84465_scdd_mean.rds")
 
 if (!file.exists(res1)){
   sb1 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
-                                   na.omit() %>%
-                                   mutate(pval=scdd_p_combined,
+                                   filter(!is.na(scdd_p)) %>%
+                                   mutate(pval=scdd_p,
                                           ind_covariate=meanExp), 
                           ftCols = c("meanExp"),
                           parallel=TRUE)
@@ -300,8 +298,8 @@ res2 <- file.path(resdir, "sb_GSE84465_scdd_det.rds")
 
 if (!file.exists(res2)){
   sb2 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
-                                   na.omit() %>%
-                                   mutate(pval=scdd_p_combined,
+                                   filter(!is.na(scdd_p)) %>%
+                                   mutate(pval=scdd_p,
                                           ind_covariate=detection), 
                           ftCols = c("detection"),
                           parallel=TRUE)
@@ -349,7 +347,8 @@ plotFDRMethodsOverlap(sb1,
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
-covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25) +
+covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans = "log1p") +
   ggtitle("scDD, Covariate 1: Mean Nonzero Expression")
 ```
 

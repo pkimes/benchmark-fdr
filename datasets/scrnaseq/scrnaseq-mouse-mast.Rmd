@@ -254,7 +254,7 @@ Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
                                         helper scripts). 
                                         
-### Covariate one: Mean expression
+### Covariate one: Mean nonzero expression
 
 First we'll include the mean nonzero expression covariate.
 

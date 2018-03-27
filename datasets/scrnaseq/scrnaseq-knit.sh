@@ -4,7 +4,7 @@
 #SBATCH -N 1
 #SBATCH -p shared
 #SBATCH --mem 125G
-#SBATCH -t 0-6:00
+#SBATCH -t 0-4:00
 #SBATCH -o render-%j.out
 #SBATCH -e render-%j.err
  

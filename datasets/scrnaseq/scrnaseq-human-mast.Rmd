@@ -216,7 +216,7 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="meanExp", maxy=12,
+           pvalue="mast_p", covariate="meanExp", maxy=16,
            main = "MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
@@ -235,7 +235,7 @@ rank_scatter(data.frame(rowData(humandata)),
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(data.frame(rowData(humandata)), 
-           pvalue="mast_p", covariate="detection", maxy=12,
+           pvalue="mast_p", covariate="detection", maxy=16,
            main = "MAST, Covariate 2: Detection Rate") 
 ```
 
@@ -252,7 +252,7 @@ Now, we're ready to construct the `SummarizedBenchmark` object, which will run
 the functions specified in each method (these are actually sourced in from the
                                         helper scripts). 
                                         
-### Covariate one: mean nonzero expression
+### Covariate one: Mean nonzero expression
 
 First we'll include the mean nonzero expression covariate.
 
@@ -299,7 +299,7 @@ if (!file.exists(res2)){
 Next, we'll add the default performance metric for q-value assays and 
 plot the results. We'll start with covariate one.
 
-### Covariate one: mean nonzero expression
+### Covariate one: Mean nonzero expression
 
 First, we have
 to rename the assay to 'qvalue'.
@@ -332,7 +332,8 @@ plotFDRMethodsOverlap(sb1,
 
 ```{r, fig.width=8, fig.height=3.5}
 mcols(sb1)$ind_covariate <- mcols(sb1)$meanExp
-covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25) +
+covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans = "log1p") +
   ggtitle("MAST, Covariate 1: Mean Nonzero Expression")
 ```
 
