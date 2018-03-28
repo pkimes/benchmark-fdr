@@ -55,6 +55,7 @@ otu_result_file <- file.path(resdir, "papa-otus-results.rds")
 otu_bench_file <- file.path(resdir, "papa-otus-benchmark.rds")
 gns_result_file <- file.path(resdir, "papa-genus-results.rds")
 gns_bench_file <- file.path(resdir, "papa-genus-benchmark.rds")
+gns_bench_file_log_ubi <- file.path(resdir, "papa-genus-log-ubiquity-benchmark.rds")
 ```
 
 # Data Preparation
@@ -385,6 +386,64 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 
 
 ```{r, papa-genus-overlap}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
+
+## Multiple-Testing Correction - log(ubiquity)
+
+Let's use log10(`ubiquity`) as our `ind_covariate`.
+
+```{r, papa-genus-logubi-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = log10(ubiquity))
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, papa-genus-logubi-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file_log_ubi)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/ibd_alm_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = gns_bench_file_log_ubi)
+} else {
+    sb <- readRDS(gns_bench_file_log_ubi)
+}
+```
+
+## Benchmark Metrics - log(ubiquity)
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, papa-genus-logubi-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, papa-genus-logbi-plot, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+
+```{r, papa-genus-logubi-overlap}
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 ```{r}

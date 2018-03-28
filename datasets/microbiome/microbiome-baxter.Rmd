@@ -51,8 +51,11 @@ crc_dir <- file.path(datdir, "crc_baxter_results")
 
 otu_result_file <- file.path(resdir, "baxter-otus-results.rds")
 otu_bench_file <- file.path(resdir, "baxter-otus-benchmark.rds")
+otu_bench_file_log_ubiquity <- file.path(resdir, "baxter-otus-log-ubiquity-benchmark.rds")
+
 gns_result_file <- file.path(resdir, "baxter-genus-results.rds")
 gns_bench_file <- file.path(resdir, "baxter-genus-benchmark.rds")
+gns_bench_file_log_ubiquity <- file.path(resdir, "baxter-genus-log-ubiquity-benchmark.rds")
 ```
 
 # Data Preparation
@@ -262,6 +265,62 @@ sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 ```
 
 
+## Multiple-Testing Correction - log(ubiquity)
+
+Let's use `log(ubiquity)` as our `ind_covariate`.
+
+```{r, baxter-logubi-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = log10(ubiquity))
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-logubi-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(otu_bench_file_log_ubiquity)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = otu_bench_file_log_ubiquity)
+} else {
+    sb <- readRDS(otu_bench_file_log_ubiquity)
+}
+```
+
+## Benchmark Metrics - log(ubiquity)
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, baxter-logubi-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, baxter-logubi-plot, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+```{r, eval=FALSE}
+assays(sb)[["qvalue"]][, "ashs"] %>% max()
+sum(is.na(assays(sb)[["qvalue"]][, "scott-empirical"]))
+sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
+```
+
+
 # Data Analysis (genus-level)
 
 ## Collapse to Genus
@@ -387,6 +446,65 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
 
 ```{r, baxter-genus-overlap}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
+
+## Multiple-Testing Correction - log(ubiquity)
+
+Let's use log(`ubiquity`) as our `ind_covariate`.
+
+```{r, baxter-genus-logubi-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = log10(ubiquity))
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-genus-logubi-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file_log_ubiquity)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = gns_bench_file_log_ubiquity)
+} else {
+    sb <- readRDS(gns_bench_file_log_ubiquity)
+}
+```
+
+## Benchmark Metrics - log(ubiquity)
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, baxter-genus-logubi-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, baxter-genus-logubi-plot, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, baxter-genus-logubi-overlap}
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
 ```
 ```{r}
