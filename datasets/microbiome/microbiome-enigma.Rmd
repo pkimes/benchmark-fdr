@@ -1,0 +1,390 @@
+---
+title: "Case Study: 16S microbiome data (ENIGMA)"
+author: "Claire Duvallet"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+Here we analyze a subset of the ENIGMA data ([Smith, M. and Rocha, A. et al 2015](http://dx.doi.org/10.1128/mBio.00326-15)).
+The dataset includes water samples from 67 wells with well-characterized biochemical metadata (i.e. pH, heavy metal concentrations, etc).
+We acquired the data from a collaborator and have put it in the `benchmark-fdr/datasets/microbiome/DATA/enigma` folder.
+
+Note that I've uploaded this to our repo as a gzipped file, make sure to gunzip the OTU table before knitting this.
+
+We did some preliminary correlation analysis and found that the metadata variables show a range of correlation with different OTUs: some metadata variables don't seem correlated with any OTUs, whereas others seem correlated with basically the entire community.
+We'll pick three of these metadata variables to illustrate our FDR correction methods in cases where we expect different numbers of true significant associations.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(magrittr)
+library(SummarizedBenchmark)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "DATA"
+resdir <- "RESULTS"
+enigma_dir <- "enigma"
+
+# From their paper, we expect SO4 to have little correlation, pH
+# to have high correlations, and Al to be in the middle
+so4_result_file <- file.path(resdir, "enigma-so4-otus-results.rds")
+so4_bench_file <- file.path(resdir, "enigma-so4-otus-benchmark.rds")
+
+ph_result_file <- file.path(resdir, "enigma-ph-otus-results.rds")
+ph_bench_file <- file.path(resdir, "enigma-ph-otus-benchmark.rds")
+
+al_result_file <- file.path(resdir, "enigma-al-otus-results.rds")
+al_bench_file <- file.path(resdir, "enigma-al-otus-benchmark.rds")
+
+```
+
+# Data Preparation
+
+```{r, enigma-readdata}
+## load OTU table and metadata
+# Note to others: not sure why read.table breaks on this file.
+otu <- read.table(file.path(datdir, enigma_dir, 
+                            "otu_table_resampled_updated_r.txt"), 
+                  sep='\t', header = TRUE, row.names = 1)
+meta <- read.csv(file.path(datdir, enigma_dir, "metadata.txt"), sep='\t')
+
+# Select only the 0.02 um samples
+meta <- meta[endsWith(as.character(meta$Sample), "02"), ]
+# Make metadata sample ID match OTU table
+meta$Sample <- gsub("_", "\\.", as.character(meta$Sample))
+meta$Sample <- substr(meta$Sample, 1, nchar(meta$Sample)-3)
+
+## keep only samples with both metadata and 16S data
+keep_samples <- intersect(colnames(otu), meta$Sample)
+otu <- otu[, keep_samples]
+meta <- dplyr::filter(meta, Sample %in% keep_samples)
+
+## Make sure samples in metadata and OTU table match
+meta <- meta[match(colnames(otu), meta$Sample), ]
+```
+
+We'll do a little filtering here before calculating correlations.
+We'll apply a minimum threshold of 10 reads per OTU across all samples.
+After removing these shallow OTUs, we also get rid of any samples with too few reads. 
+We define the minimum number of reads per OTU in `min_otu`, and
+the minimum number of reads per sample in `min_sample`.
+
+After we've removed any shallow OTUs and samples, we'll convert the OTU table to
+relative abundances.
+
+```{r, enigma-cleandata}
+min_otu <- 10
+minp_otu <- 0.01
+min_sample <- 100
+
+## Remove OTUs w/ <= min reads, w/ <= min prop, samples w/ <= min reads
+otu <- otu[rowSums(otu) > min_otu, ]
+otu <- otu[rowSums(otu > 0) / ncol(otu) > minp_otu, ]
+otu <- otu[, colSums(otu) > min_sample]
+
+## Update metadata with new samples
+meta <- dplyr::filter(meta, Sample %in% colnames(otu))
+
+## Remove empty OTUs
+otu <- otu[rowSums(otu) > 0, ]
+
+## Convert to relative abundance
+abun_otu <- t(t(otu) / rowSums(t(otu)))
+
+## Add pseudo counts
+zeroabun <- 0
+abun_otu <- abun_otu + zeroabun
+```
+
+# Data Analysis
+
+## pH
+
+Next, we need to calculate the pvalues for correlations between abundances of each OTU and the metadata variables of interest. (i.e. we're correlating each OTU's abundances across wells with the metadata variable across wells).
+Let's start with "pH".
+We'll store the pvalue results in a dataframe.
+
+While we're at it, we'll also calculate the mean abundance and ubiquity (detection rate)
+of each OTU. Later, we can assign their values to a new column called `ind_covariate` 
+for use in downstream steps.
+
+```{r, ph-pvals}
+if (!file.exists(ph_result_file)) {
+    res <- test_microbiome_corr(abundance = abun_otu, meta_col = meta$pH,
+                                shift = zeroabun)
+    saveRDS(res, file = ph_result_file)
+} else {
+    res <- readRDS(ph_result_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, ph-ubi-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+
+```{r, ph-ubi-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+### Mean Abundance (across non-zero samples)
+
+```{r, ph-abun-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, ph-abun-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, enigma-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, ph-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(ph_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = ph_bench_file)
+} else {
+    sb <- readRDS(ph_bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, ph-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, ph-plot, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+## SO4
+
+Next, we'll look at SO4 levels
+
+```{r, so4-pvals}
+if (!file.exists(so4_result_file)) {
+    res <- test_microbiome_corr(abundance = abun_otu, meta_col = meta$SO4_mgL,
+                                shift = zeroabun)
+    saveRDS(res, file = so4_result_file)
+} else {
+    res <- readRDS(so4_result_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, so4-ubi-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+
+```{r, so4-ubi-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+### Mean Abundance (across non-zero samples)
+
+```{r, so4-abun-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, so4-abun-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, so4-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, so4-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(so4_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = so4_bench_file)
+} else {
+    sb <- readRDS(so4_bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, so4-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, so4-plot, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+## Al
+
+Finally, we'll look at Al levels
+
+```{r, al-pvals}
+if (!file.exists(al_result_file)) {
+    res <- test_microbiome_corr(abundance = abun_otu, meta_col = meta$Al_mgL,
+                                shift = zeroabun)
+    saveRDS(res, file = al_result_file)
+} else {
+    res <- readRDS(al_result_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here we look to see if the covariates do indeed look informative.
+
+### Ubiquity
+
+```{r, al-ubi-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
+```
+
+
+```{r, al-ubi-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="ubiquity")
+```
+
+### Mean Abundance (across non-zero samples)
+
+```{r, al-abun-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+```
+
+```{r, al-abun-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
+```
+
+## Multiple-Testing Correction
+
+Let's use `ubiquity` as our `ind_covariate`.
+
+```{r, al-labelcovariate}
+res <- dplyr::mutate(res, ind_covariate = ubiquity)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We'll do this for a few
+values of nmids, to explore its effects on the outputs. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, al-sb, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(al_bench_file)) {
+    nmids <- 150
+    bd <- initializeBenchDesign(nmids = nmids)
+    bd <- dropBMethod(bd, "ashs")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$nmids <- nmids
+    saveRDS(sb, file = al_bench_file)
+} else {
+    sb <- readRDS(al_bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, al-metrics, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, al-plot, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

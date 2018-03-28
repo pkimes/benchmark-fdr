@@ -60,6 +60,44 @@ test_microbiome <- function(abundance, shift, is_case) {
                          test_statistic = test_statistic * sign(effect_size))
 }
 
+test_microbiome_corr <- function(abundance, meta_col, shift) {
+  
+  ## Calculate correlation and pvalues
+  res <- data.frame(otu = rownames(abundance), 
+                    pval = NA, spearman_teststat = NA,
+                    SE = NA, effect_size = NA, 
+                    mean_abun = NA, mean_abun_present = NA,
+                    ubiquity = NA)
+  
+  for (i in seq_len(nrow(abundance))) {
+    ## spearman p value
+    corr <- cor.test(abundance[i, ], meta_col, 
+                     method='spearman', exact = FALSE, alternative = "two.sided")
+    res$pval[i] <- corr$p.value
+    res$spearman_teststat[i] <- corr$statistic
+    
+    ## standard error of the OTU abundance, across all samples
+    res$SE[i] <- sd(abundance[i, ]) / sqrt(length(abundance[i, ]))
+    
+    ## mean OTU abundance across all samples (after removing pseudo-count)
+    res$mean_abun[i] <- mean(abundance[i, ]) - shift
+    
+    ## mean OTU abundance across only samples with the OTU present
+    res$mean_abun_present[i] <-
+      sum(abundance[i, ] - shift) / sum(abundance[i, ] > shift)
+    
+    ## ubiquity of OTU across all samples
+    res$ubiquity[i] <- sum(abundance[i, ] > shift) / length(abundance[i, ])
+    
+  }
+  
+  ## compute test-statistic from p-value for ASH
+  res <- dplyr::mutate(res,
+                       test_statistic = qnorm(exp(log(pval) - log(2)),
+                                              lower.tail=FALSE),
+                       test_statistic = test_statistic * sign(effect_size))
+}
+  
 
 remove_shallow_smpls <- function(df, n_reads) {
     ## df has OTUs in rows and samples in columns
