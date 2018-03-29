@@ -1,0 +1,108 @@
+---
+title: "Simulation Study: Null Settings"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+In this set of simulations, we only consider settings where all tests are null.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(parallel)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+gauss_file <- file.path(resdir, "null-benchmark-gaussian.rds")
+tdist_file <- file.path(resdir, "null-benchmark-t6.rds")
+chisq_file <- file.path(resdir, "null-benchmark-chisq3.rds")
+
+## number of cores for parallelization
+cores <- 2
+B <- 5
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+m <- 2000                         # integer: number of hypothesis tests
+pi0 <- 1                          # numeric: proportion of null hypotheses
+tstat <- function(x) { 0 }        # functional: dist of alternative test stats
+icovariate <- runif               # functional: independent covariate
+```
+
+
+# Gaussian Setting
+
+First, we consider the null setting with gaussian noise.
+
+## Data Simulation
+
+```{r parameters-gaussian}
+tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+```
+
+We next run the simulations.
+
+```{r run-simulation}
+if (file.exists(gauss_file)) {
+    res <- readRDS(gauss_file)
+} else {
+    res <- mclapply(X=1:B, FUN = simIteration, bench = bd, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    mc.cores = cores)
+    saveRDS(res, file = gauss_file)
+}
+```
+
+
+## Covariate Diagnostics
+
+## Benchmark Metrics
+
+
+# Student's t Setting
+## Data Simulation
+## Covariate Diagnostics
+## Benchmark Metrics
+
+
+# Chi-Squared Setting
+## Data Simulation
+## Covariate Diagnostics
+## Benchmark Metrics
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
