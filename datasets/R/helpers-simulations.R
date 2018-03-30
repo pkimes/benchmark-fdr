@@ -115,29 +115,31 @@ simIteration <- function(X, bench, m, pi0, tstat, tstat_dist, null_dist,
 ## ##############################################################################
 
 ## step function (4 steps)
-pi0_step <- function(x, pi0) {
+pi0_step <- function(pi0) {
     stopifnot(pi0 < 1, pi0 >= 0.5)
-    pi0 - (1-pi0)/2 +
-        (1-pi0)/4 * (x > 0.25) +
-        (1-pi0)/2 * (x > 0.5) +
-        (1-pi0)/4 * (x > 0.75)
+    function(x) {
+        pi0 - (1-pi0)/2 +
+            (1-pi0)/4 * (x > 0.25) +
+            (1-pi0)/2 * (x > 0.5) +
+            (1-pi0)/4 * (x > 0.75)
+    }
 }
 
 ## shifted/stretched cubic function
-pi0_cubic <- function(x, pi0) {
+pi0_cubic <- function(pi0) {
     stopifnot(pi0 < 1, pi0 >= 2/3)
-    (1-x)^(1/3) * 4*(1-pi0) + 4 * pi0 - 3
+    function(x) { (1-x)^(1/3) * 4*(1-pi0) + 4 * pi0 - 3 }
 }
 
 ## shifted/stretched cosine function (non-monotone)
-pi0_cosine <- function(x, pi0) {
+pi0_cosine <- function(pi0) {
     stopifnot(pi0 < 1, pi0 >= 1/2)
-    (1-pi0) * cos(2*pi*x) + pi0
+    function(x) { (1-pi0) * cos(2*pi*x) + pi0 }
 }
 
-pi0_sine <- function(x, pi0) {
+pi0_sine <- function(pi0) {
     stopifnot(pi0 < 1, pi0 >= 1/2)
-    (1-pi0) * sin(2*pi*x) + pi0
+    function(x) { (1-pi0) * sin(2*pi*x) + pi0 }
 }
 
 
