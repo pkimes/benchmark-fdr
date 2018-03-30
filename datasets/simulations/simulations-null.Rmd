@@ -74,6 +74,7 @@ First, we consider the null setting with gaussian noise.
 ```{r gauss-parameters}
 tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+seed <- 608
 ```
 
 We next run the simulations.
@@ -82,10 +83,10 @@ We next run the simulations.
 if (file.exists(gauss_file)) {
     res <- readRDS(gauss_file)
 } else {
-    res <- mclapply(X=1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
-                    mc.cores = cores)
+                    seed = seed, mc.cores = cores)
     saveRDS(res, file = gauss_file)
 }
 ```
@@ -158,6 +159,7 @@ Next, we consider the null setting with t-distributed noise.
 ```{r chisq4-parameters}
 tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
 null_dist <- rchisq_2pvaluer(4)    # functional: dist to calc p-values
+seed <- 1023
 ```
 
 We next run the simulations.
@@ -166,10 +168,10 @@ We next run the simulations.
 if (file.exists(tdist_file)) {
     res <- readRDS(tdist_file)
 } else {
-    res <- mclapply(X=1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
-                    mc.cores = cores)
+                    seed = seed, mc.cores = cores)
     saveRDS(res, file = tdist_file)
 }
 ```
@@ -242,6 +244,7 @@ Finally, we consider the null setting with chi-squared distributed noise.
 ```{r chisq4-parameters}
 tstat_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
+seed <- 815
 ```
 
 We next run the simulations.
@@ -250,10 +253,10 @@ We next run the simulations.
 if (file.exists(chisq_file)) {
     res <- readRDS(chisq_file)
 } else {
-    res <- mclapply(X=1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
-                    mc.cores = cores)
+                    seed = seed, mc.cores = cores)
     saveRDS(res, file = chisq_file)
 }
 ```
