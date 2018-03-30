@@ -37,8 +37,8 @@ dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
 gauss_file <- file.path(resdir, "null-benchmark-gaussian.rds")
-tdist_file <- file.path(resdir, "null-benchmark-t6.rds")
-chisq_file <- file.path(resdir, "null-benchmark-chisq3.rds")
+tdist_file <- file.path(resdir, "null-benchmark-t5.rds")
+chisq_file <- file.path(resdir, "null-benchmark-chisq4.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -117,9 +117,6 @@ We plot the average results across `r B` simulations.
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
@@ -201,9 +198,6 @@ resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
-plotsim_average(resdf, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 ```
@@ -281,9 +275,6 @@ We plot the average results across `r B` simulations.
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
