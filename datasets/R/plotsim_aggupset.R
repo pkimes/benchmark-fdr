@@ -109,7 +109,7 @@ aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) {
 #' @author Patrick Kimes
 sb2hits <- function(x, a, s) {
     ## make quick table of significant tests w/ groundTruth
-    ht <- as.tibble(cbind((assay(x, "qvalue") < a) + 0,
+    ht <- as_tibble(cbind((assay(x, "qvalue") < a) + 0,
                           truth = rowData(x)$qvalue))
     ## keep only IHW matching "alpha" parameter
     ihw_keep <- paste0("ihw-a", sprintf("%02i", 100 * a ))
@@ -160,6 +160,6 @@ hits2freq <- function(x, nm) {
                      order_mat = "degree", aggregate = "degree",
                      cut = NULL, empty_intersects = TRUE,
                      decrease = TRUE) %>%
-        as.tibble() %>%
+        as_tibble() %>%
         select(-x, -color)
 }

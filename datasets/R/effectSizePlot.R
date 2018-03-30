@@ -133,7 +133,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
   if (is.list(sbl)){
     df <- lapply(sbl, summarize_one_item, alpha=alpha, nbins=nbins)
     df <- bind_rows(df, .id = "rep")
-    df <- as.tibble(df) %>%
+    df <- as_tibble(df) %>%
         mutate(prop = nsig / tot) %>%
         group_by(method, bin) %>%
         summarize(nsig = mean(prop)*100,
