@@ -206,9 +206,6 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
 ```
 
 We also take a look at the distribution of rejects for each method as a function of
@@ -240,7 +237,7 @@ Finally, we consider the null setting with chi-squared distributed noise.
 
 ```{r chisq4-parameters}
 tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
-null_dist <- rchisq_2pvaluer(4)    # functional: dist to calc p-values
+null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
 seed <- 1023
 ```
 
@@ -287,9 +284,6 @@ plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
 plotsim_average(resdf, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="FDR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
