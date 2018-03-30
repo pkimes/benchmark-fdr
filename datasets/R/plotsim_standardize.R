@@ -33,5 +33,5 @@ plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
                   alpha = alpha, tidy = TRUE)
     
     tsb <- bind_rows(tsb, .id = "rep")
-    as.tibble(tsb)
+    as_tibble(tsb)
 }
