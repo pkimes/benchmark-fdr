@@ -25,7 +25,9 @@
 #'        test statistics of the same length.
 #' @param null_dist distribution under the null used to calculate p-values from the
 #'        test statistic, must be a function which takes the full vector of null and
-#'        alternative test statistics and return the corresponding p-values. 
+#'        alternative test statistics and return the corresponding p-values.
+#' @param execute logical whether benchmarking should be executed or if the simulated
+#'        data set should be returned. (default = TRUE)
 #' @param seed integer seed for random number generator, ignored if NULL. (default = NULL) 
 #'
 #' @return
@@ -47,7 +49,7 @@
 #' @md
 #' @author Patrick Kimes
 simIteration <- function(bench, m, pi0, tstat, tstat_dist, null_dist,
-                         icovariate, seed = NULL) {
+                         icovariate, execute = TRUE, seed = NULL) {
     if (!is.null(seed)) { set.seed(seed) }
     stopifnot(is.function(tstat))
     stopifnot(is.function(tstat_dist))
@@ -90,10 +92,15 @@ simIteration <- function(bench, m, pi0, tstat, tstat_dist, null_dist,
     pv <- null_dist(ts)
     es <- qnorm(1 - pv / 2) * sign(ts)
 
-    ## return test results as data.frame
+    ## organize in data.frame
     dat <- data.frame(qvalue = H, test_statistic = ts, effect_size = es,
                       pval = pv, ind_covariate = ind_cov, SE = SE)
-    
+
+    ## return data if not executing
+    if (!execute) {
+        return(as_tibble(dat))
+    }
+
     buildBench(bench, dat, truthCol = "qvalue", ptabular = TRUE,
                ftCols = c("ind_covariate", "effect_size"))
 }
