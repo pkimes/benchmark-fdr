@@ -156,15 +156,15 @@ Next, we consider the null setting with t-distributed noise.
 
 ## Data Simulation
 
-```{r chisq4-parameters}
-tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
-null_dist <- rchisq_2pvaluer(4)    # functional: dist to calc p-values
-seed <- 1023
+```{r t5-parameters}
+tstat_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
+seed <- 815
 ```
 
 We next run the simulations.
 
-```{r chisq4-run-simulation}
+```{r t5-run-simulation}
 if (file.exists(tdist_file)) {
     res <- readRDS(tdist_file)
 } else {
@@ -181,16 +181,16 @@ if (file.exists(tdist_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r chisq4-one-simulation}
+```{r t5-one-simulation}
 onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, chisq4-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, t5-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, chisq4-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, t5-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -198,7 +198,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the average results across `r B` simulations.
 
-```{r chisq4-metrics-averages, results = "hide"}
+```{r t5-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -217,7 +217,7 @@ plotsim_average(resdf, met="FDR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r chisq4-metrics-covlineplot, results = "hide"}
+```{r t5-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = 0.05, covname = "effect_size", trans = "log1p")
 
 covariateLinePlot(res, alpha = 0.05, covname = "ind_covariate", trans = "log1p")
@@ -226,7 +226,7 @@ covariateLinePlot(res, alpha = 0.05, covname = "ind_covariate", trans = "log1p")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r chisq4-metrics-upset, results = "hide"}
+```{r t5-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE) 
 } else {
@@ -242,9 +242,9 @@ Finally, we consider the null setting with chi-squared distributed noise.
 ## Data Simulation
 
 ```{r chisq4-parameters}
-tstat_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
-null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
-seed <- 815
+tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
+null_dist <- rchisq_2pvaluer(4)    # functional: dist to calc p-values
+seed <- 1023
 ```
 
 We next run the simulations.
