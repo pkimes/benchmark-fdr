@@ -163,3 +163,30 @@ hits2freq <- function(x, nm) {
         as_tibble() %>%
         select(-x, -color)
 }
+
+
+#' Number of Methods w/ Rejections
+#'
+#' Helper function to return the number of methods with rejections at
+#' a particular alpha level (this helps us determine whether or not to plot the
+#' aggregated upset plot - if there aren't at least 2 methods it will throw an
+#' error, which is a problem for the null simulations).
+#' 
+#' @param res standardized metric data.table generated using
+#'        standardize_results.
+#' @param alpha alpha cutoff
+#' @param filterSet which methods to exclude from consideration
+#'
+#' @author Keegan Korthauer
+numberMethodsReject <- function(res, alphacutoff, filterSet) {
+    res <- res %>% 
+        filter(is.na(param.alpha) | (param.alpha == alphacutoff)) %>%
+        filter(!(blabel %in% filterSet)) %>%
+        filter(alpha == alphacutoff) %>%
+        filter(performanceMetric == "rejections") %>%
+        select(blabel, performanceMetric, value) %>%
+        group_by(blabel) %>%
+        summarize(mean_value = mean(value)) %>%
+        filter(mean_value > 0)
+    return(nrow(res))
+}
