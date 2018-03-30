@@ -186,7 +186,7 @@ numberMethodsReject <- function(res, alphacutoff, filterSet) {
         filter(performanceMetric == "rejections") %>%
         select(blabel, performanceMetric, value) %>%
         group_by(blabel) %>%
-        summarize(mean_value = mean(value)) %>%
+        summarize(mean_value = round(mean(value))) %>%
         filter(mean_value > 0)
     return(nrow(res))
 }
