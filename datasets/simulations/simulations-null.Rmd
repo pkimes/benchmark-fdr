@@ -124,9 +124,6 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
 ```
 
 We also take a look at the distribution of rejects for each method as a function of
@@ -143,7 +140,7 @@ the overlap of rejections between methods.
 
 ```{r gauss-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE) 
+    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
