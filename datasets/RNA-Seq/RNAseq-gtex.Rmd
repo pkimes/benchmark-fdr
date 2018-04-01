@@ -154,10 +154,8 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
                       supplementary = FALSE)
 ```
 
-```{r, rnaseq-boxplots}
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
-plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
-                      methods = methods, trans = log2, maxNum = 5)
+```{r, rnaseq-lineplots}
+covariateLinePlot(sb, alpha = 0.1, covname = "ind_covariate")
 ```
 
 # Session Info

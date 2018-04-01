@@ -163,9 +163,7 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```
 
 ```{r}
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf", "scott-empirical")
-plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
-                      methods = methods, trans = log2, maxNum = 5)
+covariateLinePlot(sb, alpha = 0.1, covname = "ind_covariate")
 ```
 
 # Session Info
