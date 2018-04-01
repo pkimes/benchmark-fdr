@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Non-Informative Covariate"
+title: "Simulation Study: Informative Covariate (step)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -13,7 +13,9 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with only an non-informative covariate. We include simulation results
+tests with an informative covariate. The covariate is sampled uniformly from
+the interval [0, 1], and the conditional probability of a test being non-null
+is a non-smooth (monotone) step function of the covariate. We include simulation results
 again with Gaussian, t-distributed, and Chi-Squared distributed noise.
 
 # Workspace Setup
@@ -34,9 +36,9 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-gauss_file <- file.path(resdir, "noninformative-benchmark-gaussian.rds")
-tdist_file <- file.path(resdir, "noninformative-benchmark-t5.rds")
-chisq_file <- file.path(resdir, "noninformative-benchmark-chisq4.rds")
+gauss_file <- file.path(resdir, "informative-step-benchmark-gaussian.rds")
+tdist_file <- file.path(resdir, "informative-step-benchmark-t5.rds")
+chisq_file <- file.path(resdir, "informative-step-benchmark-chisq4.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -50,7 +52,7 @@ All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                        # integer: number of hypothesis tests
-pi0 <- 0.90                       # numeric: proportion of null hypotheses
+pi0 <- pi0_step(0.90)             # numeric: proportion of null hypotheses
 icovariate <- runif               # functional: independent covariate
 ```
 
