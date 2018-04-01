@@ -150,7 +150,7 @@ dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
 
 Generating the *SummarizedBenchmark* object:
  
-```{r runningBenckmark, message=FALSE}
+```{r setup-benckmark, message=FALSE}
 ## rename columns and prepare for benchmarking
 res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
     dplyr::rename(pval = over_represented_pvalue,
@@ -159,8 +159,17 @@ res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
 
 ## generate default BenchDesign
 bd <- initializeBenchDesign()
+bd <- dropBMethod(bd, "ashs")
+bd <- dropBMethod(bd, "scott-empirical")
+bd <- dropBMethod(bd, "scott-theoretical")
+```
 
-## run benchmark
+We exclude `ashr`, `scott-theoretical` and `scott-empirical` from the analysis because
+the necessary assumptions are not met in the current case study. Namely, effect sizes
+and standard errors are not available for ASH, and the test statistics are not normally
+distributed under the null and alternative, as required by Scott's FDR regression methods.
+
+```{r run-benchmark}
 if (!file.exists(bench_file)) {
     sGSEAMouse <- buildBench(bd, res, ftCols = "ind_covariate")
     saveRDS(sGSEAMouse, file = bench_file)
