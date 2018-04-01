@@ -26,19 +26,19 @@ summarize_one_item <- function(object, alpha){
                             1*(assays(object)[["qvalue"]]) < 0.05))
   colnames(df)[1] <- "truth" 
   df <- df %>%
-    select(truth, covname, bonf, bh,
-           qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
-           "scott-empirical") %>%
-    rename("scott-theoretical"="scott-t") %>%
-    rename("scott-empirical"="scott-e") %>%
-    gather(method, significant, -truth, -covname) %>%
-    group_by(method, truth, significant) %>%
-    summarize(mean_effect_size=mean(abs(get(covname))),
-              med_effect_size=median(abs(get(covname))),
-              min_effect_size=min(abs(get(covname))),
-              max_effect_size=max(abs(get(covname))),
-              botQ=quantile(abs(get(covname)),0.25),
-              topQ=quantile(abs(get(covname)), 0.75)) %>%
+    dplyr::select(truth, covname, bonf, bh,
+                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
+                  "scott-empirical") %>%
+    dplyr::rename("scott-theoretical"="scott-t") %>%
+    dplyr::rename("scott-empirical"="scott-e") %>%
+    tidyr::gather(method, significant, -truth, -covname) %>%
+    dplyr::group_by(method, truth, significant) %>%
+    dplyr::summarize(mean_effect_size=mean(abs(get(covname))),
+                     med_effect_size=median(abs(get(covname))),
+                     min_effect_size=min(abs(get(covname))),
+                     max_effect_size=max(abs(get(covname))),
+                     botQ=quantile(abs(get(covname)),0.25),
+                     topQ=quantile(abs(get(covname)), 0.75)) %>%
     na.omit()
   df$significant <- as.factor(df$significant)
   levels(df$significant)=c("Not Significant", "Significant")
@@ -115,16 +115,16 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
                               1*(assays(object)[["qvalue"]]) < 0.05))
     colnames(df)[1] <- "truth" 
     df <- df %>%
-      select(truth, covname, bonf, bh,
-             qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
-             "scott-empirical") %>%
+      dplyr::select(truth, covname, bonf, bh,
+                    qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
+                    "scott-empirical") %>%
       dplyr::rename("scott-t" = "scott-theoretical") %>%
       dplyr::rename("scott-e" = "scott-empirical") %>%
-      mutate(bin = ntile(abs(get(covname)), nbins)) %>%
-      gather(method, significant, -covname, -bin) %>%
-      group_by(method, bin) %>%
-      summarize(nsig = sum(significant),
-                tot = sum(!is.na(significant))) %>%
+      dplyr::mutate(bin = ntile(abs(get(covname)), nbins)) %>%
+      tidyr::gather(method, significant, -covname, -bin) %>%
+      dplyr::group_by(method, bin) %>%
+      dplyr::summarize(nsig = sum(significant),
+                       tot = sum(!is.na(significant))) %>%
       dplyr::filter(method != 'truth') %>%
       na.omit()
     return(df)
@@ -134,14 +134,14 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
     df <- lapply(sbl, summarize_one_item, alpha=alpha, nbins=nbins)
     df <- bind_rows(df, .id = "rep")
     df <- as_tibble(df) %>%
-        mutate(prop = nsig / tot) %>%
-        group_by(method, bin) %>%
-        summarize(nsig = mean(prop)*100,
-                  se = sd(prop * 100) / sqrt(n())) %>%
+        dplyr::mutate(prop = nsig / tot) %>%
+        dplyr::group_by(method, bin) %>%
+        dplyr::summarize(nsig = mean(prop)*100,
+                         se = sd(prop * 100) / sqrt(n())) %>%
         na.omit()
   }else if ("SummarizedBenchmark" %in% class(sbl)){
     df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins) %>%
-      mutate(nsig = nsig/tot*100)
+      dplyr::mutate(nsig = nsig/tot*100)
   }else{
     stop("Input object must be either a SummarizedBenchmark object, or ",
          "a list of SummarizedBenchmark objects.")
