@@ -185,12 +185,8 @@ plotFDRMethodsOverlap(sGSEAMouse, alpha = 0.1, supplementary = FALSE,
                       order.by = "freq", nsets = 100)
 ```
 
-Gene set size of overlaps.
-
 ```{r}
-methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
-plotCovariateBoxplots(sGSEAMouse, alpha = 0.1, nsets = 4,
-                      methods = methods, trans = log2, maxNum = 5)
+covariateLinePlot(sGSEAMouse, alpha = 0.1, covname = "ind_covariate")
 ```
 
 # Session Info

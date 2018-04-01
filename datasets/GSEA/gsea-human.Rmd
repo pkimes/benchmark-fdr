@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-The objective of this document is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). In order to get a list of genes, we will use RNA-seq data consisting on cortex and cerebellum samples of a subset of the GTEx data. 
+The objective of this document is to compare different methods for multiple testing correction in the context of Gene Set Enrichment Analysis (GSEA). In order to get a list of genes, we will use RNA-seq data consisting of cortex and cerebellum samples of a subset of the GTEx data. 
 
 # Workspace Setup
 
@@ -189,20 +189,8 @@ rejections_scatter(sGSEA, as_fraction=FALSE, supplementary=FALSE)
 plotFDRMethodsOverlap(sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
 ```
 
-Gene set size of overlaps.
-
 ```{r}
-methods <- c("lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
-plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=6, methods=methods, trans=log2)
-plotCovariateBoxplots(sGSEA, alpha=0.1, nsets=7, methods=methods, trans=log2, maxNum=5)
-```
-
-## Benchmark Metrics
-
-```{r}
-estimatePerformanceMetrics( pr, alpha=0.1, tidy=TRUE ) %>%
-    dplyr::filter( blabel %in% c("lfdr","ihw-a10","bl-df03","qvalue","bh", "bonf") ) %>%
-    dplyr::select( blabel, value )
+covariateLinePlot(sGSEA, alpha = 0.1, covname = "ind_covariate")
 ```
 
 # Session Info
