@@ -342,18 +342,20 @@ sb <- addDefaultMetrics(sb)
 
 Now, we'll plot the results.
 
-```{r, chipseq-plot, results="hide"}
+```{r, chipseq-scatter, results="hide"}
 rejections_scatter(sb, supplementary = FALSE)
 rejection_scatter_bins(sb, covariate = "ind_covariate",
                        bins = 4, supplementary = FALSE)
+```
 
+```{r, chipseq-overlap}
 plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
                       order.by = "freq", decreasing = TRUE,
                       supplementary = FALSE)
+```
 
-methods <- c("ashs", "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf")
-plotCovariateBoxplots(sb, alpha = 0.1, nsets = 6,
-                      methods = methods, trans = log2, maxNum = 5)
+```{r, rnaseq-lineplots}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 # Session Info
