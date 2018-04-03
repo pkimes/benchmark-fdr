@@ -163,7 +163,8 @@ For the human dataset, there are a total of `r ncol(humandata)` cells and `r nro
 We perform differential expression testing using 
 MAST which has a hurdle model to account for zeroes.
 
-We apply MAST to the TPMs following the approach in Soneson et al. 
+We apply MAST to the TPMs and adjust for the cellular detection rate, as 
+suggested by the authors of MAST in the manuscript and vignette on Bioconductor.
 
 ```{r, MAST}
 # function to add MAST p-values
@@ -172,7 +173,8 @@ compute_MAST_sc <- function(dat){
   if (! "mast_p" %in% colnames(rowData(dat))){
     sca <- FromMatrix(exprsArray = log2(assay(dat, "TPM") + 1), 
                     cData = data.frame(wellKey=colnames(dat), colData(dat)))
-    zlmdata <- zlm(~group, sca)
+    colData(sca)$cdr <- scale(colSums(assay(sca)>0))
+    zlmdata <- zlm(~ group + cdr, sca)
 
     rowData(dat)$mast_p <- 
         lrTest(zlmdata, "group")[, "hurdle", "Pr(>Chisq)"]
