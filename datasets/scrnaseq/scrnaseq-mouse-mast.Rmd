@@ -8,6 +8,7 @@ output:
         toc_float: true
         highlight: tango
         number_sections: true
+bibliography: references.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -32,12 +33,12 @@ kable(df1,caption="DE methods")
 ```
 
 We selected two datasets, one each from mouse and human. 
-These datasets come from the `Conquer` (Soneson et al., 2018) scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
+These datasets come from the `Conquer` [@soneson2018] scRNAseq data collection. `Conquer` provides uniformly processed gene expression data summarized to both count (aggregated from transcript members), and length-scaled TPMs at the gene level. The authors used `salmon` to quantify raw reads and `tximport` to summarize to gene level. The data comes from Smartseq, a plate based sequencing method which results in deeper sequencing of reads at the cost of numbers of cells. 
 
 Here we are interested in performing differential expression analyses to determine
 which genes have different expression among the two biological groups in each comparison.
-We also apply two different analysis methods: MAST and scDD. In this vignette, we will
-explore the mouse dataset analysed with MAST.
+We also apply two different analysis methods: MAST [@finak2015] and scDD [@korthauer2016]. 
+In this vignette, we will explore the human dataset analysed with MAST.
 
 # Workspace setup
 
@@ -87,14 +88,19 @@ if (!file.exists(datfile)){
 
 ## Data processing and filtering
 
-For data processing, we follow practices and recommendations from Soneson et al., 2017. Briefly, we limit ourselves to 2-group comparisons. We do not filter genes as filtering may affect the subsequent false discovery control steps.  We only filter out genes that are expressed in 
-fewer than 1% of cells. 
-We will filter out cells with extremely low mapping rate
+For data processing, we follow practices and recommendations from [@lun2016]. 
+Briefly, we perform quality control filtering on cells to ensure
+that technical artifacts do not distort downstream analysis results. In 
+addition, we also filter out very low-abundance genes, since genes that contain
+almost all zero counts do not contain enough information for reliable inference.
+Specifically, we filter out cells with extremely low mapping rate
 (below 20%), as these represent poor quality cells that may end up having negative
 size factor estimates during normalization. For the same reason, we also filter cells
 which have extremely low proportion of genes detected (less than 5%).
+We also filter out genes that are expressed in fewer than 5% of cells in both groups. 
 
 *Add More detail on the experiments here*
+
 We'll extract two conditions: No stimulation versus LPS at 150 min.
 
 ```{r}
@@ -377,3 +383,5 @@ covariateLinePlot(sb2, alpha=0.05, covname="ind_covariate", nbins=25) +
 ```{r}
 sessionInfo()
 ```
+
+# References
