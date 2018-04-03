@@ -40,9 +40,9 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 }
 
 ## project data/results folders
-datdir <- "DATA"
-resdir <- "RESULTS"
-enigma_dir <- "enigma"
+datdir <- "data"
+resdir <- "results"
+enigma_dir <- file.path(datdir, "enigma_results")
 
 # From their paper, we expect SO4 to have little correlation, pH
 # to have high correlations, and Al to be in the middle
@@ -54,18 +54,29 @@ ph_bench_file <- file.path(resdir, "enigma-ph-otus-benchmark.rds")
 
 al_result_file <- file.path(resdir, "enigma-al-otus-results.rds")
 al_bench_file <- file.path(resdir, "enigma-al-otus-benchmark.rds")
-
 ```
 
 # Data Preparation
 
-```{r, enigma-readdata}
+We download the data from Dropbox if not already available.
+
+```{r, enigma-download-data}
+if (!file.exists(file.path(enigma_dir, "enigma.metadata.txt"))) {
+    download.file("https://www.dropbox.com/s/0r1zjp26u10l0p4/enigma.metadata.txt?dl=1",
+                  destfile = file.path(enigma_dir, "enigma.metadata.txt"))
+}
+
+if (!file.exists(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))) {
+    download.file("https://www.dropbox.com/s/u9qh86cd7c0vbn9/enigma.otu_table_resampled_updated_r.txt.gz?dl=1",
+                  destfile = file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))
+}
+```
+
+```{r enigma-readdata}
 ## load OTU table and metadata
-# Note to others: not sure why read.table breaks on this file.
-otu <- read.table(file.path(datdir, enigma_dir, 
-                            "otu_table_resampled_updated_r.txt"), 
+otu <- read.table(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"), 
                   sep='\t', header = TRUE, row.names = 1)
-meta <- read.csv(file.path(datdir, enigma_dir, "metadata.txt"), sep='\t')
+meta <- read.csv(file.path(enigma_dir, "enigma.metadata.txt"), sep='\t')
 
 # Select only the 0.02 um samples
 meta <- meta[endsWith(as.character(meta$Sample), "02"), ]
