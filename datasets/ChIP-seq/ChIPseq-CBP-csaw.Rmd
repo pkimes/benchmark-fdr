@@ -1,0 +1,327 @@
+---
+title: "Case Study: ChIP-seq Differential Peak Calling (csaw)"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+In this case study, we perform differential peak calling on ChIP-seq data for a
+trnscription factor, CREB-binding protein (CBP), from Kasper et al. (2014), used in
+Lun et al. (2015) to demonstrate the usage of _csaw_. As described in a separate case
+study analyzing ChIP-seq data for H3K4Me3, _csaw_ is a package for differential peak
+calling based on counting reads in sliding windows across the genome. Code and steps
+for initial processing and analysis of this data with _csaw_ are taken directly
+from Lun et al. (2015). 
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(BiocParallel)
+library(rtracklayer)
+library(Rsamtools)
+library(Rsubread)
+library(csaw)
+library(edgeR)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+
+## intermediary files we create below
+count_file <- file.path(resdir, "cbp-csaw-counts.rds")
+filtered_file <- file.path(resdir, "cbp-csaw-counts-filtered.rds")
+normfacs_file <- file.path(resdir, "cbp-csaw-counts-normfacs.rds")
+result_file <- file.path(resdir, "cbp-csaw-results.rds")
+bench_file <- file.path(resdir, "cbp-csaw-benchmark.rds")
+
+## set up parallel backend
+cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
+multicoreParam <- MulticoreParam(workers = cores)
+```
+
+# Data Preparation
+
+We download the fastq files directly from the European Nucleotide Archive (ENA). 
+
+```{r download-fastqs}
+fqurls <- c("007/SRR1145787/SRR1145787.fastq.gz",
+            "008/SRR1145788/SRR1145788.fastq.gz",
+            "009/SRR1145789/SRR1145789.fastq.gz",
+            "000/SRR1145790/SRR1145790.fastq.gz")
+fqurls <- paste0("ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR114/", fqurls)
+
+for (i_fq in fqurls) {
+    out_fq <- file.path(datdir, basename(i_fq))
+    if (!file.exists(out_fq)) {
+        download.file(i_fq, destfile = out_fq)
+    }
+}
+```
+
+We download the mm10 reference genome used for ENCODE3 and build the
+index for alignment if not already available.
+
+```{r, download-ref}
+ref_url <- paste0("https://www.encodeproject.org/files/",
+                  "mm10_no_alt_analysis_set_ENCODE/@@download/",
+                  "mm10_no_alt_analysis_set_ENCODE.fasta.gz")
+ref_fastagz <- file.path(datdir, basename(ref_url))
+ref_fasta <- gsub("\\.gz$", "", ref_fastagz)
+
+if (!file.exists(file.path(datdir, "mm_ref_index.00.b.tab"))) {
+    if (!file.exists(ref_fasta)) {
+        download.file(ref_url, destfile = ref_fastagz)
+        system(paste("gunzip", ref_fastagz))
+    }
+    buildindex(basename = file.path(datdir, "mm_ref_index"),
+               reference = ref_fasta)
+}
+```
+
+Sample metadata is stored in a data.frame.
+
+```{r}
+fqfiles <- file.path(dardir, basename(fqurls)
+meta <- data.frame(genotype = factor(c("wt", "wt", "ko", "ko")),
+                   fqurl = fqurls, fqfile = fqfiles,
+                   bamfile = gsub("\\.fastq\\.gz", ".bam", fqfiles),
+                   sortedfile = gsub("\\.fastq\\.gz", ".sorted.bam", fqfiles))
+```
+
+We also download blacklisted regions for mm10 from ENCODE (https://www.encodeproject.org/annotations/ENCSR636HFF/).
+
+```{r}
+blacklist_url <- "https://www.encodeproject.org/files/ENCFF547MET/@@download/ENCFF547MET.bed.gz"
+if (!file.exists(file.path(datdir, basename(blacklist_url)))) {
+    download.file(blacklist_url, destfile = file.path(datdir, basename(blacklist_url)))
+}
+
+bl <- import(file.path(datdir, basename(blacklist_url)))
+```
+
+Standard set of parameters are defined for the analysis.
+Only the canonical set of chromosomes are used in the analysis.
+
+```{r}
+std_chr <- paste0("chr", c(1:19, "X", "Y"))
+param <- readParam(minq = 20, discard = bl, restrict = std_chr)
+```
+
+## Read Counting 
+
+We count reads within sliding windows across the genome.
+
+```{r count, results = 'hide', message = FALSE, warning = FALSE}
+if (file.exists(count_file)) {
+    win_cnts <- readRDS(count_file)
+} else {
+    unaligned <- !file.exists(meta$bamfile)
+    if (any(unaligned)) {
+        align(index = file.path(datdir, "mm_ref_index"),
+              readfile1 = meta$fqfile[unaligned],
+              type = 1, phredOffset = 64,
+              input_format = "FASTQ",
+              output_file = meta$bamfile[unaligned])
+    }
+    
+    ## sort bam files
+    for (i in 1:nrow(meta)) {
+        if (!file.exists(meta$sortedfile[i])) {
+            sortBam(meta$bamfile[i], gsub("\\.bam$", "", meta$sortedfile[i]))
+        }
+    }
+    
+    ## mark duplicates w/ picard
+    temp_bam <- file.path(datdir, "temp_dups_mm.bam")
+    temp_file <- file.path(datdir, "temp_mets_mm.txt")
+    temp_dir <- file.path(datdir, "temp_dups_mm")
+    dir.create(temp_dir)
+    for (i_bam in meta$sortedfile) {
+        code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
+                       "MarkDuplicates I=%s O=%s M=%s ", 
+                       "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
+                       "VALIDATION_STRINGENCY=SILENT")
+        code <- sprintf(code, i_bam, temp_bam, temp_file, temp_dir)
+        code <- system(code)
+        stopifnot(code == 0L)
+        file.rename(temp_bam, i_bam)
+    }
+    unlink(temp_file)
+    unlink(temp_dir, recursive = TRUE)
+    
+    ## index bam files
+    if (any(!file.exists(paste0(meta$sortedfile, ".bai")))) {
+        indexBam(meta$sortedfile)
+    }
+    
+    ## use correlateReads to determine fragment length (remove dups)
+    x <- correlateReads(b_meta$sortedfile, param = reform(param, dedup = TRUE))
+    frag_len <- which.max(x) - 1
+    
+    ## count reads in sliding windows (keep dups)
+    win_cnts <- windowCounts(meta$sortedfile, param = param, width = 10, ext = frag.len)
+                             
+    ## save unfiltered counts
+    saveRDS(win_cnts, file = count_file)
+}
+```
+
+We can apply prefiltering on windows with low abundance as described in Lun and Smyth (2016).
+
+```{r}
+if (file.exists(filtered_file)) {
+    filtered_cnts <- readRDS(filtered_file)
+    normfacs <- readRDS(normfacs_file)
+} else {
+    ## filter windows by abundance
+    bins <- windowCounts(meta$sortedfile, bin = TRUE, width = 10000, param = param)
+    filter_stat <- filterWindows(win_cnts, bins, type = "global")
+    keep <- filter_stat$filter > log2(3)
+    filtered_cnts <- win.data[keep, ]
+
+    ## calculate normalizing offsets based on larger windows
+    normfacs <- normOffsets(bins)
+    
+    ## save filtered counts, normalizing factors
+    saveRDS(filtered_cnts, file = filtered_file)
+    saveRDS(normfacs, file = normfacs_file)
+}
+```
+
+# Data Analysis
+
+## Differential Testing
+
+We use _edgeR_ to test for differential binding with the filtered data.
+
+```{r test, results='hide', message=FALSE, warning=FALSE}
+if (file.exists(result_file)) {
+    res_ranges <- readRDS(result_file)
+} else {
+    ## create model diesign
+    design <- model.matrix(~ 0 + genotype, data = meta)
+    colnames(design) <- levels(meta$genotype)
+
+    ## run quasi-likelihood F-test
+    y <- asDGEList(filtered_cnts, norm.factors = normfacs)
+    y <- estimateDisp(y, design)
+    fit <- glmQLFit(y, design, robust = TRUE)
+    res <- glmQLFTest(fit, contrast = makeContrasts(wt-ko, levels = design))
+
+    ## merge p-values across regions
+    merged <- mergeWindows(rowRanges(filtered_cnts), tol = 100, max.width = 5000)
+    tab_comb <- combineTests(merged$id, res$table)
+    tab_best <- getBestTest(merged$id, res$table)
+
+    ## save results
+    res_ranges <- merged$region
+    elementMetadata(res_ranges) <-
+        data.frame(tabcom,
+                   best_pos = mid(ranges(rowRanges(filtered_cnts[tab_best$best]))),
+                   best_logFC = tab_best$logFC)
+    saveRDS(res_ranges, file = result_file)
+}
+
+## covert to df for downstream analysis
+res_df <- as.data.frame(res_ranges)
+```
+
+## Covariate Diagnostics
+
+### Number of Windows
+
+```{r, nwin-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "nWindows") +
+    ggtitle("Number of windows as independent covariate") +
+    xlab("Number of Windows")
+```
+
+```{r, nwin-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 35, numQ = 3)
+```
+
+### Region Width
+
+```{r, width-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "width") +
+    ggtitle("Region width as independent covariate") +
+    xlab("Region Width")
+```
+
+```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 3)
+```
+
+## Multiple-Testing Correction
+
+We use the common `BenchDesign` with the set of multiple testing correction
+methods already included. We use the width of the regions as the independent
+covariate.
+
+```{r}
+if (!file.exists(bench_file)) {
+    res_df$ind_covariate <- res_df$width
+    res_df$pval <- res_df$PValue
+
+    bd <- initializeBenchDesign()
+    sb <- buildBench(bd, data = res_df, ftCols = "ind_covariate")
+    saveRDS(sb, file = bench_file)
+} else {
+    sb <- readRDS(bench_file)
+}
+```
+
+## Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, chipseq-metrics}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, chipseq-scatter, results="hide"}
+rejections_scatter(sb, supplementary = FALSE)
+rejection_scatter_bins(sb, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+```
+
+```{r, chipseq-overlap}
+plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+```
+
+```{r, rnaseq-lineplots}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
