@@ -186,26 +186,25 @@ if (file.exists(count_file)) {
         }
     }
     
-    ## mark duplicates w/ picard
-    temp_bam <- file.path(datdir, "temp_dups.bam")
-    temp_file <- file.path(datdir, "temp_mets.txt")
-    temp_dir <- file.path(datdir, "temp_dups")
-    dir.create(temp_dir)
-    for (i_bam in meta$sortedfile) {
-        code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
-                       "MarkDuplicates I=%s O=%s M=%s ", 
-                       "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
-                       "VALIDATION_STRINGENCY=SILENT")
-        code <- sprintf(code, i_bam, temp_bam, temp_file, temp_dir)
-        code <- system(code)
-        stopifnot(code == 0L)
-        file.rename(temp_bam, i_bam)
-    }
-    unlink(temp_file)
-    unlink(temp_dir, recursive = TRUE)
-    
-    ## index bam files
+    ## mark duplicates w/ picard and index bam files
     if (any(!file.exists(paste0(meta$sortedfile, ".bai")))) {
+        temp_bam <- file.path(datdir, "temp_dups.bam")
+        temp_file <- file.path(datdir, "temp_mets.txt")
+        temp_dir <- file.path(datdir, "temp_dups")
+        dir.create(temp_dir)
+        for (i_bam in meta$sortedfile) {
+            code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
+                           "MarkDuplicates I=%s O=%s M=%s ", 
+                           "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
+                           "VALIDATION_STRINGENCY=SILENT")
+            code <- sprintf(code, i_bam, temp_bam, temp_file, temp_dir)
+            code <- system(code)
+            stopifnot(code == 0L)
+            file.rename(temp_bam, i_bam)
+        }
+        unlink(temp_file)
+        unlink(temp_dir, recursive = TRUE)
+        
         indexBam(meta$sortedfile)
     }
     

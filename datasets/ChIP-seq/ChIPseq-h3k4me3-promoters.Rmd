@@ -159,13 +159,13 @@ if (file.exists(result_file)) {
                                   colData = as.data.frame(meta),
                                   design = ~ lab + cellline)
     dds <- DESeq(dds, fitType = "mean")
-    dat <- as.data.frame(results(dds))
+    dat <- as.data.frame(results(dds, independentFiltering = FALSE))
     colnames(dat) <- c('ind_covariate', 'effect_size', 'SE',
                        'stat', 'pval', 'padj')
     ## compute test-statistic from p-value for ASH
     dat <- dplyr::mutate(dat,
                          test_statistic = qnorm(exp(log(pval)-log(2)),
-                                                lower.tail=FALSE),
+                                                lower.tail = FALSE),
                          test_statistic = test_statistic * sign(effect_size))
     ## remove regions with effect sizes = NA
     dat <- dat[!is.na(dat$effect_size), ]

@@ -102,7 +102,7 @@ if (!file.exists(file.path(datdir, "mm_ref_index.00.b.tab"))) {
 Sample metadata is stored in a data.frame.
 
 ```{r}
-fqfiles <- file.path(dardir, basename(fqurls)
+fqfiles <- file.path(datdir, basename(fqurls))
 meta <- data.frame(genotype = factor(c("wt", "wt", "ko", "ko")),
                    fqurl = fqurls, fqfile = fqfiles,
                    bamfile = gsub("\\.fastq\\.gz", ".bam", fqfiles),
@@ -152,26 +152,25 @@ if (file.exists(count_file)) {
         }
     }
     
-    ## mark duplicates w/ picard
-    temp_bam <- file.path(datdir, "temp_dups_mm.bam")
-    temp_file <- file.path(datdir, "temp_mets_mm.txt")
-    temp_dir <- file.path(datdir, "temp_dups_mm")
-    dir.create(temp_dir)
-    for (i_bam in meta$sortedfile) {
-        code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
-                       "MarkDuplicates I=%s O=%s M=%s ", 
-                       "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
-                       "VALIDATION_STRINGENCY=SILENT")
-        code <- sprintf(code, i_bam, temp_bam, temp_file, temp_dir)
-        code <- system(code)
-        stopifnot(code == 0L)
-        file.rename(temp_bam, i_bam)
-    }
-    unlink(temp_file)
-    unlink(temp_dir, recursive = TRUE)
-    
-    ## index bam files
+    ## mark duplicates w/ picard and index bam files
     if (any(!file.exists(paste0(meta$sortedfile, ".bai")))) {
+        temp_bam <- file.path(datdir, "temp_dups_mm.bam")
+        temp_file <- file.path(datdir, "temp_mets_mm.txt")
+        temp_dir <- file.path(datdir, "temp_dups_mm")
+        dir.create(temp_dir)
+        for (i_bam in meta$sortedfile) {
+            code <- paste0("java -jar ${PICARD_TOOLS_HOME}/picard.jar ",
+                           "MarkDuplicates I=%s O=%s M=%s ", 
+                           "TMP_DIR=%s AS=true REMOVE_DUPLICATES=false ",
+                           "VALIDATION_STRINGENCY=SILENT")
+            code <- sprintf(code, i_bam, temp_bam, temp_file, temp_dir)
+            code <- system(code)
+            stopifnot(code == 0L)
+            file.rename(temp_bam, i_bam)
+        }
+        unlink(temp_file)
+        unlink(temp_dir, recursive = TRUE)
+        
         indexBam(meta$sortedfile)
     }
     
