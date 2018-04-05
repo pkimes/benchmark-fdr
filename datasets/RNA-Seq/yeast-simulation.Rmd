@@ -142,11 +142,11 @@ dds <- DESeqDataSetFromMatrix(countData = counts,
 # results on full set
 dds <- DESeq(dds)
 resultsNames(dds) # lists the coefficients
-resFULL <- results(dds, name="condition_WT_vs_Snf2")
+resFULL <- results(dds, name="condition_WT_vs_Snf2", independentFiltering = F)
 
 head(resFULL)
 
-sum(resFULL$padj < 0.05, na.rm=T, independentFiltering = F)
+sum(resFULL$padj < 0.05, na.rm=T)
 ```
 
 ## Check assumptions
