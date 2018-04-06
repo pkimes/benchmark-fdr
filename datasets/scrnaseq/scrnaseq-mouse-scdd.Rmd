@@ -109,9 +109,15 @@ size factor estimates during normalization. For the same reason, we also filter 
 which have extremely low proportion of genes detected (less than 5%).
 We also filter out genes that are expressed in fewer than 5% of cells in both groups. 
 
-*Add More detail on the experiments here*
-
-We'll extract two conditions: No stimulation versus LPS at 150 min.
+This dataset (from PMC28396000 [@lane2017]) contains cells from a murine 
+macrophage cell line that were studied for
+the impact of stimulation of the innate immune transcription factor nuclear factor 
+$\kappa$B (NF-$\kappa$B) on gene expression. Specifically, it is of interest to 
+characterize the dynamics of global gene expression on activating immune response.
+The NF-$\kappa$B was stimulated using 
+a lipopolysaccharide (LPS)-dependent subunit fused to a fluorescent protein. 
+Here we extract and compare two conditions and compare unstimulated cells versus
+cells stimulated with LPS after 150 minutes.
 
 ```{r}
 datfile <- file.path(datdir, "mouse_GSE94383_scdd.rds")

@@ -100,9 +100,12 @@ size factor estimates during normalization. For the same reason, we also filter 
 which have extremely low proportion of genes detected (less than 5%).
 We also filter out genes that are expressed in fewer than 5% of cells in both groups. 
 
-This dataset (from PMC5810554) contains cells from four Glioblastoma patients, 
+This dataset (from PMC5810554 [@darmanis2017]) contains cells from four Glioblastoma patients, 
 sampled from both the tumor core as well as the tissue peripheral to the tumor. 
-We'll compare the Neoplastic cells in the tumor core vs periphery. We'll exclude 
+We'll compare the Neoplastic cells in the tumor core vs periphery. Here it is of 
+interest to compare the gene expression profiles with cancerous cells that are part
+of the primary tumor with those that have migrated, since these differences are
+possibly related to metastasis. We'll exclude 
 the two samples where only a few neoplastic cells were found in the periphery.
 
 ```{r}
