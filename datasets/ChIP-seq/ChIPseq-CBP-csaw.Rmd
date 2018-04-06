@@ -106,7 +106,8 @@ fqfiles <- file.path(datdir, basename(fqurls))
 meta <- data.frame(genotype = factor(c("wt", "wt", "ko", "ko")),
                    fqurl = fqurls, fqfile = fqfiles,
                    bamfile = gsub("\\.fastq\\.gz", ".bam", fqfiles),
-                   sortedfile = gsub("\\.fastq\\.gz", ".sorted.bam", fqfiles))
+                   sortedfile = gsub("\\.fastq\\.gz", ".sorted.bam", fqfiles),
+                   stringsAsFactors = FALSE)
 ```
 
 We also download blacklisted regions for mm10 from ENCODE (https://www.encodeproject.org/annotations/ENCSR636HFF/).
@@ -175,11 +176,11 @@ if (file.exists(count_file)) {
     }
     
     ## use correlateReads to determine fragment length (remove dups)
-    x <- correlateReads(b_meta$sortedfile, param = reform(param, dedup = TRUE))
+    x <- correlateReads(meta$sortedfile, param = reform(param, dedup = TRUE))
     frag_len <- which.max(x) - 1
     
     ## count reads in sliding windows (keep dups)
-    win_cnts <- windowCounts(meta$sortedfile, param = param, width = 10, ext = frag.len)
+    win_cnts <- windowCounts(meta$sortedfile, param = param, width = 10, ext = frag_len)
                              
     ## save unfiltered counts
     saveRDS(win_cnts, file = count_file)
@@ -197,7 +198,7 @@ if (file.exists(filtered_file)) {
     bins <- windowCounts(meta$sortedfile, bin = TRUE, width = 10000, param = param)
     filter_stat <- filterWindows(win_cnts, bins, type = "global")
     keep <- filter_stat$filter > log2(3)
-    filtered_cnts <- win.data[keep, ]
+    filtered_cnts <- win_data[keep, ]
 
     ## calculate normalizing offsets based on larger windows
     normfacs <- normOffsets(bins)
