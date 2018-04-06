@@ -198,7 +198,7 @@ if (file.exists(filtered_file)) {
     bins <- windowCounts(meta$sortedfile, bin = TRUE, width = 10000, param = param)
     filter_stat <- filterWindows(win_cnts, bins, type = "global")
     keep <- filter_stat$filter > log2(3)
-    filtered_cnts <- win_data[keep, ]
+    filtered_cnts <- win_cnts[keep, ]
 
     ## calculate normalizing offsets based on larger windows
     normfacs <- normOffsets(bins)
@@ -237,7 +237,7 @@ if (file.exists(result_file)) {
     ## save results
     res_ranges <- merged$region
     elementMetadata(res_ranges) <-
-        data.frame(tabcom,
+        data.frame(tab_comb,
                    best_pos = mid(ranges(rowRanges(filtered_cnts[tab_best$best]))),
                    best_logFC = tab_best$logFC)
     saveRDS(res_ranges, file = result_file)
