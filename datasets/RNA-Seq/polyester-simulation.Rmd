@@ -57,11 +57,11 @@ library(fdrtool)
 library(FDRreg)
 
 # comparison tools/functions
+# devtools::install_github("areyesq89/SummarizedBenchmark", ref="fdrbenchmark") # needed b/c BioC devel branch is 
 library(SummarizedBenchmark)
 
 # load helper functions
-working_dir <- list(project_home = "/users/shicks1/projects/benchmark-fdr")
-sourceDirectory(file.path(working_dir$project_home,"datasets/R/"))
+sourceDirectory(file.path("../R/"))
 
 # # set up parallel backend:
 library(BiocParallel)
@@ -161,11 +161,11 @@ simulateOneSplit <- function(counts, paramPolyester,
                                  ncol(counts(dds_alt))  ))
   
   # filter NAs and those with less than 50% expressed 
-  geneExp  <- geneExp  %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+  geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
   
   # built Benchmark data
   sb <- bd %>% buildBench(data=geneExp, parallel = FALSE, 
-                          BPPARAM = BPPARAM, truthCols = "qvalue", 
+                          truthCols = "qvalue", 
                           ftCols = "ind_covariate")
   rowData(sb)$log2FC <- geneExp$effect_size
   
@@ -180,9 +180,9 @@ methods to exclude in the results plots, and the alpha cutoff level to
 be used when plotting the aggregated Upset results.
 
 ```{r}
-B <- 10
+B <- 100
 bd <- initializeBenchDesign() # only needs to be done once
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05") 
 ualpha <- 0.05
 ```
 
@@ -208,13 +208,6 @@ numberMethodsReject <- function(res, alphacutoff, filterSet){
     filter(mean_value > 0)
   return(nrow(res))
 }
-
-addDefaultMetrics <- function(sb) {
-    sb <- addPerformanceMetric(sb, evalMetric = c("TPR", "FPR", "TNR", "FNR", "rejections"),
-                               assay = "qvalue")
-    return(sb)
-}
-
 ```
 
 
@@ -229,13 +222,13 @@ This will be done for 100 simulations.
 sampleSize <- 5
 nDE <- 0
 
-if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))){
+if (!file.exists(file.path("polyester-results-null5.RDS"))){
   null5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(null5, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))
+  saveRDS(null5, file=file.path("polyester-results-null5.RDS"))
 } else {
-  null5 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null5.RDS"))
+  null5 <- readRDS(file=file.path("polyester-results-null5.RDS"))
 }
 ```
 
@@ -244,8 +237,7 @@ if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null
 Plot results. 
 
 ```{r}
-
-res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.20, 0.01))
+res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
 
 # metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res5, met="rejections",filter_set = excludeSet,
@@ -253,12 +245,18 @@ plotsim_average(res5, met="rejections",filter_set = excludeSet,
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
+covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
+
 if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 } else {
   message("Not enough methods found rejections at alpha ", ualpha, 
           "; skipping upset plot")
 }
+
 ```
 
 
@@ -275,13 +273,13 @@ This will be done for 100 simulations.
 sampleSize <- 10
 nDE <- 0
 
-if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))){
+if (!file.exists(file.path("polyester-results-null10.RDS"))){
   null10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(null10, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))
+  saveRDS(null10, file=file.path("polyester-results-null10.RDS"))
 } else {
-  null10 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-null10.RDS"))
+  null10 <- readRDS(file=file.path("polyester-results-null10.RDS"))
 }
 ```
 
@@ -290,13 +288,17 @@ if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-null
 Plot results.
 
 ```{r}
-res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.20, 0.01))
+res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -317,13 +319,13 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 sampleSize <- 5
 nDE <- 1500
 
-if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))){
+if (!file.exists(file.path("polyester-results-de5.RDS"))){
   de5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(de5, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))
+  saveRDS(de5, file=file.path("polyester-results-de5.RDS"))
 } else {
-  de5 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.RDS"))
+  de5 <- readRDS(file=file.path("polyester-results-de5.RDS"))
 }
 ```
 
@@ -332,65 +334,9 @@ if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-de5.
 Plot results. 
 
 ```{r}
-plotEffectSize <- function(sbl, alpha=0.05, DE=TRUE, covname){
-
-summarize_one_item <- function(object, alpha){
-  object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ) )
-                       & colData( object )$param.alpha != alpha )]
-  
-  df <- as.data.frame(cbind(as.matrix(rowData(object)), 
-                            1*(assays(object)[["qvalue"]]) < 0.05))
-  colnames(df)[1] <- "truth" 
-  df <- df %>%
-    select(truth, covname, bonf, bh,
-                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr, 
-                  "scott-theoretical", "scott-empirical") %>%
-    # rename("scott-theoretical"="scott-t", "scott-empirical"="scott-e") %>%
-    gather(method, significant, -truth, -covname) %>%
-    group_by(method, truth, significant) %>%
-    summarize(mean_effect_size=mean(abs(get(covname))),
-              med_effect_size=median(abs(get(covname))),
-              min_effect_size=min(abs(get(covname))),
-              max_effect_size=max(abs(get(covname))),
-              botQ=quantile(abs(get(covname)),0.25),
-              topQ=quantile(abs(get(covname)), 0.75)) %>% na.omit()
-  df$significant <- as.factor(df$significant)
-  levels(df$significant)=c("Not Significant", "Significant")
-  df$truth <- as.factor(df$truth)
-  levels(df$truth)=c("Not DE", "DE")
-  return(df)
-}
-
-df <- lapply(sbl, summarize_one_item, alpha=alpha)
-df <- bind_rows(df, .id = "rep")
-df <- as.tibble(df)
-
-if (DE){
-  df <- df %>% filter(truth=="DE")
-}else{
-  df <- df %>% filter(truth=="Not DE")
-} 
-
-p <- ggplot(df, aes(x = as.factor(method), y=med_effect_size)) +
-  geom_boxplot() +
-  facet_grid(significant~., scales="free_y") +
-  xlab("Method") +
-  ylab(paste0("Median ", covname))
-
-if (DE){
-  p <- p + ggtitle(paste0(covname, " of True DE genes by significance at alpha ", 
-                       alpha))
-}else{
-  p <- p + ggtitle(paste0(covname, " of Non-DE genes by significance at alpha ", 
-                       alpha))
-} 
-
-return(p)
-}
 
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="FPR",filter_set = excludeSet,
@@ -398,11 +344,10 @@ plotsim_average(res5d, met="FPR",filter_set = excludeSet,
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de5, covname="log2FC")
-plotEffectSize(de5, covname="log2FC", DE=FALSE)
-
-plotEffectSize(de5, covname="ind_covariate")
-plotEffectSize(de5, covname="ind_covariate", DE=FALSE)
+covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
@@ -423,13 +368,13 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 sampleSize <- 10
 nDE <- 1500
 
-if (!file.exists(file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))){
+if (!file.exists(file.path("polyester-results-de10.RDS"))){
   de10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(de10, file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))
+  saveRDS(de10, file=file.path("polyester-results-de10.RDS"))
 } else {
-  de10 <- readRDS(file=file.path(working_dir, "datasets/RNA-Seq/polyester-results-de10.RDS"))
+  de10 <- readRDS(file=file.path("polyester-results-de10.RDS"))
 }
 ```
 
@@ -440,7 +385,6 @@ Plot results.
 ```{r}
 res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
 plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="FPR",filter_set = excludeSet,
@@ -448,12 +392,10 @@ plotsim_average(res10d, met="FPR",filter_set = excludeSet,
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-plotEffectSize(de10, covname="log2FC")
-plotEffectSize(de10, covname="log2FC", DE=FALSE)
-
-plotEffectSize(de10, covname="ind_covariate")
-plotEffectSize(de10, covname="ind_covariate", DE=FALSE)
-
+covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
 
 if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
