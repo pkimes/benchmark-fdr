@@ -31,6 +31,10 @@ aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) {
     ## find significant hits at alpha cutoff for all replicates
     hits_tabs <- lapply(res, sb2hits, a = alpha, s = supplementary)
 
+    ## replace NAs with 0s (not called significant)
+    fails <- lapply(hits_tabs, sapply, function(x) { all(is.na(x)) })
+    hits_tabs <- lapply(hits_tabs, function(x) { x[is.na(x)] <- 0; x })
+    
     ## count up frequencies in each intersection
     n_cols <- unique(sapply(hits_tabs, ncol))
     if (length(n_cols) > 1) {
@@ -38,6 +42,15 @@ aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) {
     }
     freq_tabs <- lapply(hits_tabs, hits2freq, nm = n_cols)
 
+    ## convert anything that failed completely to NAs
+    freq_tabs <- mapply(function(x, y) {
+        if (!any(x)) { return(y) }
+        failid <- make.names(names(x))[x]
+        failid <- match(failid, names(y))
+        y$freq[rowSums(y[, failid]) > 0] <- NA
+        y
+    }, x = fails, y = freq_tabs, SIMPLIFY = FALSE) 
+    
     ## merge all freqs into single table - first rename 'freq' columns to 'freq.i' (i = 1..100)
     method_names <- setdiff(names(freq_tabs[[1]]), "freq")
     freq_tab <- mapply(function(itab, idx) { dplyr::rename(itab, !!(paste0("freq.", idx)) := freq) },
@@ -49,16 +62,14 @@ aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) {
     freq_tab <- freq_tab %>%
         gather(repl, cnt, starts_with("freq")) %>%
         group_by_at(method_names) %>%
-        summarize(freq_mean = round(mean(cnt)),
-                  freq_50p = round(median(cnt)),
-                  freq_10p = round(quantile(cnt, .1)),
-                  freq_90p = round(quantile(cnt, .9))) %>%
-        ungroup
-
+        summarize(freq_mean = round(mean(cnt, na.rm = TRUE))) %>%
+        ungroup() %>%
+        mutate(freq_mean = ifelse(is.nan(freq_mean), 0, freq_mean)) 
+    
     ## convert binary design matrix to UpSetR format (method names separated by "&")
     freq_tab <- freq_tab %>%
         unite("design", method_names, sep = "&", remove = FALSE) %>%
-        gather(method, val, -design, -freq_mean, -freq_50p, -freq_10p, -freq_90p) %>%
+        gather(method, val, -design, -freq_mean) %>%
         mutate(val = ifelse(val, method, "")) %>%
         spread(method, val) %>%
         select(-design) %>%
@@ -126,11 +137,14 @@ sb2hits <- function(x, a, s) {
             dplyr::rename(bl = `bl-df03`)
     }
     ## rename scott methods for easier parsing later, drop unadjusted p-vals from comparison
-    ht %>%
-        dplyr::rename(scott_e = `scott-empirical`,
-                      scott_t = `scott-theoretical`) %>%
-        dplyr::select(-unadjusted) %>%
-        as.data.frame
+    if ("scott-theoretical" %in% names(ht)) {
+        ht <- dplyr::rename(ht, "scott-t" = "scott-theoretical")
+    }
+    if ("scott-empirical" %in% names(ht)) {
+        ht <- dplyr::rename(ht, "scott-e" = "scott-empirical")
+    }
+    ht <- dplyr::select(ht, -unadjusted)
+    as.data.frame(ht)
 }
 
 
