@@ -21,13 +21,13 @@ plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
                   evalMetric = "FWER", assay = "qvalue",
                   evalFunction =
                       function( query, truth, alpha = 0.1) {
-                          any((query < alpha) & !as.logical(truth))
+                          any((query < alpha) & !as.logical(truth), na.rm = TRUE)
                       })
     sbl <- lapply(sbl, addPerformanceMetric,
                   evalMetric = "rejectprop", assay = "qvalue",
                   evalFunction =
                       function( query, truth, alpha = 0.1) {
-                          mean(query < alpha)
+                          mean(query < alpha, na.rm = TRUE)
                       })
     tsb <- lapply(sbl, estimatePerformanceMetrics,
                   alpha = alpha, tidy = TRUE)
