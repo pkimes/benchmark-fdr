@@ -58,5 +58,6 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
     geom_line(alpha = 3/4) + geom_point(alpha = 3/4) + 
     facet_wrap(~bin, ncol=ncol_facet ) +
     xlab(expression(paste("Nominal"~alpha))) +
-    ylab(yl)
+    ylab(yl) +
+    labs(color="Method")
 }
