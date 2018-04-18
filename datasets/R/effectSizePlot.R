@@ -27,10 +27,15 @@ summarize_one_item <- function(object, alpha){
   colnames(df)[1] <- "truth" 
   df <- df %>%
     dplyr::select(truth, covname, bonf, bh,
-                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
-                  "scott-empirical") %>%
-    dplyr::rename("scott-theoretical"="scott-t") %>%
-    dplyr::rename("scott-empirical"="scott-e") %>%
+                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr,
+                  matches("scott"))
+  if ("scott-theoretical" %in% names(df)) {
+    df <- dplyr::rename(df, "scott-t" = "scott-theoretical")
+  }
+  if ("scott-empirical" %in% names(df)) {
+    df <- dplyr::rename(df, "scott-e" = "scott-empirical")
+  }
+  df <- df %>%
     tidyr::gather(method, significant, -truth, -covname) %>%
     dplyr::group_by(method, truth, significant) %>%
     dplyr::summarize(mean_effect_size=mean(abs(get(covname))),

@@ -4,7 +4,7 @@
 #' this function calculates the mean metric across replications and
 #' generates a standard plot.
 #' 
-#' @param tsb standardized metric data.table generated using
+#' @param tsb standardized metric data.frame generated using
 #'        standardize_results.
 #' @param met name of metric to plot - must be one of the performance
 #'        metrics added by default with "addDefaultMetrics" or FWER.
@@ -29,13 +29,15 @@
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                             clean_names = FALSE, errorBars=FALSE) {
 
-    ## cacluate mean over replications
+    ## cacluate mean per replication
     tsba <- tsb %>%
         group_by(blabel, performanceMetric, alpha, param.alpha, key) %>%
-        summarize(n = n(),
-                  se = sd(value)/sqrt(n),
-                  value = mean(value))
-
+        summarize(n = sum(!is.na(value)),
+                  se = sd(value, na.rm = TRUE) / sqrt(n),
+                  value = mean(value, na.rm = TRUE))
+   tsba$value[tsba$n == 0] <- NA
+   tsba$se[tsba$n == 0] <- NA
+    
     ## remove methods if any specified
     if (!is.null(filter_set)) {
         tsba <- filter(tsba, !(blabel %in% filter_set))
@@ -49,10 +51,12 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
 
     if (clean_names) {
         ulabs <- unique(tsba$blabel)
-        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr',
-                   'qvalue', 'scott-empirical', 'scott-theoretical')
-        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR",
-                   "Storey's q-value", "FDRreg (emp)", "FDRreg (theor)")
+        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
+        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
+        if (any(grepl("scott", ulabs))) {
+            vlabs <- c(vlabs, 'scott-empirical', 'scott-theoretical')
+            clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")
+        }
         lcnts <- sapply(vlabs, function(x) { grep(paste0("^", x), ulabs, value=TRUE) })
         if (!is(lcnts, "list")) {
             names(lcnts) <- clabs

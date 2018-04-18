@@ -40,10 +40,12 @@ plotsim_single <- function(sba, df, strat = "effect_size", clean_names = FALSE) 
     ## relabel methods with nicer names if possible
     if (clean_names) {
         ulabs <- unique(sba$method)
-        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr',
-                   'qvalue', 'scott.empirical', 'scott.theoretical')
-        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR",
-                   "Storey's q-value", "FDRreg (emp)", "FDRreg (theor)")
+        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
+        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
+        if (any(grepl("scott", ulabs))) {
+            vlabs <- c(vlabs, 'scott-empirical', 'scott-theoretical')
+            clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")
+        }
         lcnts <- sapply(vlabs, function(x) { grep(paste0("^", x), ulabs, value=TRUE) })
         if (!is(lcnts, "list")) {
             names(lcnts) <- clabs
