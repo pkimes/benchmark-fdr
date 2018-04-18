@@ -116,10 +116,9 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
     colnames(df)[1] <- "truth" 
     df <- df %>%
       dplyr::select(truth, covname, bonf, bh,
-                    qvalue, contains("ihw"), ashs, "bl-df03", lfdr, "scott-theoretical", 
-                    "scott-empirical") %>%
-      dplyr::rename("scott-t" = "scott-theoretical") %>%
-      dplyr::rename("scott-e" = "scott-empirical") %>%
+                    qvalue, contains("ihw"), ashs, "bl-df03", 
+                    lfdr, contains("scott-theoretical"), 
+                    contains("scott-empirical")) %>%
       dplyr::mutate(bin = ntile(abs(get(covname)), nbins)) %>%
       tidyr::gather(method, significant, -covname, -bin) %>%
       dplyr::group_by(method, bin) %>%
