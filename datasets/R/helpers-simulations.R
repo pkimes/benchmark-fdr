@@ -42,8 +42,8 @@
 #' Within the function, the specified BenchDesign object is run against a simulated
 #' data.frame with the following  columns.
 #' * `qvalue`: 0/1 indicator whether data simulated under null (0) or alternative (1)
-#' * `test_statistic`: simulated test statistic (NOT scaled by SE estimate)
-#' * `effect_size`: z-score transform of p-value (not really effect size)
+#' * `effect_size`: simulated effect size - effect size + sampling noise
+#' * `test_statistic`: same as `effect_size` (NOT scaled by SE estimate)
 #' * `pval`: test p-value calculated from test-statistic using `null_dist`
 #' * `ind_covariate`: the independent covariate
 #' * `SE`: true standard deviations for sampling distributions (for ASH)
@@ -90,12 +90,14 @@ simIteration <- function(X, bench, m, pi0, tstat, tstat_dist, null_dist,
     H <- rep(0, m)
     H[alts] <- 1
 
-    ## calculate p-values and 'effect size' (just N(0,1) z-score)
+    ## calculate p-values 
     pv <- null_dist(ts)
-    es <- qnorm(1 - pv / 2) * sign(ts)
+
+    ## 'effect size' is same as test statistic
+    es <- ts
 
     ## organize in data.frame
-    dat <- data.frame(qvalue = H, test_statistic = ts, effect_size = es,
+    dat <- data.frame(qvalue = H, effect_size = es, test_statistic = ts, 
                       pval = pv, ind_covariate = ind_cov, SE = SE)
 
     ## return data if not executing
