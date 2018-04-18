@@ -31,8 +31,7 @@
 #' @import IHW ashr qvalue swfdr fdrtool FDRreg magrittr SummarizedBenchmark
 #' 
 #' @author Patrick Kimes
-
-initializeBenchDesign <- function(nmids=150) {
+initializeBenchDesign <- function(nmids = 150) {
   ## ###########################################################################
   ## check for necessary packages and load them if they aren't present
   ## ###########################################################################
@@ -94,22 +93,6 @@ initializeBenchDesign <- function(nmids=150) {
   bd %<>% addBMethod("lfdr",
                      clfdr_hickswrapper,
                      unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
-  ## Scott's FDR regression w/ theoretical null
-  bd %<>% addBMethod("scott-theoretical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = qnorm(exp(log(pval) - log(2)), lower.tail=FALSE) * sign(test_statistic),
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'theoretical',
-                     control = list(lambda = 0.01))
-  ## Scott's FDR regression w/ empirical null
-  bd %<>% addBMethod("scott-empirical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = qnorm(exp(log(pval) - log(2)), lower.tail=FALSE) * sign(test_statistic),
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'empirical',
-                     control = list(lambda = 0.01, nmids = nmids))
   return(bd)
 }
 
