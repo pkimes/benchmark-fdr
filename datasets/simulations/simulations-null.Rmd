@@ -48,6 +48,33 @@ B <- 100
 bd <- initializeBenchDesign()
 ```
 
+We include Scott's FDR Regression in the analysis. We include both `nulltype = "empirical"` and
+`nulltype = "theoretical"`. In both cases, test statistics are modeled as being
+sampled from mean-shifted normal distributions with equal variance under the null and alternative.
+While `nulltype = "theoretical"` makes the additional assumption that the null is standard normal,
+`nulltype = "empirical"` attempts to estimate the mean and variance under the null empirically.
+While the assumptions of `nulltype = "theoretical"` are met for a subset of the simulations, we
+include `nulltype = "empirical"` as this is not true for all simulations, and not necessarily
+reflective of all real data sets.
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "scott-theoretical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01, nmids = nmids))
+bdplus <- addBMethod(bdplus, "scott-empirical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01, nmids = nmids))
+```
+
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
@@ -77,13 +104,13 @@ null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 seed <- 608
 ```
 
-We next run the simulations.
+We next run the simulations (including Scott's FDR Regression).
 
 ```{r gauss-run-simulation}
 if (file.exists(gauss_file)) {
     res <- readRDS(gauss_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -97,7 +124,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r gauss-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -156,13 +183,13 @@ null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
 ```
 
-We next run the simulations.
+We next run the simulations (including Scott's FDR Regression).
 
 ```{r t5-run-simulation}
 if (file.exists(tdist_file)) {
     res <- readRDS(tdist_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -176,7 +203,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r t5-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -235,7 +262,8 @@ null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
 seed <- 1023
 ```
 
-We next run the simulations.
+We next run the simulations. We do not include FDR Regression because the test statistics
+are not approximately normally distributed.
 
 ```{r chisq4-run-simulation}
 if (file.exists(chisq_file)) {
