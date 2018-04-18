@@ -17,6 +17,7 @@ R -e "rmarkdown::render('scrnaseq-human-scdd.Rmd', clean=FALSE)"
 R -e "rmarkdown::render('scrnaseq-mouse-scdd.Rmd', clean=FALSE)"
 R -e "rmarkdown::render('scrnaseq-human-mast.Rmd', clean=FALSE)"
 R -e "rmarkdown::render('scrnaseq-mouse-mast.Rmd', clean=FALSE)"
-
+R -e "rmarkdown::render('scrnaseq-human-wilcox.Rmd', clean=FALSE)"
+R -e "rmarkdown::render('scrnaseq-mouse-wilcox.Rmd', clean=FALSE)"
 
 
