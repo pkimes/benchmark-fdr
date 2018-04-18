@@ -37,8 +37,9 @@ These datasets come from the `Conquer` [@soneson2018] scRNAseq data collection. 
 
 Here we are interested in performing differential expression analyses to determine
 which genes have different expression among the two biological groups in each comparison.
-We also apply two different analysis methods: Wilcoxon-ranksum [@finak2015] and scDD [@korthauer2016]. 
-In this vignette, we will explore the human dataset analysed with Wilcoxon-ranksum.
+We also apply three different analysis methods: Wilcoxon-ranksum, MAST [@finak2015],
+and scDD [@korthauer2016]. 
+In this vignette, we will explore the mouse dataset analysed with Wilcoxon-ranksum.
 
 # Workspace setup
 
