@@ -103,7 +103,7 @@ return(p)
 #' (default is TRUE). If false, will plot a heatmap.
 #' 
 #' @return a ggplot object
-covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50, 
+covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25, 
                              covname, trans = NULL, 
                              linePlot = TRUE){
   
@@ -124,9 +124,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
       dplyr::group_by(method, bin) %>%
       dplyr::summarize(nsig = sum(significant),
                        tot = sum(!is.na(significant))) %>%
-      dplyr::filter(method != 'truth') %>%
-      na.omit()
-    return(df)
+      dplyr::filter(method != 'truth') 
   }
   
   if (is.list(sbl)){
@@ -136,8 +134,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
         dplyr::mutate(prop = nsig / tot) %>%
         dplyr::group_by(method, bin) %>%
         dplyr::summarize(nsig = mean(prop)*100,
-                         se = sd(prop * 100) / sqrt(n())) %>%
-        na.omit()
+                         se = sd(prop * 100) / sqrt(n())) 
   }else if ("SummarizedBenchmark" %in% class(sbl)){
     df <- summarize_one_item(sbl, alpha=alpha, nbins=nbins) %>%
       dplyr::mutate(nsig = nsig/tot*100)
@@ -146,15 +143,17 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
          "a list of SummarizedBenchmark objects.")
   }
   
+  df <- df %>%
+    dplyr::mutate(Method = gsub("-df03", "", method)) %>%
+    dplyr::mutate(Method = gsub("-a05", "", Method))
+  
   if (linePlot){
-    p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = method)) +
+    p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = Method)) +
       geom_line(alpha = 3/4) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
-      labs(color="Method") + 
-      viridis::scale_color_viridis("Method", discrete = TRUE,
-                                   guide = guide_legend(ncol = 2))
+      labs(color="Method") 
     
     if (!is.list(sbl)){
       p <- p + ylab("% Significant") 
@@ -167,7 +166,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 50,
       p <- p + scale_y_continuous(trans=trans)
     }
   }else{
-    p <- ggplot(df, aes(x = as.factor(method), y = bin/nbins)) +
+    p <- ggplot(df, aes(x = as.factor(Method), y = bin/nbins)) +
          geom_raster(aes(fill = nsig)) +
       xlab("Method") +
       scale_y_continuous(labels = scales::percent) +
