@@ -1,0 +1,24 @@
+# Custom color palette to be consistent across plots and case studies
+# Specific color choices adapted from Alyssa Frazee's RSkittleBrewer 
+# package (https://github.com/alyssafrazee/RSkittleBrewer)
+# Also including ideas from discussion in meeting on 4/6/2018
+
+# Bonferroni - dashed black
+# BH - solid black
+# qvalue - grey
+# ashq - red3
+# ashs - hotpink
+# ihw - green3
+# bl - darkorange1
+# locfdr - dodgerblue3
+# scott empirical - purple4
+# scott theoretical - mediumpurple3
+
+candycols <- data.frame(Method = c("bonf", "bh", "qvalue", "ashs", "ashq", 
+                                   "ihw", "bl", "lfdr", 
+                                   "scott-empirical", "scott-theoretical"),
+                        col = c("black", "black", "grey", "hotpink", "red3",
+                                  "green3", "darkorange1", "dodgerblue3", 
+                                  "purple4", "mediumpurple3"),
+                        lty = as.character(c(2, rep(1, 9))),
+                        stringsAsFactors = FALSE)

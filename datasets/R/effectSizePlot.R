@@ -110,7 +110,7 @@ return(p)
 #' @return a ggplot object
 covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25, 
                              covname, trans = NULL, 
-                             linePlot = TRUE){
+                             linePlot = TRUE, palette=candycols){
   
   summarize_one_item <- function(object, alpha, nbins){
     object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ))
@@ -149,17 +149,24 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
          "a list of SummarizedBenchmark objects.")
   }
   
+  # standardize method names and add color palette
   df <- df %>%
     dplyr::mutate(Method = gsub("-df03", "", method)) %>%
     dplyr::mutate(Method = gsub("-a05", "", Method))
+  df <- dplyr::left_join(df, palette, by="Method") 
+  
+  col <- as.character(df$col)
+  names(col) <- as.character(df$Method)
   
   if (linePlot){
     p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = Method)) +
-      geom_line(alpha = 3/4) +
+      geom_line(alpha = 3/4, aes(linetype=lty)) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
-      labs(color="Method") 
+      scale_color_manual(values=col) +
+      labs(color="Method") +
+      guides(linetype=FALSE)
     
     if (!is.list(sbl)){
       p <- p + ylab("% Significant") 

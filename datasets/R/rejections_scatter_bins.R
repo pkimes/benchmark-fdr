@@ -19,7 +19,8 @@
 #' 
 #' @author Alejandro Reyes
 rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol_facet=2, 
-                                    as_fraction=FALSE, supplementary=TRUE ){
+                                    as_fraction=FALSE, supplementary=TRUE,
+                                    palette = candycols ){
   stopifnot(is(sb, "SummarizedExperiment"))
   alphas <- as.numeric( as.character( unique( colData(sb)$param.alpha ) ) )
   alphas <- alphas[!is.na(alphas)]
@@ -51,13 +52,22 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
       dplyr:::mutate( param.smooth.df=gsub("L", "", param.smooth.df ) ) %>%
       dplyr:::filter( !( grepl("bl-df", blabel) & 
                            as.numeric(as.character(param.smooth.df) != 3 ) ) ) %>%
-      dplyr:::mutate( blabel=gsub("-df03", "", blabel))
+      dplyr:::mutate( Method=gsub("-df03", "", blabel))
   }
+  
+  # add color palette
+  plotDF <- dplyr::left_join(plotDF, palette, by="Method") 
+  
+  col <- as.character(plotDF$col)
+  names(col) <- as.character(plotDF$Method)
+
   plotDF %>%
-    ggplot( aes(alpha, value, col=blabel) ) +
-    geom_line(alpha = 3/4) + geom_point(alpha = 3/4) + 
+    ggplot( aes(alpha, value, col=Method) ) +
+    geom_line(alpha = 3/4, aes(linetype=lty)) +  
+    geom_point(alpha = 3/4) + 
     facet_wrap(~bin, ncol=ncol_facet ) +
     xlab(expression(paste("Nominal"~alpha))) +
-    ylab(yl) +
-    labs(color="Method")
+    scale_color_manual(values=col) +
+    guides(linetype=FALSE) +
+    ylab(yl) 
 }
