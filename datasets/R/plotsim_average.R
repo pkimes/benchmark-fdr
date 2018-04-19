@@ -25,9 +25,10 @@
 #' @return
 #' a ggplot object.
 #' 
-#' @author Patrick Kimes
+#' @author Patrick Kimes & Keegan Korthauer
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
-                            clean_names = FALSE, errorBars=FALSE) {
+                            clean_names = FALSE, errorBars=FALSE,
+                            palette = candycols) {
 
     ## cacluate mean per replication
     tsba <- tsb %>%
@@ -48,7 +49,12 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         tsba <- filter(tsba, is.na(param.alpha) | (param.alpha == alpha))
         tsba$blabel[grepl("^ihw-", tsba$blabel)] <- "ihw"
     }
-
+    
+    # filter by performance metric 
+    tsba <- tsba %>% 
+      filter(performanceMetric == met) %>%
+      dplyr::mutate(Method = gsub("-df03", "", blabel)) 
+           
     if (clean_names) {
         ulabs <- unique(tsba$blabel)
         vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
@@ -63,25 +69,30 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
             tsba$blabel <- do.call(forcats::fct_recode, c(list("f" = tsba$blabel), as.list(lcnts)))
         }
     }
+
+    # add color palette
+    tsba <- dplyr::left_join(tsba, palette, by="Method") 
+  
+    col <- as.character(tsba$col)
+    names(col) <- as.character(tsba$Method)
+    
+    lty <- as.character(tsba$lty)
+    names(lty) <- as.character(tsba$Method)
     
     gp <- tsba %>%
-        filter(performanceMetric == met) %>%
-        ggplot(aes(x = alpha, y = value, color = blabel)) +
-        geom_line(alpha = 1/3) +
+        ggplot(aes(x = alpha, y = value, color = Method)) +
+        geom_line(alpha = 3/4, aes(linetype=Method)) +
         geom_point(alpha = 1) +
         theme_classic() +
         theme(axis.title = element_text(face="bold"),
               plot.title = element_text(face="bold")) +
         expand_limits(x = 0) +
-        viridis::scale_color_viridis("Method", discrete = TRUE,
-                                     guide = guide_legend(ncol = 2)) +
         scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.01)) +
         ylab(met) +
         ggtitle(paste0("Mean ", met, " Over ", max(tsba$n), " Replications")) +
-        theme(legend.position = c(0.02, 0.98),
-              legend.justification = c("left", "top"),
-              legend.background = element_rect(fill=scales::alpha("gray90", 1/3),
-                                               color="black"))
+        scale_color_manual(values = col) +
+        scale_linetype_manual(values = lty) 
+        
     if(errorBars){
       gp <- gp + geom_errorbar(width=0.0025, alpha=1/3,
                                aes(ymin=value-se, ymax=value+se))
