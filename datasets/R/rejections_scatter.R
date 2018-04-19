@@ -43,14 +43,16 @@ rejections_scatter <- function( sb, as_fraction=FALSE, supplementary=TRUE,
   
   col <- as.character(plotDF$col)
   names(col) <- as.character(plotDF$Method)
-
+  
+  lty <- as.character(plotDF$lty)
+  names(lty) <- as.character(plotDF$Method)
   
   plotDF %>%
     ggplot( aes(alpha, value/deno, col=Method) ) +
-    geom_line(alpha = 3/4, aes(linetype=lty)) + 
+    geom_line(alpha = 3/4, aes(linetype=Method)) + 
     geom_point(alpha = 3/4) +
     xlab(expression(paste("Nominal"~alpha))) +
     scale_color_manual(values=col) +
-    guides(linetype=FALSE) +
+    scale_linetype_manual(values = lty) +
     ylab(yl)
 }

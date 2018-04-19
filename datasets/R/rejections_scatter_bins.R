@@ -60,14 +60,17 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
   
   col <- as.character(plotDF$col)
   names(col) <- as.character(plotDF$Method)
+  
+  lty <- as.character(plotDF$lty)
+  names(lty) <- as.character(plotDF$Method)
 
   plotDF %>%
     ggplot( aes(alpha, value, col=Method) ) +
-    geom_line(alpha = 3/4, aes(linetype=lty)) +  
+    geom_line(alpha = 3/4, aes(linetype=Method)) +  
     geom_point(alpha = 3/4) + 
     facet_wrap(~bin, ncol=ncol_facet ) +
     xlab(expression(paste("Nominal"~alpha))) +
     scale_color_manual(values=col) +
-    guides(linetype=FALSE) +
+    scale_linetype_manual(values = lty) +
     ylab(yl) 
 }

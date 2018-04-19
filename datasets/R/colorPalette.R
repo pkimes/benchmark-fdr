@@ -5,7 +5,7 @@
 
 # Bonferroni - dashed black
 # BH - solid black
-# qvalue - grey
+# qvalue - gray45
 # ashq - red3
 # ashs - hotpink
 # ihw - green3
@@ -17,8 +17,8 @@
 candycols <- data.frame(Method = c("bonf", "bh", "qvalue", "ashs", "ashq", 
                                    "ihw", "bl", "lfdr", 
                                    "scott-empirical", "scott-theoretical"),
-                        col = c("black", "black", "grey", "hotpink", "red3",
+                        col = c("black", "black", "gray45", "hotpink", "red3",
                                   "green3", "darkorange1", "dodgerblue3", 
                                   "purple4", "mediumpurple3"),
-                        lty = as.character(c(2, rep(1, 9))),
+                        lty = c("dashed", rep("solid", 9)),
                         stringsAsFactors = FALSE)

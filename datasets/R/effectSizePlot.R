@@ -158,15 +158,17 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   col <- as.character(df$col)
   names(col) <- as.character(df$Method)
   
+  lty <- as.character(df$lty)
+  names(lty) <- as.character(df$Method)
+  
   if (linePlot){
     p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = Method)) +
-      geom_line(alpha = 3/4, aes(linetype=lty)) +
+      geom_line(alpha = 3/4, aes(linetype=Method)) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
-      scale_color_manual(values=col) +
-      labs(color="Method") +
-      guides(linetype=FALSE)
+      scale_color_manual(values = col) +
+      scale_linetype_manual(values = lty) 
     
     if (!is.list(sbl)){
       p <- p + ylab("% Significant") 
