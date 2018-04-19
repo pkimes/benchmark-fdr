@@ -17,10 +17,6 @@
 #' - `SE`
 #' - `test_statistic`
 #' 
-#' @param nmids an integer value passed to the 'Scott-empirical' method
-#' specifying the number of bins to use when estimating the empirical null
-#' distribution. Default 150.
-#' 
 #' @return an object of class `BenchDesign` that is initialized with the 
 #' benchmarking methods to compare FDR control. These are currently: unadjusted,
 #' Bonferroni, Benjamini-Hochberg, Storey's q-value, IHW (with 10 different 
@@ -31,7 +27,7 @@
 #' @import IHW ashr qvalue swfdr fdrtool FDRreg magrittr SummarizedBenchmark
 #' 
 #' @author Patrick Kimes
-initializeBenchDesign <- function(nmids = 150) {
+initializeBenchDesign <- function() {
   ## ###########################################################################
   ## check for necessary packages and load them if they aren't present
   ## ###########################################################################
