@@ -48,6 +48,13 @@ B <- 100
 bd <- initializeBenchDesign()
 ```
 
+For comparison, we also include the ASH q-values.
+
+```{r}
+bd <- addBMethod(bd, "ashq", ashr::ash, ashr::get_qvalue,
+                 betahat = effect_size, sebetahat = SE)
+```
+
 We include Scott's FDR Regression in the analysis. We include both `nulltype = "empirical"` and
 `nulltype = "theoretical"`. In both cases, test statistics are modeled as being
 sampled from mean-shifted normal distributions with equal variance under the null and alternative.
@@ -65,14 +72,14 @@ bdplus <- addBMethod(bdplus, "scott-theoretical",
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
-                     control = list(lambda = 0.01, nmids = nmids))
+                     control = list(lambda = 0.01))
 bdplus <- addBMethod(bdplus, "scott-empirical",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'empirical',
-                     control = list(lambda = 0.01, nmids = nmids))
+                     control = list(lambda = 0.01))
 ```
 
 All simulation settings will share the following parameters.
