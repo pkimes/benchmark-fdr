@@ -17,7 +17,7 @@
 #'        (default = TRUE)
 #' @param clean_names logical whether to clean-up method names in 'blabel'
 #'        column. The tsb table must only contain one column with each of the
-#'        following labels, else method labels will not be changed: 'ashs',
+#'        following labels, else method labels will not be changed: 'ashq',
 #'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'scott-empirical',
 #'        'scott-theoretical'. (default = FALSE)
 #' @param errorBars logical indicating whether to include error bars 
@@ -57,8 +57,8 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
            
     if (clean_names) {
         ulabs <- unique(tsba$blabel)
-        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
-        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
+        vlabs <- c('ashq', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
+        clabs <- c("ASH q-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
         if (any(grepl("scott", ulabs))) {
             vlabs <- c(vlabs, 'scott-empirical', 'scott-theoretical')
             clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")

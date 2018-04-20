@@ -72,9 +72,9 @@ initializeBenchDesign <- function() {
                        alpha =  UQ(ia))
   }
   ## Stephens' ASH
-  bd %<>% addBMethod("ashs",
+  bd %<>% addBMethod("ashq",
                      ashr::ash,
-                     ashr::get_svalue,
+                     ashr::get_qvalue,
                      betahat = effect_size, sebetahat = SE)
   ## Boca-Leek (w/ varying smoothing degrees of freedom)
   for (idf in 2:5) {

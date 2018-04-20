@@ -14,7 +14,7 @@
 #'        should be plotted. (default = "effect_size")
 #' @param clean_names logical whether to clean-up method names. The sba table
 #'        must only contain one column for each of the following labels,
-#'        else method labels will not be changed: 'ashs',
+#'        else method labels will not be changed: 'ashq',
 #'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'scott-empirical',
 #'        'scott-theoretical'. (default = FALSE)
 #'
@@ -40,8 +40,8 @@ plotsim_single <- function(sba, df, strat = "effect_size", clean_names = FALSE) 
     ## relabel methods with nicer names if possible
     if (clean_names) {
         ulabs <- unique(sba$method)
-        vlabs <- c('ashs', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
-        clabs <- c("ASH s-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
+        vlabs <- c('ashq', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
+        clabs <- c("ASH q-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
         if (any(grepl("scott", ulabs))) {
             vlabs <- c(vlabs, 'scott-empirical', 'scott-theoretical')
             clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")

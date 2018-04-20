@@ -27,7 +27,7 @@ summarize_one_item <- function(object, alpha){
   colnames(df)[1] <- "truth" 
   df <- df %>%
     dplyr::select(truth, covname, bonf, bh,
-                  qvalue, contains("ihw"), ashs, "bl-df03", lfdr,
+                  qvalue, contains("ihw"), starts_with("ash"), "bl-df03", lfdr,
                   matches("scott"))
   if ("scott-theoretical" %in% names(df)) {
     df <- dplyr::rename(df, "scott-t" = "scott-theoretical")
