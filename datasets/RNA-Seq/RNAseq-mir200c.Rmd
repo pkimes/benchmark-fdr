@@ -2,7 +2,12 @@
 title: "Case Study: RNA-Seq Differential Analysis (mir200c knockdown)"
 author: "Alejandro Reyes"
 date: "3/16/2018"
-output: html_document
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -124,7 +129,7 @@ We use the common `BenchDesign` with the set of multiple testing correction meth
 if (file.exists(bench_file)) {
     sb <- readRDS(bench_file)
 } else {
-    bd <- initializeBenchDesign(nmids = 10000)
+    bd <- initializeBenchDesign()
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     saveRDS(sb, file = bench_file)
 }
@@ -144,10 +149,13 @@ head(assays(sb)[["bench"]])
 ```{r}
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-estimatePerformanceMetrics(sb, tidy = TRUE) %>%
-    filter(performanceMetric == "rejections", alpha == 0.1) %>%
+estimatePerformanceMetrics(sb, alpha = 0.05, tidy = TRUE) %>%
+    filter(performanceMetric == "rejections") %>%
     select(blabel, performanceMetric, alpha, value) %>%
-    arrange(desc(value))
+    mutate(n = nrow(sb), prop = round(value / n, 3)) %>%
+    arrange(desc(value)) %>%
+    as_tibble() %>%
+    print(n = 40)
 ```
 
 ```{r}
@@ -163,7 +171,7 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```
 
 ```{r}
-covariateLinePlot(sb, alpha = 0.1, covname = "ind_covariate")
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 # Session Info

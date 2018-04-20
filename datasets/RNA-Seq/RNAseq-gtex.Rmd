@@ -108,11 +108,12 @@ strat_hist(res, pvalue = "pval",
 
 This discreteness, however, corresponded to genes with very low expression values. For example, there were `r nrow(dplyr::filter(res, ind_covariate <= 1))` genes with less than an average of 1 read across the 20 samples. The distribution of p-values looked much better when removing these very lowly expressed genes. 
 
-```{r}
+```{r, fig.width=10, fig.height=3.2}
 res <- dplyr::filter(res, ind_covariate >= 1)
 strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
+
 
 ## Multiple-Testing Correction
 
@@ -134,10 +135,13 @@ if (file.exists(bench_file)) {
 ```{r}
 assayNames(sb) <- "qvalue"
 sb <- addDefaultMetrics(sb)
-estimatePerformanceMetrics(sb, tidy = TRUE) %>%
+estimatePerformanceMetrics(sb, alpha = 0.05, tidy = TRUE) %>%
     filter(performanceMetric == "rejections") %>%
     select(blabel, performanceMetric, alpha, value) %>%
-    arrange(desc(value))
+    mutate(n = nrow(sb), prop = round(value / n, 3)) %>%
+    arrange(desc(value)) %>%
+    as_tibble() %>%
+    print(n = 40)
 ```
 
 ash was the method that rejected the largest number of hypotheses, followed by lfdr and scott-theoretical. 
@@ -155,7 +159,7 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```
 
 ```{r, rnaseq-lineplots}
-covariateLinePlot(sb, alpha = 0.1, covname = "ind_covariate")
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 # Session Info
