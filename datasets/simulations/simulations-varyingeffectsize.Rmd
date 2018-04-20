@@ -76,11 +76,11 @@ bdplus <- addBMethod(bdplus, "scott-empirical",
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
-m <- 20000                        # integer: number of hypothesis tests
-pi0 <- pi0_sine(0.90)             # numeric: proportion of null hypotheses
-tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
-null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
-icovariate <- runif               # functional: independent covariate
+m <- 20000                          # integer: number of hypothesis tests
+pi0 <- pi0_sine(0.90)               # numeric: proportion of null hypotheses
+tstat_dist <- rnorm_perturber(1/2)  # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1/2)    # functional: dist to calc p-values
+icovariate <- runif                 # functional: independent covariate
 ```
 
 Simulation results will be presented excluding a subset of methods, and
