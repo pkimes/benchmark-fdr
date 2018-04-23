@@ -215,8 +215,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the default comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -225,13 +224,11 @@ helper scripts).
 
 ```{r, papa-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(otu_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     metadata(sb)$data_download_link <-
                    "https://zenodo.org/record/840333/files/ibd_alm_results.tar.gz"
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = otu_bench_file)
 } else {
     sb <- readRDS(otu_bench_file)
@@ -256,7 +253,7 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ```
 
 ```{r, eval=FALSE}
-assays(sb)[["qvalue"]][, "ashs"] %>% max()
+assays(sb)[["qvalue"]][, "ashq"] %>% max()
 sum(is.na(assays(sb)[["qvalue"]][, "scott-empirical"]))
 sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 ```
@@ -344,8 +341,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -354,13 +350,11 @@ helper scripts).
 
 ```{r, papa-genus-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(gns_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     metadata(sb)$data_download_link <-
                    "https://zenodo.org/record/840333/files/ibd_alm_results.tar.gz"
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = gns_bench_file)
 } else {
     sb <- readRDS(gns_bench_file)
@@ -402,8 +396,7 @@ res <- dplyr::mutate(res, ind_covariate = log10(ubiquity))
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -412,13 +405,11 @@ helper scripts).
 
 ```{r, papa-genus-logubi-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(gns_bench_file_log_ubi)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     metadata(sb)$data_download_link <-
                    "https://zenodo.org/record/840333/files/ibd_alm_results.tar.gz"
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = gns_bench_file_log_ubi)
 } else {
     sb <- readRDS(gns_bench_file_log_ubi)

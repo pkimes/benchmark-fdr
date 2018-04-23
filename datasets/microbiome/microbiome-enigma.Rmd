@@ -72,8 +72,9 @@ if (!file.exists(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt
 }
 ```
 
-```{r enigma-readdata}
+```{r, enigma-readdata}
 ## load OTU table and metadata
+print(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))
 otu <- read.table(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"), 
                   sep='\t', header = TRUE, row.names = 1)
 meta <- read.csv(file.path(enigma_dir, "enigma.metadata.txt"), sep='\t')
@@ -182,8 +183,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the default comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -192,11 +192,9 @@ helper scripts).
 
 ```{r, ph-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(ph_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = ph_bench_file)
 } else {
     sb <- readRDS(ph_bench_file)
@@ -268,8 +266,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the default comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -278,11 +275,9 @@ helper scripts).
 
 ```{r, so4-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(so4_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = so4_bench_file)
 } else {
     sb <- readRDS(so4_bench_file)
@@ -354,8 +349,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the default comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -364,11 +358,9 @@ helper scripts).
 
 ```{r, al-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(al_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
-    metadata(sb)$nmids <- nmids
     saveRDS(sb, file = al_bench_file)
 } else {
     sb <- readRDS(al_bench_file)

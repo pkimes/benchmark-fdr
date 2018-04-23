@@ -195,8 +195,7 @@ res <- dplyr::mutate(res, ind_covariate = ubiquity)
 ```
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
-add the benchmark methods to the `BenchDesign` object. We'll do this for a few
-values of nmids, to explore its effects on the outputs. We remove ASH from
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
 the comparison.
 
 Then, we'll construct the `SummarizedBenchmark` object, which will run
@@ -205,9 +204,8 @@ helper scripts).
 
 ```{r, schubert-sb, results="hide", message=FALSE, eval=TRUE}
 if (!file.exists(otu_bench_file)) {
-    nmids <- 150
-    bd <- initializeBenchDesign(nmids = nmids)
-    bd <- dropBMethod(bd, "ashs")
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     metadata(sb)$data_download_link <-
                    "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
