@@ -1,0 +1,20 @@
+
+
+```{r}
+library(SummarizedBenchmark)
+source("../R/common-BenchDesign.R")
+path <- "../sb-objects/"
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+
+x <- readRDS(objects[1])
+assayNames(x) <- "qvalue"
+x <- addDefaultMetrics( x )
+
+objects[1]
+hasResults <- apply(is.na( assays(x)[["qvalue"]] ), 2, all )
+
+estimatePerformanceMetrics(x, 0.1, tidy=TRUE) %>%
+  filter( performanceMetric == "rejections") %>%
+  select( blabel, value )
+
+```
