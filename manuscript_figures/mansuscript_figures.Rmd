@@ -1,0 +1,89 @@
+---
+title: "Manuscript Figures for Genome Biology"
+author: "Rafalab"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Figure 1
+
+This is a schema of Inputs, Assumptions and Outputs for the various FDR methods. Claire is leading this charge. 
+
+# Figure 2
+
+This is a faceted figure with results using the yeast data with 48 biological replicates analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/). A complete analysis 
+can be found in the `/datasets/RNA-Seq/yeast-simulation.Rmd`. This is the 5v5 comparison.  
+
+```{r Figure2-load-data}
+# Load packages and source benchmark FDR
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(magrittr)
+library(cowplot)
+library(purrr)
+library(DESeq2)
+library(tibble)
+library(ggthemes)
+library(R.utils)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+# set up data / results directories
+resdir <- "yeast-results"
+```
+
+
+```{r Figure2}
+rseed <- 198
+sampleSize <- 5
+nDE <- 500
+resfile <- file.path(resdir, "de5.rds")
+de5 <- readRDS(file=resfile)
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+
+# Figure 2A: Not all methods control FDR at nominal alpha level
+p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE)
+
+# Figure 2B: TPR of methods across nominal alpha level
+p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+# Figure 2C: Total number of discoveries varied across method
+p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+# Figure 2D: Some methods are tailored to detecting smaller effect sizes
+p4 <- covariateHeatmap(de5, alpha=0.05, covname="log2FC", trans="log1p")
+
+# maybe 2E? 
+# p5 <- aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+  
+
+# Figure 2 (ALL)
+plot_grid(p1, p2, p3, p4, ncol = 2, 
+          labels = LETTERS[1:4], label_size = 25)
+```
+
+  
+
+
+# Session information
+
+```{r}
+sessionInfo()
+```
