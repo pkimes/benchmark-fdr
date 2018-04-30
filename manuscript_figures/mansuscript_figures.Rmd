@@ -109,10 +109,85 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=8, height=4)
 # Figure 4 
 
 This is a heatmap of methods by case studies with color representing the ranking
-by of number of rejections @ FDR cutoff 0.05.
+by of number of rejections @ FDR cutoff 0.10.
 
 ```{r, Figure 4}
-# TO DO
+library(SummarizedBenchmark)
+library(stringr)
+library(viridis)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+outdir <- "casestudy-figs"
+dir.create(outdir, showWarnings = FALSE)
+
+# assumes sb objects are in the following location, which contains subfolders
+# for each casestudy (if this isn't true, then parsing the case study and 
+# dataset names later on will be incorrect)
+path <- "../../sb-objects/"
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+alpha <- 0.10
+
+# remove simulation objects
+sim <- unique(c(which(grepl("simulations", objects)),
+               which(grepl("yeast", objects)),
+               which(grepl("polyester", objects))))
+
+if (length(sim) > 0){
+  objects <- objects[-sim]
+}
+
+# create tidy data frame where each row is a method / dataset observation
+# of a rank 
+ranks <- data.frame()
+obj.names <- str_split(objects, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[5] ))
+dataset <- unlist(lapply(obj.names, function(x) x[6] ))
+
+for (i in seq_along(objects)){
+  x <- readRDS(objects[i])
+  assayNames(x) <- "qvalue"
+  x <- addDefaultMetrics( x )
+
+  hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, all )
+
+  tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
+    filter( performanceMetric == "rejections") %>%
+    rename( method = blabel) %>%
+    filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
+    filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
+    filter( !method == "unadjusted") %>%
+    select( method, value ) %>%
+    rename( nrejects = value) %>%
+    mutate( method = gsub("-df03", "", method)) %>%
+    mutate( method = gsub("-a10", "", method)) %>%
+    na.omit() %>%
+    mutate( rank = rank(nrejects) / n() ) %>%
+    mutate(casestudy = casestudy[i],
+           dataset = dataset[i])
+  
+  ranks <- rbind(ranks, tmp)
+}
+
+# average over datasets within case study
+ranks_avg <- ranks %>% 
+  group_by( casestudy, method) %>%
+  summarize( mean_rank = mean(rank, na.rm = TRUE))
+
+# heatmap : rows method, cols casestudy
+Fig4 <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) + 
+  geom_raster() + 
+  scale_fill_viridis() +
+  theme_bw() +
+  xlab("Case Study") +
+  ylab("Method") +
+  labs(fill = "Mean rank")
+
+Fig4
+ggsave(file.path(outdir, "Figure4.pdf"), width=6, height=4, dev = pdf)
 ```
 
 # Figure 5
