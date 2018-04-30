@@ -44,42 +44,96 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 
 # set up data / results directories
 resdir <- "yeast-results"
+outdir <- "yeast-figs"
+dir.create(outdir, showWarnings = FALSE)
 ```
 
 
 ```{r Figure2}
-rseed <- 198
-sampleSize <- 5
-nDE <- 500
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 resfile <- file.path(resdir, "de5.rds")
 de5 <- readRDS(file=resfile)
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 # Figure 2A: Not all methods control FDR at nominal alpha level
 p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE)
+                merge_ihw = TRUE, errorBars=TRUE) +
+      theme(legend.position="none")
 
 # Figure 2B: TPR of methods across nominal alpha level
 p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
+                merge_ihw = TRUE, errorBars=TRUE) +
+      theme(legend.position="none")
 
 # Figure 2C: Total number of discoveries varied across method
 p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
+                merge_ihw = TRUE, errorBars=TRUE) +
+      theme(legend.position="none")
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
-p4 <- covariateHeatmap(de5, alpha=0.05, covname="log2FC", trans="log1p")
+p4 <- covariateLinePlot(de5, alpha=0.05, covname="log2FC", trans="log1p",
+                        nbins=25)
+leg <- get_legend(p4)
+p4 <- p4 + theme(legend.position="none")
 
-# maybe 2E? 
-# p5 <- aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-  
+# maybe 2E? - doesn't return a ggplot object :( 
+# fails to convert using ggplotify package
+aggupset(de5, alpha=0.05, supplementary = FALSE, 
+                       return_list = FALSE)
 
 # Figure 2 (ALL)
-plot_grid(p1, p2, p3, p4, ncol = 2, 
-          labels = LETTERS[1:4], label_size = 25)
+Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
+          labels = LETTERS[1:4], label_size = 20)
+Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
+#Fig2 <- plot_grid(Fig2, p5, ncol=1, rel_heights = c(1, 0.5),
+#                 labels = c("", "E"), label_size = 20)
+Fig2
+ggsave(file.path(outdir, "Figure2.pdf"), width=10, height=8)
 ```
 
+# Figure 2
+
+This is a side-by-side figure displaying the TPR by alpha cutoff, faceted by 
+whether the method uses multiple pieces of information or just one (the p-value).
+This figure uses the same data as Figure 1.
   
+```{r, Figure3}
+# Figure 3: TPR of methods using by pieces of information used 
+Fig3 <- plotsim_average(res5d, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, facetMethodType = TRUE) 
+
+Fig3
+ggsave(file.path(outdir, "Figure3.pdf"), width=8, height=4)
+```
+
+# Figure 4 
+
+This is a heatmap of methods by case studies with color representing the ranking
+by of number of rejections @ FDR cutoff 0.05.
+
+```{r, Figure 4}
+# TO DO
+```
+
+# Figure 5
+
+This is a multi-panel Figure displaying examples of covariate line plots in the
+case studies.
+
+```{r, Figure 5}
+# TO DO
+```
+
+# Figure 6
+
+This is a multi-panel Figure displaying examples of covariate vs p-value scatterplots
+and/or histograms in the case studies. 
+It will be used to discuss how we evaluated the use of the 
+covariates as independent and informative in the case studies.
+
+```{r, Figure 6}
+# TO DO
+```
 
 
 # Session information
