@@ -163,7 +163,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   
   if (linePlot){
     p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = Method)) +
-      geom_line(alpha = 3/4, aes(linetype=Method)) +
+      geom_line(alpha = 0.85, aes(linetype=Method)) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
@@ -174,7 +174,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       p <- p + ylab("% Significant") 
     }else{
       p <- p + geom_errorbar(aes(ymin = nsig - se, ymax = nsig + se),
-                    width=0.01, alpha=1/3)
+                    width=0.02, alpha=0.5)
     }
     
     if(!is.null(trans)){

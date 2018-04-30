@@ -21,6 +21,11 @@
 #'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'scott-empirical',
 #'        'scott-theoretical'. (default = FALSE)
 #' @param errorBars logical indicating whether to include error bars 
+#' @param palette data.frame containing the color palette - should contain 
+#'        three columns: 'Method', 'col', and 'lty'
+#' @param facetMethodType logical indicating whether to facet the plot into 
+#'        two panels - methods that use only one piece of information, and 
+#'        those that use more than just the p-value (default = FALSE)
 #'
 #' @return
 #' a ggplot object.
@@ -28,7 +33,7 @@
 #' @author Patrick Kimes & Keegan Korthauer
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                             clean_names = FALSE, errorBars=FALSE,
-                            palette = candycols) {
+                            palette = candycols, facetMethodType = FALSE) {
 
     ## cacluate mean per replication
     tsba <- tsb %>%
@@ -79,10 +84,14 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     lty <- as.character(tsba$lty)
     names(lty) <- as.character(tsba$Method)
     
+    # add method type
+    tsba <- tsba %>%
+      mutate(Type = ifelse(Method %in% c("unadjusted", "bonf", "bh", "qvalue"),
+                           "Univariate (p-value only)", "Multivariate"))
+    
     gp <- tsba %>%
         ggplot(aes(x = alpha, y = value, color = Method)) +
-        geom_line(alpha = 3/4, aes(linetype=Method)) +
-        geom_point(alpha = 1) +
+        geom_line(alpha = 0.85, aes(linetype=Method)) +
         theme_classic() +
         theme(axis.title = element_text(face="bold"),
               plot.title = element_text(face="bold")) +
@@ -92,9 +101,14 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         ggtitle(paste0("Mean ", met, " Over ", max(tsba$n), " Replications")) +
         scale_color_manual(values = col) +
         scale_linetype_manual(values = lty) 
+    
+    if(facetMethodType){
+      gp <- gp +
+        facet_wrap( ~ Type)
+    }
         
     if(errorBars){
-      gp <- gp + geom_errorbar(width=0.0025, alpha=1/3,
+      gp <- gp + geom_errorbar(width=0.0025, alpha=0.5,
                                aes(ymin=value-se, ymax=value+se))
     }
 
@@ -108,7 +122,7 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     if (met %in% c("FDR", "FNR", "FWER", "rejectprop")) {
         gp <- gp + expand_limits(y = 0)
     }
-    if (met %in% c("TPR", "TNR")) {
+    if (met %in% c("TNR")) {
         gp <- gp + expand_limits(y = 1)
     }
 
