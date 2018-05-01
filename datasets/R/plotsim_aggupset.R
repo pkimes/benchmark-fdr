@@ -13,6 +13,8 @@
 #'        of upset plot. The returned list can be used to generate the upset plot
 #'        using `upset(fromExpression(freq_list)`. This can be useful if the user
 #'        wants to experiment with upset plot styles. (default = FALSE)
+#' @param nintersects scalar value representing number of sets to look at.  
+#'        Default is 40 (same as default in UpSetR package).
 #' 
 #' @return
 #' an upset plot if `return_list = FALSE` (default), else a list of frequencies that
@@ -26,7 +28,8 @@
 #' 
 #' @import dplyr magrittr
 #' @author Patrick Kimes
-aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) { 
+aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE,
+                     nintersects = 40) { 
 
     ## find significant hits at alpha cutoff for all replicates
     hits_tabs <- lapply(res, sb2hits, a = alpha, s = supplementary)
@@ -90,6 +93,7 @@ aggupset <- function(res, alpha, supplementary = FALSE, return_list = FALSE) {
     ## draw upset plot if frequency list not returned
     upset(fromExpression(freq_list),
           nsets = n_cols,
+          nintersects = nintersects,
           mb.ratio = c(0.55, 0.45),
           order.by = "freq",
           decreasing = TRUE,

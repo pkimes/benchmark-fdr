@@ -24,28 +24,35 @@ can be found in the `/datasets/RNA-Seq/yeast-simulation.Rmd`. This is the 5v5 co
 
 ```{r Figure2-load-data}
 # Load packages and source benchmark FDR
-library(data.table)
 library(tidyr)
 library(dplyr)
-library(readr)
 library(ggplot2)
 library(magrittr)
 library(cowplot)
-library(purrr)
-library(DESeq2)
 library(tibble)
 library(ggthemes)
-library(R.utils)
+library(grid)
+library(SummarizedBenchmark)
 
 ## load helper functions
-for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 
-# set up data / results directories
-resdir <- "yeast-results"
-outdir <- "yeast-figs"
+# assumes sb objects are in the following location, which contains subfolders
+# for each casestudy (if this isn't true, then parsing the case study and 
+# dataset names later on will be incorrect)
+path <- "../sb-objects"
+
+# set up results directorie
+outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
+
+# point to where yeast results are (within 'path' defined above)
+resdir <- file.path(path, "RNAseq/yeast-results")
+
+# set alpha cutoff for plots that are fixed at a certain value of alpha
+alpha <- 0.10
 ```
 
 
@@ -76,19 +83,23 @@ p4 <- covariateLinePlot(de5, alpha=0.05, covname="log2FC", trans="log1p",
 leg <- get_legend(p4)
 p4 <- p4 + theme(legend.position="none")
 
-# maybe 2E? - doesn't return a ggplot object :( 
-# fails to convert using ggplotify package
-aggupset(de5, alpha=0.05, supplementary = FALSE, 
-                       return_list = FALSE)
+# Figure 2E - upsetr plot -- this solution currently chops off left margin hist
+aggupset(de5, alpha=alpha, supplementary = FALSE, 
+                       return_list = FALSE, nintersects = 12)
+grid.text("Mean overlap Over 100 Replications", x = 0.6, y = 0.97, 
+          gp = gpar(fontsize = 16, fontface = "bold")) 
+p5 <- grid.grab()
 
 # Figure 2 (ALL)
 Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
           labels = LETTERS[1:4], label_size = 20)
 Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
-#Fig2 <- plot_grid(Fig2, p5, ncol=1, rel_heights = c(1, 0.5),
-#                 labels = c("", "E"), label_size = 20)
+
+Fig2 <- plot_grid(Fig2, p5, ncol=1, rel_heights = c(1, 0.5),
+               labels = c("", "E"), label_size = 20)
+
 Fig2
-ggsave(file.path(outdir, "Figure2.pdf"), width=10, height=8)
+ggsave(file.path(outdir, "Figure2.pdf"), width=10, height=12)
 ```
 
 # Figure 2
@@ -116,20 +127,7 @@ library(SummarizedBenchmark)
 library(stringr)
 library(viridis)
 
-## load helper functions
-for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
-    source(f)
-}
-
-outdir <- "casestudy-figs"
-dir.create(outdir, showWarnings = FALSE)
-
-# assumes sb objects are in the following location, which contains subfolders
-# for each casestudy (if this isn't true, then parsing the case study and 
-# dataset names later on will be incorrect)
-path <- "../../sb-objects/"
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-alpha <- 0.10
 
 # remove simulation objects
 sim <- unique(c(which(grepl("simulations", objects)),
@@ -144,8 +142,8 @@ if (length(sim) > 0){
 # of a rank 
 ranks <- data.frame()
 obj.names <- str_split(objects, pattern = "/")
-casestudy <- unlist(lapply(obj.names, function(x) x[5] ))
-dataset <- unlist(lapply(obj.names, function(x) x[6] ))
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 for (i in seq_along(objects)){
   x <- readRDS(objects[i])
@@ -153,29 +151,48 @@ for (i in seq_along(objects)){
   x <- addDefaultMetrics( x )
 
   hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, all )
-
-  tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
-    filter( performanceMetric == "rejections") %>%
-    rename( method = blabel) %>%
-    filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
-    filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
-    filter( !method == "unadjusted") %>%
-    select( method, value ) %>%
-    rename( nrejects = value) %>%
-    mutate( method = gsub("-df03", "", method)) %>%
-    mutate( method = gsub("-a10", "", method)) %>%
-    na.omit() %>%
-    mutate( rank = rank(nrejects) / n() ) %>%
-    mutate(casestudy = casestudy[i],
-           dataset = dataset[i])
+ 
+  if (sum(hasResults) > 0){
+    tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
+      filter( performanceMetric == "rejections") %>%
+      dplyr::rename( method = blabel) %>%
+      filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
+      filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
+      filter( !method == "unadjusted") %>%
+      select( method, value ) %>%
+      dplyr::rename( nrejects = value) %>%
+      mutate( method = gsub("-df03", "", method)) %>%
+      mutate( method = gsub("-a10", "", method)) %>%
+      na.omit() %>%
+      mutate( rank = rank(nrejects) / n() ) %>%
+      mutate(casestudy = casestudy[i],
+             dataset = dataset[i])
   
-  ranks <- rbind(ranks, tmp)
+    ranks <- rbind(ranks, tmp)
+  }
 }
 
 # average over datasets within case study
 ranks_avg <- ranks %>% 
   group_by( casestudy, method) %>%
-  summarize( mean_rank = mean(rank, na.rm = TRUE))
+  summarize( mean_rank = mean(rank, na.rm = TRUE)) 
+
+case_dat <- ranks_avg %>%
+  group_by( casestudy) %>%
+  summarize( nmethods = n()) 
+
+method_dat <- ranks_avg %>%
+  group_by( method) %>%
+  summarize( meta_rank = mean(mean_rank))
+
+ranks_avg <- left_join(ranks_avg, method_dat, by ="method")
+ranks_avg <- left_join(ranks_avg, case_dat, by ="casestudy")
+
+# reorder rows and columns
+ranks_avg$casestudy <- factor(ranks_avg$casestudy, 
+                              levels=unique(ranks_avg$casestudy[order(ranks_avg$nmethods)]))
+ranks_avg$method <- factor(ranks_avg$method,
+                           levels=unique(ranks_avg$method[order(ranks_avg$meta_rank)]))
 
 # heatmap : rows method, cols casestudy
 Fig4 <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) + 
