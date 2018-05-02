@@ -102,7 +102,7 @@ Fig2
 ggsave(file.path(outdir, "Figure2.pdf"), width=10, height=12)
 ```
 
-# Figure 2
+# Figure 3
 
 This is a side-by-side figure displaying the TPR by alpha cutoff, faceted by 
 whether the method uses multiple pieces of information or just one (the p-value).
@@ -192,7 +192,7 @@ ranks_avg <- left_join(ranks_avg, case_dat, by ="casestudy")
 ranks_avg$casestudy <- factor(ranks_avg$casestudy, 
                               levels=unique(ranks_avg$casestudy[order(ranks_avg$nmethods)]))
 ranks_avg$method <- factor(ranks_avg$method,
-                           levels=rev(unique(ranks_avg$method[order(ranks_avg$meta_rank)])))
+                           levels=unique(ranks_avg$method[order(ranks_avg$meta_rank)]))
 
 # heatmap : rows method, cols casestudy
 Fig4 <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) + 
@@ -204,7 +204,18 @@ Fig4 <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) +
   labs(fill = "Mean rank")
 
 Fig4
-ggsave(file.path(outdir, "Figure4.pdf"), width=6, height=4, dev = pdf)
+ggsave(file.path(outdir, "Figure4.pdf"), width=6, height=4)
+
+# heatmap : rows method, cols casestudy- one color scale 
+Fig4alt <- Fig4 +
+  scale_fill_gradient(low = "white", high = "red", na.value=NA) +
+  theme(panel.background = element_rect(colour="grey60", fill="grey60",
+                                        size = 0.5),
+        panel.grid.major = element_line(colour = "grey60"), 
+        panel.grid.minor = element_line(colour = "grey60"))
+
+Fig4alt
+ggsave(file.path(outdir, "Figure4alt.pdf"), width=6, height=4)
 
 ##
 ## AR: alternative suggestion to heatmap, feel free to discard! ##
