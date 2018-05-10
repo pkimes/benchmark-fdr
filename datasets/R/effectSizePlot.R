@@ -152,7 +152,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   # standardize method names and add color palette
   df <- df %>%
     dplyr::mutate(Method = gsub("-df03", "", method)) %>%
-    dplyr::mutate(Method = gsub("-a05", "", Method))
+    dplyr::mutate(Method = gsub("(-a)(.*)", "", Method)) 
   df <- dplyr::left_join(df, palette, by="Method") 
   
   col <- as.character(df$col)
