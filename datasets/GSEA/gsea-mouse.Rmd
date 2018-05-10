@@ -37,15 +37,17 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/GSEA"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 ## intermediary files we create below
 count_file <- file.path(datdir, "mouse-counts.rds")
 deseq_file <- file.path(datdir, "mouse-deseq.rds")
 goset_file <- file.path(datdir, "mouse-gosets.rds")
 result_file <- file.path(resdir, "mouse-results.rds")
-bench_file <- file.path(resdir, "mouse-benchmark.rds")
+bench_file <- file.path(sbdir, "mouse-benchmark.rds")
 ```
 
 
@@ -87,7 +89,7 @@ We next use biomaRt to get the relations between GO categories and genes.
 
 ```{r goseq, message=FALSE}
 if (!file.exists(goset_file)) {
-    mart <- useMart("ensembl", "mmusculus_gene_ ensembl")
+    mart <- useMart("ensembl", "mmusculus_gene_ensembl")
     goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
                     filters = "ensembl_gene_id", values = rownames(res))
     goSets <- goSets[!nchar(goSets$go_id) == 0, ]
@@ -159,9 +161,6 @@ res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
 
 ## generate default BenchDesign
 bd <- initializeBenchDesign()
-bd <- dropBMethod(bd, "ashs")
-bd <- dropBMethod(bd, "scott-empirical")
-bd <- dropBMethod(bd, "scott-theoretical")
 ```
 
 We exclude `ashr`, `scott-theoretical` and `scott-empirical` from the analysis because
@@ -195,7 +194,7 @@ plotFDRMethodsOverlap(sGSEAMouse, alpha = 0.1, supplementary = FALSE,
 ```
 
 ```{r}
-covariateLinePlot(sGSEAMouse, alpha = 0.1, covname = "ind_covariate")
+covariateLinePlot(sGSEAMouse, alpha = 0.1, covname = "ind_covariate", trans="log1p")
 ```
 
 # Session Info

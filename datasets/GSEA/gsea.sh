@@ -2,7 +2,7 @@
 #SBATCH -J knitGSEA
 #SBATCH -n 2
 #SBATCH -N 1
-#SBATCH -p shared
+#SBATCH -p shared,irizarry
 #SBATCH --mem 32G
 #SBATCH -t 0-6:00
 #SBATCH -o render-%j.out

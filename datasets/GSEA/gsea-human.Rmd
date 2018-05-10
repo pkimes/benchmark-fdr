@@ -37,15 +37,17 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/GSEA"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 ## intermediary files we create below
 count_file <- file.path(datdir, "human-counts.rds")
 deseq_file <- file.path(datdir, "human-deseq.rds")
 goset_file <- file.path(datdir, "human-gosets.rds")
 result_file <- file.path(resdir, "human-results.rds")
-bench_file <- file.path(resdir, "human-benchmark.rds")
+bench_file <- file.path(sbdir, "human-benchmark.rds")
 ```
 
 # Data Preparation
@@ -163,9 +165,6 @@ res$pval <- pmin(res$pval, 1)
 
 ## generate default BenchDesign
 bd <- initializeBenchDesign()
-bd <- dropBMethod(bd, "ashs")
-bd <- dropBMethod(bd, "scott-empirical")
-bd <- dropBMethod(bd, "scott-theoretical")
 ```
 
 We exclude `ashr`, `scott-theoretical` and `scott-empirical` from the analysis because
@@ -199,7 +198,7 @@ plotFDRMethodsOverlap(sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", ns
 ```
 
 ```{r}
-covariateLinePlot(sGSEA, alpha = 0.1, covname = "ind_covariate")
+covariateLinePlot(sGSEA, alpha = 0.1, covname = "ind_covariate", trans = "log1p")
 ```
 
 # Session Info

@@ -45,8 +45,14 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 # data and results directories
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/GWAS"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
+
+# results files
+resfile_N <- file.path(sbdir, paste0("bmi-samplesize-benchmark.rds"))
+resfile_AF <- file.path(sbdir, paste0("bmi-maf-benchmark.rds"))
 
 # set up parallel backend
 cores <- 8
@@ -297,20 +303,18 @@ the functions specified in each method (these are actually sourced in from the
 First we'll include the sample size covariate.
 
 ```{r, GWAS1-sb, results="hide", message=FALSE}
-resN <- file.path(resdir, paste0("bmi_N_summarizedBenchmark_", nrow(bmi), ".rds"))
-
 duration <- NA
-if (!file.exists(resN)) {
+if (!file.exists(resfile_N)) {
     t1 <- proc.time()
     sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
                              ftCols = c("ind_covar_N"),
                              parallel=TRUE, BPPARAM=multicoreParam)
     metadata(sbN)$data_download_link <- 
                     "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-    saveRDS(sbN, file=resN)
+    saveRDS(sbN, file = resfile_N)
     duration <- round((proc.time()-t1)[3]/60,1)
 } else {
-    sbN <- readRDS(resN)
+    sbN <- readRDS(resfile_N)
 }
 ```
 
@@ -326,10 +330,8 @@ if (!is.na(duration)) {
 Now, we'll repeat the multiple testing correction using the other covariate (AF):
 
 ```{r, GWAS1-sb2, results="hide", message=FALSE}
-resAF <- file.path(resdir, paste0("bmi_AF_summarizedBenchmark_", nrow(bmi), ".rds"))
-
 duration <- NA
-if (!file.exists(resAF)) {
+if (!file.exists(resfile_AF)) {
     t1 <- proc.time()
     sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
                                     filter(!is.na(ind_covariate))), 
@@ -337,10 +339,10 @@ if (!file.exists(resAF)) {
                               parallel=TRUE, BPPARAM=multicoreParam)
     metadata(sbAF)$data_download_link <-    
                      "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
-    saveRDS(sbAF, file = resAF)
+    saveRDS(sbAF, file = resfile_AF)
     duration <- round((proc.time()-t1)[3]/60, 1)
 } else {
-    sbAF <- readRDS(resAF)
+    sbAF <- readRDS(resfile_AF)
 }
 ```
 
