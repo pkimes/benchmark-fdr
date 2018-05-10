@@ -36,13 +36,14 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/RNAseq"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 ## intermediary files we create below
-count_file <- file.path(datdir, "rse_gene.Rdata")
+count_file <- file.path(resdir, "rse_gene.Rdata")
 result_file <- file.path(resdir, "mir200c-results.rds")
-bench_file <- file.path(resdir, "mir200c-benchmark.rds")
+bench_file <- file.path(sbdir, "mir200c-benchmark.rds")
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))

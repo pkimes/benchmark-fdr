@@ -43,19 +43,21 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/microbiome"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 crc_data <- file.path(datdir, "crc_baxter_results.tar.gz")
 crc_dir <- file.path(datdir, "crc_baxter_results")
 
 otu_result_file <- file.path(resdir, "baxter-otus-results.rds")
-otu_bench_file <- file.path(resdir, "baxter-otus-benchmark.rds")
-otu_bench_file_log_ubiquity <- file.path(resdir, "baxter-otus-log-ubiquity-benchmark.rds")
+otu_bench_file <- file.path(sbdir, "baxter-otus-benchmark.rds")
+otu_bench_file_log_ubiquity <- file.path(sbdir, "baxter-otus-log-ubiquity-benchmark.rds")
 
 gns_result_file <- file.path(resdir, "baxter-genus-results.rds")
-gns_bench_file <- file.path(resdir, "baxter-genus-benchmark.rds")
-gns_bench_file_log_ubiquity <- file.path(resdir, "baxter-genus-log-ubiquity-benchmark.rds")
+gns_bench_file <- file.path(sbdir, "baxter-genus-benchmark.rds")
+gns_bench_file_log_ubiquity <- file.path(sbdir, "baxter-genus-log-ubiquity-benchmark.rds")
 ```
 
 # Data Preparation
@@ -261,6 +263,9 @@ sum(is.na(assays(sb)[["qvalue"]][, "scott-empirical"]))
 sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 ```
 
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 ## Multiple-Testing Correction - log(ubiquity)
 
@@ -313,7 +318,9 @@ assays(sb)[["qvalue"]][, "ashq"] %>% max()
 sum(is.na(assays(sb)[["qvalue"]][, "scott-empirical"]))
 sum(is.na(assays(sb)[["qvalue"]][, "lfdr"]))
 ```
-
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 # Data Analysis (genus-level)
 
@@ -443,6 +450,9 @@ plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets
 methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 ## Multiple-Testing Correction - log(ubiquity)
 
@@ -498,6 +508,10 @@ plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets
 ```{r}
 methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
+
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 # Session Info

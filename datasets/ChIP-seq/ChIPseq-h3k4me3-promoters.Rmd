@@ -48,13 +48,15 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/ChIPseq"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 ## intermediary files we create below
 count_file <- file.path(resdir, "h3k4me3-promotors-counts.rds")
 result_file <- file.path(resdir, "h3k4me3-promotors-results.rds")
-bench_file <- file.path(resdir, "h3k4me3-promotors-benchmark.rds")
+bench_file <- file.path(sbdir, "h3k4me3-promotors-benchmark.rds")
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))

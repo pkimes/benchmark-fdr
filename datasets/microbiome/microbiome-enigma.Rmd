@@ -42,18 +42,24 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/microbiome"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
+
 enigma_dir <- file.path(datdir, "enigma_results")
+dir.create(enigma_dir, showWarnings = FALSE)
 
 # From their paper, we expect SO4 to have little correlation, pH
 # to have high correlations, and Al to be in the middle
 so4_result_file <- file.path(resdir, "enigma-so4-otus-results.rds")
-so4_bench_file <- file.path(resdir, "enigma-so4-otus-benchmark.rds")
+so4_bench_file <- file.path(sbdir, "enigma-so4-otus-benchmark.rds")
 
 ph_result_file <- file.path(resdir, "enigma-ph-otus-results.rds")
-ph_bench_file <- file.path(resdir, "enigma-ph-otus-benchmark.rds")
+ph_bench_file <- file.path(sbdir, "enigma-ph-otus-benchmark.rds")
 
 al_result_file <- file.path(resdir, "enigma-al-otus-results.rds")
-al_bench_file <- file.path(resdir, "enigma-al-otus-benchmark.rds")
+al_bench_file <- file.path(sbdir, "enigma-al-otus-benchmark.rds")
 ```
 
 # Data Preparation
@@ -217,6 +223,9 @@ Now, we'll plot the results.
 rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 ## SO4
 
@@ -299,6 +308,9 @@ Now, we'll plot the results.
 ```{r, so4-plot, width=15, height=15, eval=TRUE}
 rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 ## Al
@@ -383,7 +395,9 @@ Now, we'll plot the results.
 rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ```
-
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 
 # Session Info

@@ -41,16 +41,18 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/microbiome"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 ob_data <- file.path(datdir, "ob_goodrich_results.tar.gz")
 ob_dir <- file.path(datdir, "ob_goodrich_results")
 
 otu_result_file <- file.path(resdir, "goodrich-otus-results.rds")
-otu_bench_file <- file.path(resdir, "goodrich-otus-benchmark.rds")
+otu_bench_file <- file.path(sbdir, "goodrich-otus-benchmark.rds")
 gns_result_file <- file.path(resdir, "goodrich-genus-results.rds")
-gns_bench_file <- file.path(resdir, "goodrich-genus-benchmark.rds")
+gns_bench_file <- file.path(sbdir, "goodrich-genus-benchmark.rds")
 ```
 
 # Data Preparation
@@ -242,6 +244,9 @@ rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ##plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE )
 ```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 There is no upsetR plot for OB Goodrich for now because only lfdr is returning any rejections.
 
@@ -368,6 +373,9 @@ Now, we'll plot the results.
 ```{r, goodrich-genus-plot, width=15, height=15, eval=TRUE}
 rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.

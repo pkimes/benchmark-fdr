@@ -28,40 +28,35 @@ and average over the replicates in plots.
 
 ```{r workspace-setup, results='hide', message=FALSE, warning=FALSE}
 # Load packages needed to simulate RNA-seq counts with polyester
+library(SummarizedBenchmark)
 library(zebrafishRNASeq) 
 library(genefilter)
 library(limma)
 library(polyester)
-
-# Differential testing
 library(DESeq2)
-
-# Load supporting packages for data analyses
 library(data.table)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
-library(R.utils)
 library(cowplot)
 library(tibble)
 library(ggthemes)
 
-# benchmark methods
-library(IHW)
-library(ashr)
-library(qvalue)
-library(swfdr)
-library(fdrtool)
-# Installed BayesLogit from CRAN archive via `R CMD INSTALL BayesLogit_0.6.tar.gz`
-# install_github('jgscott/FDRreg', subdir="R_pkg/")
-library(FDRreg)
-
-# comparison tools/functions
-# devtools::install_github("areyesq89/SummarizedBenchmark", ref="fdrbenchmark") # needed b/c BioC devel branch is 
-library(SummarizedBenchmark)
-
 # load helper functions
-sourceDirectory(file.path("../R/"))
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+
+# set up results directories 
+resdir <- "../../results/RNAseq"
+dir.create(resdir, showWarnings = FALSE)
+
+# results files that will be generated below
+resfile_n5 <- file.path(resdir, "polyester-results-null5.rds")
+resfile_n10 <- file.path(resdir, "polyester-results-null10.rds")
+resfile_d5 <- file.path(resdir, "polyester-results-de5.rds")
+resfile_d10 <- file.path(resdir, "polyester-results-de10.rds")
 
 # # set up parallel backend:
 library(BiocParallel)
@@ -222,13 +217,13 @@ This will be done for 100 simulations.
 sampleSize <- 5
 nDE <- 0
 
-if (!file.exists(file.path("polyester-results-null5.RDS"))){
+if (!file.exists(resfile_n5)){
   null5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(null5, file=file.path("polyester-results-null5.RDS"))
+  saveRDS(null5, file=resfile_n5)
 } else {
-  null5 <- readRDS(file=file.path("polyester-results-null5.RDS"))
+  null5 <- readRDS(file=resfile_n5)
 }
 ```
 
@@ -273,13 +268,13 @@ This will be done for 100 simulations.
 sampleSize <- 10
 nDE <- 0
 
-if (!file.exists(file.path("polyester-results-null10.RDS"))){
+if (!file.exists(resfile_n10)){
   null10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(null10, file=file.path("polyester-results-null10.RDS"))
+  saveRDS(null10, file=resfile_n10)
 } else {
-  null10 <- readRDS(file=file.path("polyester-results-null10.RDS"))
+  null10 <- readRDS(file=resfile_n10)
 }
 ```
 
@@ -319,13 +314,13 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 sampleSize <- 5
 nDE <- 1500
 
-if (!file.exists(file.path("polyester-results-de5.RDS"))){
+if (!file.exists(resfile_d5)){
   de5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(de5, file=file.path("polyester-results-de5.RDS"))
+  saveRDS(de5, file=resfile_d5)
 } else {
-  de5 <- readRDS(file=file.path("polyester-results-de5.RDS"))
+  de5 <- readRDS(file=resfile_d5)
 }
 ```
 
@@ -368,13 +363,13 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 sampleSize <- 10
 nDE <- 1500
 
-if (!file.exists(file.path("polyester-results-de10.RDS"))){
+if (!file.exists(resfile_d10)){
   de10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    BPPARAM=multicoreParam)
-  saveRDS(de10, file=file.path("polyester-results-de10.RDS"))
+  saveRDS(de10, file=resfile_d10)
 } else {
-  de10 <- readRDS(file=file.path("polyester-results-de10.RDS"))
+  de10 <- readRDS(file=resfile_d10)
 }
 ```
 

@@ -35,6 +35,7 @@ replicates, and plot results averaging over the replications.
 
 ```{r, results='hide', message=FALSE}
 # Load packages and source benchmark FDR
+library(SummarizedBenchmark)
 library(data.table)
 library(tidyr)
 library(dplyr)
@@ -55,9 +56,15 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 
 # set up data / results directories
 datdir <- "yeast-data"
-resdir <- "yeast-results"
+resdir <- "../../results/RNAseq"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+
+# results files that will be generated
+resfile_n5 <- file.path(resdir, "yeast-results-null5.rds")
+resfile_n10 <- file.path(resdir, "yeast-results-null10.rds")
+resfile_d5 <- file.path(resdir, "yeast-results-de5.rds")
+resfile_d10 <- file.path(resdir, "yeast-results-de10.rds")
 
 # set up parallel backend
 library(parallel)
@@ -347,15 +354,14 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 225
 sampleSize <- 5
 nDE <- 0
-resfile <- file.path(resdir, "null5.rds")
 
-if (!file.exists(resfile)){
+if (!file.exists(resfile_n5)){
   null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(null5, file=resfile)
+  saveRDS(null5, file = resfile_n5)
 }else{
-  null5 <- readRDS(file=resfile)
+  null5 <- readRDS(file = resfile_n5)
 }
 
 ```
@@ -397,15 +403,14 @@ where the groups are selected randomly. This will be done for 100 random splits.
 rseed <- 837
 sampleSize <- 10
 nDE <- 0
-resfile <- file.path(resdir, "null10.rds")
 
-if (!file.exists(resfile)){
+if (!file.exists(resfile_n10)){
   null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(null10, file=resfile)
+  saveRDS(null10, file = resfile_n10)
 }else{
-  null10 <- readRDS(file=resfile)
+  null10 <- readRDS(file = resfile_n10)
 }
 
 ```
@@ -450,15 +455,14 @@ This will be done for 100 random splits.
 rseed <- 198
 sampleSize <- 5
 nDE <- 500
-resfile <- file.path(resdir, "de5.rds")
 
-if (!file.exists(resfile)){
+if (!file.exists(resfile_d5)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(de5, file=resfile)
+  saveRDS(de5, file = resfile_d5)
 }else{
-  de5 <- readRDS(file=resfile)
+  de5 <- readRDS(file = resfile_d5)
 }
 ```
 
@@ -503,15 +507,14 @@ This will be done for 100 random splits.
 rseed <- 961
 sampleSize <- 10
 nDE <- 500
-resfile <- file.path(resdir, "de10.rds")
 
-if(!file.exists(resfile)){
+if(!file.exists(resfile_d10)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
                    mc.cores=cores)
-  saveRDS(de10, file=resfile)
+  saveRDS(de10, file = resfile_d10)
 }else{
-  de10 <- readRDS(file=resfile)
+  de10 <- readRDS(file = resfile_d10)
 }
 ```
 

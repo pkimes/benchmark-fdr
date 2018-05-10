@@ -39,14 +39,16 @@ for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
 ## project data/results folders
 datdir <- "data"
 resdir <- "results"
+sbdir <- "../../results/microbiome"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 cdi_data <- file.path(datdir, "cdi_schubert_results.tar.gz")
 cdi_dir <- file.path(datdir, "cdi_schubert_results")
 
 otu_result_file <- file.path(resdir, "schubert-otus-results.rds")
-otu_bench_file <- file.path(resdir, "schubert-otus-benchmark.rds")
+otu_bench_file <- file.path(sbdir, "schubert-otus-benchmark.rds")
 ```
 
 # Data Preparation
@@ -231,6 +233,9 @@ Now, we'll plot the results.
 rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
 rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 Hm, now the code runs. However, there are clearly still some issues:
