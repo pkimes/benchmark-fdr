@@ -42,14 +42,11 @@ for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
 # assumes sb objects are in the following location, which contains subfolders
 # for each casestudy (if this isn't true, then parsing the case study and 
 # dataset names later on will be incorrect)
-path <- "../sb-objects"
+path <- "../results"
 
 # set up results directorie
 outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
-
-# point to where yeast results are (within 'path' defined above)
-resdir <- file.path(path, "RNAseq/yeast-results")
 
 # set alpha cutoff for plots that are fixed at a certain value of alpha
 alpha <- 0.10
@@ -57,9 +54,10 @@ alpha <- 0.10
 
 
 ```{r Figure2}
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
-resfile <- file.path(resdir, "de5.rds")
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("yeast", objects) & grepl("de5", objects)] 
 de5 <- readRDS(file=resfile)
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 # Figure 2A: Not all methods control FDR at nominal alpha level
@@ -125,7 +123,6 @@ by of number of rejections @ FDR cutoff 0.10.
 ```{r, Figure 4}
 library(SummarizedBenchmark)
 library(stringr)
-library(viridis)
 
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 
@@ -133,99 +130,45 @@ objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 sim <- unique(c(which(grepl("simulations", objects)),
                which(grepl("yeast", objects)),
                which(grepl("polyester", objects))))
-
 if (length(sim) > 0){
   objects <- objects[-sim]
 }
 
-# create tidy data frame where each row is a method / dataset observation
-# of a rank 
-ranks <- data.frame()
+# remove microbiome objects from 'null' comparisons
+# removing baxter, goodrich and papa OTU-level (since they mostly found 
+# nothing for all methods and the genus-level analysis is also present)
+null <- which(grepl(c("baxter|goodrich|papa"), objects) & 
+              grepl(c("otu"), objects))
+
+if (length(null) > 0){
+  objects <- objects[-null]
+}
+
+# remove covariates from individual cases studies that weren't informative
+## TODO ##
+
+# grab casestudy names
 obj.names <- str_split(objects, pattern = "/")
 casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
 dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
-for (i in seq_along(objects)){
-  x <- readRDS(objects[i])
-  assayNames(x) <- "qvalue"
-  x <- addDefaultMetrics( x )
-
-  hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, all )
- 
-  if (sum(hasResults) > 0){
-    tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
-      filter( performanceMetric == "rejections") %>%
-      dplyr::rename( method = blabel) %>%
-      filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
-      filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
-      filter( !method == "unadjusted") %>%
-      select( method, value ) %>%
-      dplyr::rename( nrejects = value) %>%
-      mutate( method = gsub("-df03", "", method)) %>%
-      mutate( method = gsub("-a10", "", method)) %>%
-      na.omit() %>%
-      mutate( rank = rank(nrejects) / n() ) %>%
-      mutate(casestudy = casestudy[i],
-             dataset = dataset[i])
-  
-    ranks <- rbind(ranks, tmp)
-  }
-}
-
-# average over datasets within case study
-ranks_avg <- ranks %>% 
-  group_by( casestudy, method) %>%
-  summarize( mean_rank = mean(rank, na.rm = TRUE)) 
-
-case_dat <- ranks_avg %>%
-  group_by( casestudy) %>%
-  summarize( nmethods = n()) 
-
-method_dat <- ranks_avg %>%
-  group_by( method) %>%
-  summarize( meta_rank = mean(mean_rank))
-
-ranks_avg <- left_join(ranks_avg, method_dat, by ="method")
-ranks_avg <- left_join(ranks_avg, case_dat, by ="casestudy")
-
-# reorder rows and columns
-ranks_avg$casestudy <- factor(ranks_avg$casestudy, 
-                              levels=unique(ranks_avg$casestudy[order(ranks_avg$nmethods)]))
-ranks_avg$method <- factor(ranks_avg$method,
-                           levels=unique(ranks_avg$method[order(ranks_avg$meta_rank)]))
-
-# heatmap : rows method, cols casestudy
-Fig4 <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) + 
-  geom_raster() + 
-  scale_fill_viridis() +
-  theme_bw() +
-  xlab("Case Study") +
-  ylab("Method") +
-  labs(fill = "Mean rank")
-
+Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10)
 Fig4
 ggsave(file.path(outdir, "Figure4.pdf"), width=6, height=4)
 
 # heatmap : rows method, cols casestudy- one color scale 
-Fig4alt <- Fig4 +
-  scale_fill_gradient(low = "white", high = "red", na.value=NA) +
-  theme(panel.background = element_rect(colour="grey60", fill="grey60",
-                                        size = 0.5),
-        panel.grid.major = element_line(colour = "grey60"), 
-        panel.grid.minor = element_line(colour = "grey60"))
-
+Fig4alt <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10, 
+                        colorLow = "white", colorHigh = "blue", 
+                        colorNA = "grey50")
 Fig4alt
 ggsave(file.path(outdir, "Figure4alt.pdf"), width=6, height=4)
 
 ##
 ## AR: alternative suggestion to heatmap, feel free to discard! ##
 ##
-ranks_avg$method <- factor(ranks_avg$method,
-                           levels=rev(unique(ranks_avg$method[order(ranks_avg$meta_rank)])))
-Fig4b <- ggplot( ranks_avg, aes(x=method, y=mean_rank, group=casestudy, col=casestudy) ) +
-  geom_line() + geom_point() +
-  labs(y="Mean rank", x="", col="Case study") +
-  theme(axis.text.x=element_text(angle=25, vjust=1, hjust=1))
+
+Fig4b <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10,
+                         linePlot = TRUE)
 Fig4b
 ```
 
@@ -249,6 +192,129 @@ covariates as independent and informative in the case studies.
 # TO DO
 ```
 
+# Supplementary Figures
+
+## Within case-study heatmaps of method rankings 
+
+Here we generate heatmaps for each case study, where each column represents a different
+dataset. Here we pick one representative covariate and method (if applicable) 
+for each case study. See the individual Rmds for more detailed plots comparing, e.g.
+different covariates on the same dataset.
+
+```{r}
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+
+# grab casestudy names
+obj.names <- str_split(objects, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+dataset <- unlist(lapply(obj.names, function(x) x[4] ))
+```
+
+### ChIP-seq
+
+```{r}
+wcs <- which(grepl("ChIPseq", casestudy))
+objs <- objects[wcs]
+labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
+                      function(x) x[1]))
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset") + 
+  ggtitle("ChIP-Seq")
+```
+
+### GSEA
+
+```{r}
+#by dataset
+wcs <- which(grepl("GSEA", casestudy))
+objs <- objects[wcs]
+labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
+                      function(x) x[1]))
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset") + 
+  ggtitle("GSEA")
+```
+
+### GWAS
+
+```{r}
+# by covariate
+wcs <- which(grepl("GWAS", casestudy))
+objs <- objects[wcs]
+labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-"), 
+                      function(x) x[2]))
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Covariate") + 
+  ggtitle("GWAS")
+```
+
+### Microbiome
+
+```{r}
+# by dataset, excluding otu when genus is available
+# excluding log-ubiquity
+# excluding enigma-so4 (no discoveries)
+wcs <- which(grepl("microbiome", casestudy) & 
+              !(grepl(c("baxter|goodrich|papa"), dataset) & 
+              grepl(c("otu"), dataset)) &
+              !grepl("log-ubiquity", dataset) &
+              !grepl("so4", dataset))
+objs <- objects[wcs]
+labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
+                      function(x) x[1]))
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset") + 
+  ggtitle("Microbiome")
+```
+
+
+### RNA-seq
+```{r}
+# by dataset
+wcs <- which(grepl("RNAseq", casestudy) & 
+            !grepl(c("polyester|yeast"), dataset) &
+            !grepl("scRNAseq", casestudy))
+objs <- objects[wcs]
+labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
+                      function(x) x[1]))
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset") + 
+  ggtitle("RNA-seq")
+```
+
+### scRNA-seq
+
+```{r}
+wcs <- which(grepl("scRNAseq", casestudy))
+objs <- objects[wcs]
+ds <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark-"), 
+                      function(x) x[1]))
+m0 <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark-"), 
+                      function(x) x[2]))
+meth <- unlist(lapply(str_split(m0, pattern = "-"), 
+                      function(x) x[1]))
+cv <- gsub(".rds", "", unlist(lapply(str_split(m0, pattern = "-"), 
+                      function(x) x[2])))
+
+# by dataset
+plotMethodRanks(objs, colLabels = ds, alpha = 0.10, xlab = "Dataset") + 
+  ggtitle("scRNA-seq")
+
+# by method
+plotMethodRanks(objs, colLabels = meth, alpha = 0.10, xlab = "Method") + 
+  ggtitle("scRNA-seq")
+
+# by covariate
+plotMethodRanks(objs, colLabels = cv, alpha = 0.10, xlab = "Covariate") + 
+  ggtitle("scRNA-seq")
+```
+
+### Yeast Simulation
+
+```{r}
+TODO
+```
+
+### Polyester Simulation
+
+```{r}
+TODO
+```
 
 # Session information
 
