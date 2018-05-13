@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-Here we download and analyze the Schubert diarrhea dataset [(Schubert et al., 2014)](http://dx.doi.org/10.1128/mBio.01021-14).
+Here we download and analyze the Schubert diarrhea dataset [(Schubert et al., 2014)](https://doi.org/10.1128/mBio.01021-14).
 The dataset includes 154 healthy nondiarrheal, 93 Clostridium difficile infection (CDI) associated diarrheal,
 and 89 non-CDI associated diarrheal stool samples. We'll download the processed OTU tables from
 Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.

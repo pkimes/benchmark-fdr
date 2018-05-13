@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-Here we analyze a subset of the ENIGMA data ([Smith, M. and Rocha, A. et al 2015](http://dx.doi.org/10.1128/mBio.00326-15)).
+Here we analyze a subset of the ENIGMA data ([Smith, M. and Rocha, A. et al 2015](https://doi.org/10.1128/mBio.00326-15)).
 The dataset includes water samples from 67 wells with well-characterized biochemical metadata (i.e. pH, heavy metal concentrations, etc).
 We acquired the data from a collaborator and have put it in the `benchmark-fdr/datasets/microbiome/DATA/enigma` folder.
 

@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-As a second RNA-seq dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [(Kim et al., 2013)](http://dx.doi.org/10.1038/nsmb.2701).  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gained using modern FDR control methods.
+As a second RNA-seq dataset, we will test for differences in gene expression upon the knockout of the microRNA mir-200c [(Kim et al., 2013)](https://doi.org/10.1038/nsmb.2701).  The raw fastq files can be found under the accession number `SRP030475`. As the number of samples is limited the experiment might be underpowered, as in most RNA-seq analysis. This is an experimental scenario that could benefit from power gained using modern FDR control methods.
 
 # Workspace Setup
 
