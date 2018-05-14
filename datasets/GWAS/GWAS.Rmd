@@ -195,7 +195,7 @@ bmi <- bmi %>%
                   effect_size = effect,
                   ind_covar_N = N,
                   ind_covar_AF = Freq_Allele1_HapMapCEU) %>%
-    mutate(test_statistic = qnorm(exp(log(pval)-log(2)), lower.tail=FALSE) * sign(effect_size)) %>%
+    mutate(test_statistic = effect_size / SE) %>%
     select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
