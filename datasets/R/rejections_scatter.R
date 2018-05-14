@@ -50,7 +50,7 @@ rejections_scatter <- function( sb, as_fraction=FALSE, supplementary=TRUE,
   plotDF %>%
     ggplot( aes(alpha, value/deno, col=Method) ) +
     geom_line(alpha = 3/4, aes(linetype=Method)) + 
-    geom_point(alpha = 3/4) +
+    geom_point(alpha = 3/4, show.legend = FALSE) +
     xlab(expression(paste("Nominal"~alpha))) +
     scale_color_manual(values=col) +
     scale_linetype_manual(values = lty) +
