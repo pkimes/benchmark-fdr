@@ -156,6 +156,11 @@ Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10)
 Fig4
 ggsave(file.path(outdir, "Figure4.pdf"), width=6, height=4)
 
+Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10,
+                        excludeMethods = NULL)
+Fig4
+ggsave(file.path(outdir, "Figure4_all.pdf"), width=6, height=4)
+
 # heatmap : rows method, cols casestudy- one color scale 
 Fig4alt <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10, 
                         colorLow = "white", colorHigh = "blue", 

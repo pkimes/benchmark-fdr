@@ -39,9 +39,10 @@ resdir <- "results"
 sbdir <- "../../results/RNAseq"
 dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
 
 ## intermediary files we create below
-count_file <- file.path(resdir, "rse_gene.Rdata")
+count_file <- file.path(datdir, "rse_gene.Rdata")
 result_file <- file.path(resdir, "mir200c-results.rds")
 bench_file <- file.path(sbdir, "mir200c-benchmark.rds")
 
@@ -124,13 +125,33 @@ strat_hist(res, pvalue = "pval",
 
 ## Multiple-Testing Correction
 
-We use the common `BenchDesign` with the set of multiple testing correction methods already included.
+We use the common `BenchDesign` with the set of multiple testing correction 
+methods already included. We also add in Scott's FDR Regression (both
+`nulltype = "empirical"` and `nulltype = "theoretical"`)
+since our test statistics are t-distributed. 
 
 ```{r}
 if (file.exists(bench_file)) {
     sb <- readRDS(bench_file)
 } else {
     bd <- initializeBenchDesign()
+    
+    bd <- addBMethod(bd, "scott-theoretical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+    
+   bd <- addBMethod(bd, "scott-empirical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+   
     sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
     saveRDS(sb, file = bench_file)
 }
