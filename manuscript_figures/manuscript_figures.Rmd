@@ -76,28 +76,33 @@ p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
       theme(legend.position="none")
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
-p4 <- covariateLinePlot(de5, alpha=0.05, covname="log2FC", trans="log1p",
+p4 <- covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", trans="log1p",
                         nbins=25)
 leg <- get_legend(p4)
-p4 <- p4 + theme(legend.position="none")
+p4 <- p4 + theme(legend.position="none") + 
+  ggtitle("Mean % significant by covariate %ile") + 
+  theme(axis.title = element_text(face="bold", size = 10),
+        plot.title = element_text(face="bold", size = 14)) +
+  xlab("Independent covariate percentile")
+  
 
-# Figure 2E - upsetr plot -- this solution currently chops off left margin hist
+# Figure 2E - upsetr plot - save separately
+pdf(file.path(outdir, "Figure2E.pdf"), width = 10, height = 4, onefile=FALSE)
 aggupset(de5, alpha=alpha, supplementary = FALSE, 
                        return_list = FALSE, nintersects = 12)
 grid.text("Mean overlap Over 100 Replications", x = 0.6, y = 0.97, 
-          gp = gpar(fontsize = 16, fontface = "bold")) 
-p5 <- grid.grab()
+          gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("E", x = 0.02, y = 0.97, 
+          gp = gpar(fontsize = 24, fontface = "bold")) 
+dev.off()
 
 # Figure 2 (ALL)
 Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
           labels = LETTERS[1:4], label_size = 20)
 Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
-
-Fig2 <- plot_grid(Fig2, p5, ncol=1, rel_heights = c(1, 0.5),
-               labels = c("", "E"), label_size = 20)
-
 Fig2
-ggsave(file.path(outdir, "Figure2.pdf"), width=10, height=12)
+ggsave(file.path(outdir, "Figure2A-D.pdf"), width=10, height=8)
+
 ```
 
 # Figure 3
@@ -246,7 +251,8 @@ wcs <- which(grepl("GWAS", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-"), 
                       function(x) x[2]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Covariate") + 
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Covariate",
+                excludeMethods = NULL) + 
   ggtitle("GWAS")
 ```
 
@@ -278,7 +284,8 @@ wcs <- which(grepl("RNAseq", casestudy) &
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset") + 
+plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset", 
+                excludeMethods = NULL) + 
   ggtitle("RNA-seq")
 ```
 
@@ -312,13 +319,35 @@ plotMethodRanks(objs, colLabels = cv, alpha = 0.10, xlab = "Covariate") +
 ### Yeast Simulation
 
 ```{r}
-TODO
+wcs <- which(grepl("RNAseq", casestudy) & 
+            !grepl(c("brain|mir|polyester|null"), dataset) &
+            !grepl("scRNAseq", casestudy))
+objs <- objects[wcs]
+labs <- gsub(".rds", "", 
+             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
+                      function(x) x[2])))
+
+plotMethodRanks(objs, 
+                colLabels = labs, 
+                alpha = 0.10, xlab = "Comparison",
+                excludeMethods = NULL)
 ```
 
 ### Polyester Simulation
 
 ```{r}
-TODO
+wcs <- which(grepl("RNAseq", casestudy) & 
+            !grepl(c("brain|mir|yeast|null"), dataset) &
+            !grepl("scRNAseq", casestudy))
+objs <- objects[wcs]
+labs <- gsub(".rds", "", 
+             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
+                      function(x) x[2])))
+
+plotMethodRanks(objs, 
+                colLabels = labs, 
+                alpha = 0.10, xlab = "Comparison",
+                excludeMethods = NULL)
 ```
 
 # Session information
