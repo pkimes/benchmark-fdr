@@ -54,19 +54,22 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       
       if (sum(hasResults) > 0){
         tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
-          filter( performanceMetric == "rejections") %>%
+          dplyr::filter( performanceMetric == "rejections") %>%
           dplyr::rename( method = blabel) %>%
-          filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
-          filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
-          filter( !method == "unadjusted") %>%
-          filter( !(method %in% NAmethods)) %>%
+          dplyr::filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
+          dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
+          dplyr::filter( !method == "unadjusted") %>%
+          dplyr::filter( !(method %in% NAmethods)) %>%
           select( method, value ) %>%
           dplyr::rename( nrejects = value) %>%
           mutate( method = gsub("-df03", "", method)) %>%
           mutate( method = gsub("(-a)(.*)", "", method)) %>%
           na.omit() %>%
           mutate( rank = rank(nrejects) / n(),
-                  propMaxRej = nrejects / max(nrejects, na.rm = TRUE)) %>%
+                  propMaxRej = ifelse(nrejects == min(nrejects) & 
+                                      nrejects == max(nrejects) &
+                                      nrejects == 0, 0, 
+                                      nrejects / max(nrejects, na.rm = TRUE))) %>%
           mutate(casestudy = colLabels[i])
         
         ranks <- rbind(ranks, tmp)
@@ -89,12 +92,12 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     }
     
   }else{
-    ranks <- tidy_df(objects)
+    ranks <- tidy_df(objects, colLabels)
   }
   
   # exclude methods 
   if(!is.null(excludeMethods)){
-    ranks <- ranks %>% filter( !(method %in% excludeMethods))
+    ranks <- ranks %>% dplyr::filter( !(method %in% excludeMethods))
   }
   
   # add NAs for missing combinations of methods and casestudies
@@ -136,7 +139,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         theme_bw() +
         xlab(xlab) +
         ylab("Method") +
-        labs(fill = "Mean proportion\nMax rejections")
+        labs(fill = "Mean proportion\nmax rejections")
     }else{
       # reorder rows
       ranks_avg$method <- factor(ranks_avg$method,
