@@ -245,9 +245,6 @@ if (!file.exists(resfile_n5)){
 } else {
   null5 <- readRDS(file=resfile_n5)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -255,6 +252,9 @@ rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results. 
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
 
 # metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
@@ -298,9 +298,6 @@ if (!file.exists(resfile_n10)){
 } else {
   null10 <- readRDS(file=resfile_n10)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -308,6 +305,9 @@ rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results.
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
@@ -346,9 +346,6 @@ if (!file.exists(resfile_d5)){
 } else {
   de5 <- readRDS(file=resfile_d5)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -356,6 +353,8 @@ rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results. 
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
 
@@ -398,8 +397,6 @@ if (!file.exists(resfile_d10)){
   de10 <- readRDS(file=resfile_d10)
 }
 
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -407,6 +404,9 @@ rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results.
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
@@ -428,7 +428,16 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 }
 ```
 
+# Sample size comparison
 
+Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(resfile_d5, resfile_d10), 
+                colLabels = c("DE 5", "DE 10"), 
+                alpha = 0.10, xlab = "Comparison",
+                excludeMethods = NULL)
+```
 
 # Session information
 

@@ -398,7 +398,15 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ```{r}
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
+# Response comparison
 
+Here we compare the method ranks for the different comparisons at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(so4_bench_file, ph_bench_file, al_bench_file), 
+                colLabels = c("SO4", "pH", "Al"), 
+                alpha = 0.10, xlab = "Comparison")
+```
 
 # Session Info
 

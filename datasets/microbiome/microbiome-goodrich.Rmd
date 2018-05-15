@@ -389,6 +389,16 @@ methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
 
+# OTU/Genus comparison
+
+Here we compare the method ranks for the different comparisons at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(otu_bench_file, gns_bench_file), 
+                colLabels = c("OTU", "Genus"), 
+                alpha = 0.10, xlab = "Comparison")
+```
+
 # Session Info
 
 ```{r}

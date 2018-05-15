@@ -514,6 +514,17 @@ plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+# OTU/Genus comparison
+
+Here we compare the method ranks for the different comparisons at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(otu_bench_file, otu_bench_file_log_ubiquity, 
+                  gns_bench_file, gns_bench_file_log_ubiquity), 
+                colLabels = c("OTU", "OTU - log", "Genus", "Genus - log"), 
+                alpha = 0.10, xlab = "Comparison")
+```
+
 # Session Info
 
 ```{r}

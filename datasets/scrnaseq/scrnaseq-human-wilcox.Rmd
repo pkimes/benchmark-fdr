@@ -384,6 +384,16 @@ covariateLinePlot(sb2, alpha=0.05, covname="ind_covariate", nbins=25) +
   ggtitle("Wilcoxon_Ranksum, Covariate 2: Detection Rate")
 ```
 
+# Covariate comparison
+
+Here we compare the method ranks for the two covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(resfile_mean, resfile_det), 
+                colLabels = c("Mean nonzero", "Detection rate"), 
+                alpha = 0.10, xlab = "Covariate")
+```
+
 # Session Information
 
 ```{r}

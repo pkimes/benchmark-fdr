@@ -432,6 +432,18 @@ covariateLinePlot(sbAF, alpha=0.05, covname="effect_size", nbins=25,
 covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25)
 ```
 
+# Covariate comparison
+
+Here we compare the method ranks for the two covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(resfile_AF, resfile_N), 
+                colLabels = c("MAF", "Sample Size"), 
+                alpha = 0.10, xlab = "Covariate", 
+                excludeMethods = NULL)
+```
+
+
 # Session Information
 
 ```{r}

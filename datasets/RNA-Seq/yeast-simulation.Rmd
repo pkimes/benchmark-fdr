@@ -208,10 +208,30 @@ rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
 
 ## FDR benchmarking
 
-Run benchmark methods. 
+Build common bench design. We also add in Scott's FDR Regression (both
+`nulltype = "empirical"` and `nulltype = "theoretical"`)
+since our test statistics are approximately t-distributed. 
 
 ```{r}
 bd <- initializeBenchDesign()
+bd <- addBMethod(bd, "scott-theoretical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bd <- addBMethod(bd, "scott-empirical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+Run benchmark methods. 
+```{r}
 sb <- bd %>% buildBench(data=geneExp, parallel = FALSE)
 
 assayNames(sb) <- "qvalue"
@@ -327,32 +347,9 @@ be used when plotting the aggregated Upset results.
 
 ```{r}
 B <- 100
-bd <- initializeBenchDesign() # only needs to be done once
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 ```
-
-We also add in Scott's FDR Regression (both
-`nulltype = "empirical"` and `nulltype = "theoretical"`)
-since our test statistics are approximately t-distributed. 
-
-```{r}
-bd <- addBMethod(bd, "scott-theoretical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = test_statistic,
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'theoretical',
-                     control = list(lambda = 0.01))
-bd <- addBMethod(bd, "scott-empirical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = test_statistic,
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'empirical',
-                     control = list(lambda = 0.01))
-```
-
 
 Here's a helper function to return the number of methods with rejections at
 a particular alpha level (this helps us determine whether or not to plot the
@@ -399,9 +396,6 @@ if (!file.exists(resfile_n5)){
 }else{
   null5 <- readRDS(file = resfile_n5)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -409,6 +403,9 @@ rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results. 
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5, met="rejections",filter_set = excludeSet,
@@ -449,9 +446,6 @@ if (!file.exists(resfile_n10)){
 }else{
   null10 <- readRDS(file = resfile_n10)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -459,6 +453,9 @@ rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results.
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
@@ -502,9 +499,6 @@ if (!file.exists(resfile_d5)){
 }else{
   de5 <- readRDS(file = resfile_d5)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -512,6 +506,9 @@ rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results. 
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
@@ -556,9 +553,6 @@ if(!file.exists(resfile_d10)){
 }else{
   de10 <- readRDS(file = resfile_d10)
 }
-
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 ```
 
 ## Plot average results over replications
@@ -566,6 +560,9 @@ rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 Plot results.
 
 ```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
 res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet,
@@ -587,6 +584,17 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
           "; skipping upset plot")
 }
 
+```
+
+# Sample size comparison
+
+Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(resfile_d5, resfile_d10), 
+                colLabels = c("DE 5", "DE 10"), 
+                alpha = 0.10, xlab = "Comparison", 
+                excludeMethods = NULL)
 ```
 
 # Session information
