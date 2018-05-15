@@ -33,36 +33,63 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                             linePlot = FALSE,
                             excludeMethods = c("scott-theoretical",
                                                "scott-empirical")){
-
-  # create tidy data frame where each row is a method / dataset observation
-  # of a rank 
-  ranks <- data.frame()
   
-  for (i in seq_along(objects)){
-    x <- readRDS(objects[i])
-    assayNames(x) <- "qvalue"
-    x <- addDefaultMetrics( x )
+  tidy_df <- function(objects, colLabels){
+    # create tidy data frame where each row is a method / dataset observation
+    # of a rank 
+    ranks <- data.frame()
     
-    hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, sum)
-    
-    if (sum(hasResults) > 0){
-      tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
-        filter( performanceMetric == "rejections") %>%
-        dplyr::rename( method = blabel) %>%
-        filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
-        filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
-        filter( !method == "unadjusted") %>%
-        select( method, value ) %>%
-        dplyr::rename( nrejects = value) %>%
-        mutate( method = gsub("-df03", "", method)) %>%
-        mutate( method = gsub("(-a)(.*)", "", method)) %>%
-        na.omit() %>%
-        mutate( rank = rank(nrejects) / n(),
-                propMaxRej = nrejects / max(nrejects, na.rm = TRUE)) %>%
-        mutate(casestudy = colLabels[i])
+    for (i in seq_along(objects)){
+      if ( class(objects[[i]]) == "character") {
+        x <- readRDS(objects[i])
+      }else if ( class(objects[[i]]) == "SummarizedBenchmark") {
+        x <- objects[[i]]
+      }
       
-      ranks <- rbind(ranks, tmp)
+      assayNames(x) <- "qvalue"
+      x <- addDefaultMetrics( x )
+      
+      hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, sum)
+      NAmethods <- names(hasResults)[hasResults == 0]
+      
+      if (sum(hasResults) > 0){
+        tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
+          filter( performanceMetric == "rejections") %>%
+          dplyr::rename( method = blabel) %>%
+          filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
+          filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
+          filter( !method == "unadjusted") %>%
+          filter( !(method %in% NAmethods)) %>%
+          select( method, value ) %>%
+          dplyr::rename( nrejects = value) %>%
+          mutate( method = gsub("-df03", "", method)) %>%
+          mutate( method = gsub("(-a)(.*)", "", method)) %>%
+          na.omit() %>%
+          mutate( rank = rank(nrejects) / n(),
+                  propMaxRej = nrejects / max(nrejects, na.rm = TRUE)) %>%
+          mutate(casestudy = colLabels[i])
+        
+        ranks <- rbind(ranks, tmp)
+      }
     }
+    return(ranks)
+  }
+  
+  if (is.list(readRDS(objects[1]))){
+    ranks <- data.frame()
+    
+    for (l in seq_along(objects)){
+      x <- readRDS(objects[l])
+      tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x))) %>%
+        group_by(method, casestudy) %>%
+        summarize(nrejects = mean(nrejects),
+                  rank = mean(rank),
+                  propMaxRej = mean(propMaxRej))
+      ranks <- rbind(ranks, as.data.frame(tmp))
+    }
+    
+  }else{
+    ranks <- tidy_df(objects)
   }
   
   # exclude methods 
