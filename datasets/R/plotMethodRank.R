@@ -22,19 +22,30 @@
 #' @param excludeMethods character vector containing the names of methods to
 #'  exclude from the heatmap. Default is to exclude Scott methods which are 
 #'  only present in GWAS.
-#' @param propMaxRejections logical indicating whether the proportion of max
-#'  number of rejections is plotted (instead of the rank). Default is TRUE. 
+#' @param fill character indicating the outcome variable of interest. Default
+#'  is 'propMaxRejections'. For 'FDR' and 'TPR' sb objects need to contain 
+#'  these performance metrics.
 #' @param xlab character with the x label (default is "Case Study")   
+#' @param tableOnly logical whether or not to return a tibble of the summarized
+#'  results instead of a plot.
+#'  @param rowOrder numerical vector with order of rows/methods (default is 
+#'  NULL, which means rows will be ordered by mean fill value).
+#'  @param Nlabel logical whether or not to include the number of datasets 
+#'  averaged over in the x-axis casestudy label. Default is TRUE.
 
 plotMethodRanks <- function(objects, colLabels, alpha = 0.10, 
                             colorLow = "navy", colorHigh = "yellow",
                             colorNA = "white", xlab = "Case Study",
-                            propMaxRejections = TRUE,
+                            fill = c("propMaxRejections", "meanRank", 
+                                     "FDR", "TPR"),
                             linePlot = FALSE,
                             excludeMethods = c("scott-theoretical",
-                                               "scott-empirical")){
-  
-  tidy_df <- function(objects, colLabels){
+                                               "scott-empirical"),
+                            rowOrder = NULL,
+                            tableOnly = FALSE,
+                            Nlabel = TRUE){
+  fill <- match.arg(fill)
+  tidy_df <- function(objects, colLabels, fill){
     # create tidy data frame where each row is a method / dataset observation
     # of a rank 
     ranks <- data.frame()
@@ -52,9 +63,19 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, sum)
       NAmethods <- names(hasResults)[hasResults == 0]
       
+      if (fill %in% c("propMaxRejections", "meanRank")){
+        pmcol <- "rejections"
+      }else{
+        pmcol <- fill
+      }
+      
       if (sum(hasResults) > 0){
-        tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE) %>%
-          dplyr::filter( performanceMetric == "rejections") %>%
+        tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE)
+        if (fill %in% c("TPR", "FDR") && !(fill %in% tmp$performanceMetric))
+          stop(fill, " is not found in performanceMetrics")
+        
+        tmp <- tmp %>%
+          dplyr::filter( performanceMetric == pmcol) %>%
           dplyr::rename( method = blabel) %>%
           dplyr::filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
           dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
@@ -83,7 +104,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     
     for (l in seq_along(objects)){
       x <- readRDS(objects[l])
-      tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x))) %>%
+      tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x)), fill) %>%
         group_by(method, casestudy) %>%
         summarize(nrejects = mean(nrejects),
                   rank = mean(rank),
@@ -92,7 +113,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     }
     
   }else{
-    ranks <- tidy_df(objects, colLabels)
+    ranks <- tidy_df(objects, colLabels, fill)
   }
   
   # exclude methods 
@@ -107,7 +128,28 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
   ranks_avg <- ranks %>% 
     group_by( casestudy, method) %>%
     summarize( mean_rank = mean(rank, na.rm = TRUE),
-               mean_prop = mean(propMaxRej, na.rm = TRUE)) 
+               mean_prop = mean(propMaxRej, na.rm = TRUE),
+               mean_nrej = mean(nrejects, na.rm = TRUE),
+               min_prop = min(propMaxRej, na.rm = TRUE),
+               max_prop = max(propMaxRej, na.rm = TRUE),
+               nsets = sum(!is.na(nrejects)))
+  
+  if(Nlabel){
+    if(!is.list(readRDS(objects[1]))){
+      ranks_avg <- ranks_avg %>% 
+        group_by( casestudy ) %>%
+        mutate( studyname = paste0(casestudy, "(", max(nsets), ")"),
+                nsets = ifelse(nsets==0, NA, nsets))
+    }else{
+      ranks_avg <- ranks_avg %>% 
+        group_by( casestudy ) %>%
+        mutate( studyname = paste0(casestudy, "(", 
+                                 length(readRDS(objects[1])), ")"),
+              nsets = ifelse(nsets==0, NA, nsets))
+    } 
+  }else{
+    ranks_avg <- ranks_avg %>% mutate(studyname = casestudy)
+  }
   
   case_dat <- ranks_avg %>%
     group_by( casestudy) %>%
@@ -116,7 +158,8 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
   method_dat <- ranks_avg %>%
     group_by( method) %>%
     summarize( meta_rank = mean(mean_rank, na.rm = TRUE),
-               meta_prop = mean(mean_prop, na.rm = TRUE))
+               meta_prop = mean(mean_prop, na.rm = TRUE),
+               meta_nrej = mean(mean_nrej, na.rm = TRUE))
   
   ranks_avg <- left_join(ranks_avg, method_dat, by ="method")
   ranks_avg <- left_join(ranks_avg, case_dat, by ="casestudy")
@@ -125,44 +168,72 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
   ranks_avg$casestudy <- factor(ranks_avg$casestudy, 
                                 levels=unique(ranks_avg$casestudy[order(ranks_avg$nmethods,
                                                                         decreasing= TRUE)]))
+  ranks_avg$studyname <- factor(ranks_avg$studyname, 
+                                levels=unique(ranks_avg$studyname[order(ranks_avg$nmethods,
+                                                                        decreasing= TRUE)]))
   
-  if (!linePlot){
-    if (propMaxRejections){
+  if(!is.null(rowOrder))
+    ranks_avg$method <- factor(ranks_avg$method,
+                               levels=rowOrder)
+  if (tableOnly){
+    ranks_avg$method <- factor(ranks_avg$method,
+                               levels=unique(ranks_avg$method[order(ranks_avg$meta_prop)]))
+    return(ranks_avg)
+  }else if (!linePlot){
+    if (fill == "propMaxRejections"){
       # reorder rows
-      ranks_avg$method <- factor(ranks_avg$method,
-                                 levels=unique(ranks_avg$method[order(ranks_avg$meta_prop)]))
+      if (is.null(rowOrder))
+        ranks_avg$method <- factor(ranks_avg$method,
+                                   levels=unique(ranks_avg$method[order(ranks_avg$meta_prop)]))
       
       # heatmap : rows method, cols casestudy
-      Fig <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_prop)) + 
+      Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_prop)) + 
         geom_raster() + 
-        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA) +
+        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA,
+                            limits=c(0,1)) +
         theme_bw() +
         xlab(xlab) +
         ylab("Method") +
         labs(fill = "Mean proportion\nmax rejections")
-    }else{
+    }else if (fill == "meanRank"){
       # reorder rows
-      ranks_avg$method <- factor(ranks_avg$method,
+      if (is.null(rowOrder))
+        ranks_avg$method <- factor(ranks_avg$method,
                                  levels=unique(ranks_avg$method[order(ranks_avg$meta_rank)]))
       
-      Fig <- ggplot(ranks_avg, aes(x = casestudy, y = method, fill = mean_rank)) + 
+      Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_rank)) + 
         geom_raster() + 
         scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA) +
         theme_bw() +
         xlab(xlab) +
         ylab("Method") +
         labs(fill = "Mean rank")
+    }else{
+      # reorder rows
+      if (is.null(rowOrder))
+        ranks_avg$method <- factor(ranks_avg$method,
+                                 levels=unique(ranks_avg$method[order(ranks_avg$meta_nrej)]))
+      
+      Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_nrej)) + 
+        geom_raster() + 
+        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA) +
+        theme_bw() +
+        xlab(xlab) +
+        ylab("Method") +
+        labs(fill = paste0("Mean ", fill))
     }
+    return(Fig)
   }else{
+    message("Line plot only supported for mean rank")
     # reorder rows
-    ranks_avg$method <- factor(ranks_avg$method,
+    if (is.null(orderRows))
+      ranks_avg$method <- factor(ranks_avg$method,
                                levels=rev(unique(ranks_avg$method[order(ranks_avg$meta_rank)])))
     Fig <- ggplot( ranks_avg, aes(x=method, y=mean_rank, 
                                     group=casestudy, col=casestudy) ) +
       geom_line() + geom_point() +
       labs(y="Mean rank", x="", col=xlab) +
       theme(axis.text.x=element_text(angle=25, vjust=1, hjust=1))
+    return(Fig)
   }  
-
-  return(Fig)
 }
