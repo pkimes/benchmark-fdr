@@ -8,8 +8,7 @@
 #SBATCH -o render-%j.out
 #SBATCH -e render-%j.err
  
-##module load rstudio
-export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/rstudio/0.98.1103-fasrc01/bin/pandoc/"
+export RSTUDIO_PANDOC="/n/helmod/apps/centos7/Core/rstudio/1.1.453-fasrc01/bin/pandoc"
 
 R -e "rmarkdown::render('microbiome-baxter.Rmd')"
 R -e "rmarkdown::render('microbiome-goodrich.Rmd')"

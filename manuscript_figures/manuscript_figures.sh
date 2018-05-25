@@ -8,8 +8,7 @@
 #SBATCH -o render-%j.out
 #SBATCH -e render-%j.err
 
-module load pandoc
-export RSTUDIO_PANDOC="/n/sw/fasrcsw/apps/Core/pandoc/2.0.2-fasrc01/bin/pandoc/"
+export RSTUDIO_PANDOC="/n/helmod/apps/centos7/Core/rstudio/1.1.453-fasrc01/bin/pandoc"
 
 # change filename to Rmd to be knitted
 # make sure number of cores used in Rmd matches sbatch param -n
