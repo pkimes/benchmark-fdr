@@ -76,16 +76,15 @@ p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
       theme(legend.position="none")
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
-p4 <- covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", trans="log1p",
+p4 <- covariateLinePlot(de5, alpha=alpha, covname="log2FC", trans="log1p",
                         nbins=25)
 leg <- get_legend(p4)
 p4 <- p4 + theme(legend.position="none") + 
-  ggtitle("Mean % significant by covariate %ile") + 
+  ggtitle("Mean % significant by effect size %ile") + 
   theme(axis.title = element_text(face="bold", size = 10),
         plot.title = element_text(face="bold", size = 14)) +
-  xlab("Independent covariate percentile")
+  xlab("Effect size (log2 fold change) percentile")
   
-
 # Figure 2E - upsetr plot - save separately
 pdf(file.path(outdir, "Figure2E.pdf"), width = 10, height = 4, onefile=FALSE)
 aggupset(de5, alpha=alpha, supplementary = FALSE, 
@@ -123,7 +122,7 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=8, height=4)
 # Figure 4 
 
 This is a heatmap of methods by case studies with color representing the ranking
-by of number of rejections @ FDR cutoff 0.10.
+by of number of rejections @ FDR cutoff `r alpha`.
 
 ```{r, Figure 4}
 library(SummarizedBenchmark)
@@ -161,15 +160,15 @@ obj.names <- str_split(objects, pattern = "/")
 casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
 dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
-Fig4.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10,
+Fig4.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                             tableOnly = TRUE)$method)
-Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10)
+Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha)
 Fig4
 ggsave(file.path(outdir, "Figure4a.pdf"), width=6, height=4)
 
-Fig4All.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10, 
+Fig4All.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = alpha, 
                                tableOnly = TRUE, excludeMethods = NULL)$method)
-Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10,
+Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL)
 Fig4All
 ggsave(file.path(outdir, "Figure4a_all.pdf"), width=6, height=4)
@@ -181,7 +180,7 @@ Extract a table of the values in Figure 4.
 ```{r}
 # Supplementary table S3 
 library(xtable)
-tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = 0.10,
+tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         tableOnly = TRUE)
 tabS3 <- tabS3 %>% 
   mutate(mean_prop = ifelse(is.na(mean_prop), "-",
@@ -214,14 +213,14 @@ labs <- gsub(".rds", "",
 
 pfdr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 colorLow = "yellow", colorHigh = "navy",
                 fill = "FDR",
                 rowOrder = Fig4.rowOrder) 
 
 ptpr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 fill = "TPR",
                 rowOrder = Fig4.rowOrder)  
 
@@ -235,10 +234,62 @@ ggsave(file.path(outdir, "Figure4.pdf"), width=12, height=5)
 # Figure 5
 
 This is a multi-panel Figure displaying examples of covariate line plots in the
-case studies.
+case studies. We'll create a 4-panel figure with the following case studies:
+RNAseq, scRNAseq, GSEA, GWAS.
 
 ```{r, Figure 5}
-# TO DO
+
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pA <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p",
+                        nbins=25) +
+  ggtitle("RNA-seq case study: Brain") +
+  xlab("Overall mean expression percentile") 
+
+leg <-  get_legend(pA)
+pA <- pA + theme(legend.position="none")
+
+
+resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
+                   grepl("mast", objects) & grepl("det", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pB <- covariateLinePlot(res, alpha=alpha, covname="detection", trans="log1p",
+                        nbins=25) +
+  ggtitle("scRNA-seq case study: Human, MAST") +
+  xlab("Detection rate percentile") + 
+  theme(legend.position="none")
+
+
+resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pC <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p",
+                        nbins=25) +
+  ggtitle("GSEA case study: Mouse") +
+  xlab("Gene Set size percentile") + 
+  theme(legend.position="none")
+ 
+
+resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pD <- covariateLinePlot(res, alpha=alpha, covname="ind_covar_AF", trans="log1p",
+                        nbins=25) +
+  ggtitle("GWAS case study")+
+  xlab("Minor Allele Frequency (MAF) percentile") +
+  theme(legend.position="none")
+
+p5 <- plot_grid(pA, pB, pC, pD, ncol=2, labels = LETTERS[1:4])
+p5 <- plot_grid(p5, leg, ncol=2, rel_widths = c(1,0.2))
+ggsave(file.path(outdir, "Figure5.pdf"), width=9, height=7)
+
 ```
 
 # Figure 6
@@ -253,6 +304,56 @@ covariates as independent and informative in the case studies.
 ```
 
 # Supplementary Figures
+
+## Case-study specific plot analagous to Figure 2 
+
+Figure 2 panels C-E for a case study. For now picking GWAS.
+
+```{r Figure2.5}
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+
+# Figure 2C: Total number of discoveries varied across method
+p3 <- rejections_scatter(res, supplementary = FALSE) +
+      theme(legend.position="none")+ 
+  ggtitle("Number of rejections by alpha cutoff") + 
+  xlab("alpha cutoff") +
+  theme(axis.title = element_text(face="bold", size = 10),
+        plot.title = element_text(face="bold", size = 14)) 
+
+# Figure 2D: Some methods are tailored to detecting smaller effect sizes
+p4 <- covariateLinePlot(res, alpha=alpha, covname="effect_size", trans="log1p",
+                        transx = "exp", nbins=25)
+leg <- get_legend(p4)
+p4 <- p4 + theme(legend.position="none") + 
+  ggtitle("Mean % significant by effect size %ile") + 
+  theme(axis.title = element_text(face="bold", size = 10),
+        plot.title = element_text(face="bold", size = 14)) +
+  xlab("Effect size percentile")
+  
+# Figure 2E - upsetr plot - save separately
+pdf(file.path(outdir, "FigureS0C.pdf"), width = 10, height = 4, onefile=FALSE)
+plotFDRMethodsOverlap(res, 
+                      alpha=alpha, nsets=ncol(res),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE, nintersects = 18) 
+grid.text("Overlap for GWAS Case study, MAF covariate", x = 0.6, y = 0.97, 
+          gp = gpar(fontsize = 16, fontface = "bold"))
+grid.text("C", x = 0.02, y = 0.97, 
+          gp = gpar(fontsize = 24, fontface = "bold")) 
+dev.off()
+
+# Figure 2 (ALL)
+Fig2 <- plot_grid(p3, p4, ncol = 2, 
+          labels = LETTERS[1:2], label_size = 20)
+Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
+Fig2
+ggsave(file.path(outdir, "FigureS0A-B.pdf"), width=10, height=4)
+
+```
 
 ## Within case-study heatmaps of method rankings 
 
@@ -278,7 +379,7 @@ wcs <- which(grepl("GWAS", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-"), 
                       function(x) x[2]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Covariate",
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Covariate",
                 excludeMethods = NULL, Nlabel = FALSE) + 
   ggtitle("GWAS")
 ggsave(file.path(outdir, "FigureS1.pdf"), width=4, height=4)
@@ -292,7 +393,7 @@ wcs <- which(grepl("GSEA", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
   ggtitle("GSEA")
 ggsave(file.path(outdir, "FigureS2.pdf"), width=4, height=4)
 ```
@@ -304,7 +405,7 @@ wcs <- which(grepl("ChIPseq", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
   ggtitle("ChIP-Seq")
 ggsave(file.path(outdir, "FigureS3.pdf"), width=5, height=4)
 ```
@@ -318,7 +419,7 @@ wcs <- which(grepl("RNAseq", casestudy) &
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset", 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
                 excludeMethods = NULL, Nlabel = FALSE) + 
   ggtitle("RNA-seq")
 ggsave(file.path(outdir, "FigureS4.pdf"), width=4, height=4)
@@ -339,15 +440,15 @@ cv <- gsub(".rds", "", unlist(lapply(str_split(m0, pattern = "-"),
                       function(x) x[2])))
 
 # by dataset
-pa <- plotMethodRanks(objs, colLabels = ds, alpha = 0.10, xlab = "Dataset") + 
+pa <- plotMethodRanks(objs, colLabels = ds, alpha = alpha, xlab = "Dataset") + 
   ggtitle("scRNA-seq")
 
 # by method
-pb <- plotMethodRanks(objs, colLabels = meth, alpha = 0.10, xlab = "Method") + 
+pb <- plotMethodRanks(objs, colLabels = meth, alpha = alpha, xlab = "Method") + 
   ggtitle("scRNA-seq")
 
 # by covariate
-pc <- plotMethodRanks(objs, colLabels = cv, alpha = 0.10, xlab = "Covariate") + 
+pc <- plotMethodRanks(objs, colLabels = cv, alpha = alpha, xlab = "Covariate") + 
   ggtitle("scRNA-seq")
 
 plot_grid(pa, pb, pc)
@@ -368,7 +469,7 @@ wcs <- which(grepl("microbiome", casestudy) &
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = 0.10, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
   ggtitle("Microbiome")
 ggsave(file.path(outdir, "FigureS6.pdf"), width=7.5, height=4)
 ```
@@ -387,18 +488,18 @@ labs <- gsub(".rds", "",
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL) 
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL, 
                 fill = "FDR") 
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL, 
                 fill = "TPR") 
 
@@ -413,7 +514,7 @@ labs <- gsub(".rds", "",
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL) 
 
 ```
@@ -431,18 +532,18 @@ labs <- gsub(".rds", "",
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL)
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL, 
                 fill = "FDR") 
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL, 
                 fill = "TPR") 
 
@@ -457,7 +558,7 @@ labs <- gsub(".rds", "",
 
 plotMethodRanks(objs, 
                 colLabels = labs, 
-                alpha = 0.10, xlab = "Comparison",
+                alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL) 
 ```
 

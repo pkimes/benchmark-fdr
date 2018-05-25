@@ -2,7 +2,7 @@
 #SBATCH -J figs
 #SBATCH -n 1
 #SBATCH -N 1
-#SBATCH -p shared
+#SBATCH -p irizarry
 #SBATCH --mem 50G
 #SBATCH -t 0-1:00
 #SBATCH -o render-%j.out
