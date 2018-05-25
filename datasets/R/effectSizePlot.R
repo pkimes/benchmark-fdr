@@ -104,12 +104,13 @@ return(p)
 #' @param trans character indicating a transformation to apply to the scale
 #' of the y-axis (lineplot) or fill (heatmap). For example, "log1p" applies 
 #' the log(x+1) transform. The default NULL means no transformation. 
+#' @param transx same as \code{trans}, but for x-axis. Only for lineplot.
 #' @param linePlot logical whether to plot a line plot (smoothed density) 
 #' (default is TRUE). If false, will plot a heatmap.
 #' 
 #' @return a ggplot object
 covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25, 
-                             covname, trans = NULL, 
+                             covname, trans = NULL, transx = NULL,
                              linePlot = TRUE, palette=candycols){
   
   summarize_one_item <- function(object, alpha, nbins){
@@ -179,6 +180,10 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
     
     if(!is.null(trans)){
       p <- p + scale_y_continuous(trans=trans)
+    }
+    
+    if(!is.null(transx)){
+      p <- p + scale_x_continuous(trans=transx)
     }
   }else{
     p <- ggplot(df, aes(x = as.factor(Method), y = bin/nbins)) +
