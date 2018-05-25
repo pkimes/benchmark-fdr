@@ -307,7 +307,7 @@ duration <- NA
 if (!file.exists(resfile_N)) {
     t1 <- proc.time()
     sbN <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_N)), 
-                             ftCols = c("ind_covar_N"),
+                             ftCols = c("ind_covar_N", "effect_size"),
                              parallel=TRUE, BPPARAM=multicoreParam)
     metadata(sbN)$data_download_link <- 
                     "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
@@ -335,7 +335,7 @@ if (!file.exists(resfile_AF)) {
     t1 <- proc.time()
     sbAF <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_AF) %>%
                                     filter(!is.na(ind_covariate))), 
-                              ftCols = c("ind_covar_AF"),
+                              ftCols = c("ind_covar_AF", "effect_size"),
                               parallel=TRUE, BPPARAM=multicoreParam)
     metadata(sbAF)$data_download_link <-    
                      "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
@@ -389,7 +389,6 @@ plotFDRMethodsOverlap(sbN,
 
 
 ```{r, fig.width=8, fig.height=3.5}
-mcols(sbN)$effect_size <- bmi %>% filter(!is.na(ind_covar_N)) %>% pull(effect_size)
 covariateLinePlot(sbN, alpha=0.05, covname="effect_size", nbins=25, 
                  trans="log1p")
 covariateLinePlot(sbN, alpha=0.05, covname="ind_covar_N", nbins=25, 
@@ -426,7 +425,6 @@ plotFDRMethodsOverlap(sbAF,
 ```
 
 ```{r, fig.width=8, fig.height=3.5}
-mcols(sbAF)$effect_size <- bmi %>% filter(!is.na(ind_covar_AF)) %>% pull(effect_size)
 covariateLinePlot(sbAF, alpha=0.05, covname="effect_size", nbins=25, 
                  trans = "log1p")
 covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25)
