@@ -163,7 +163,8 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 Fig4.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                             tableOnly = TRUE)$method)
-Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha)
+Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
+                        annotate = "propPossible")
 Fig4
 
 # not excluding any methods
@@ -191,7 +192,7 @@ tabS3 <- tabS3 %>%
 xtable(tabS3)
 ```
 
-Create another panel with heatmap of yeast simulation results.
+Create more panels with heatmaps of yeast simulation results.
 
 ```{r}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
@@ -214,7 +215,8 @@ pfdr <- plotMethodRanks(objs,
                 colLabels = c("sim", "sim"), 
                 alpha = alpha, xlab = "Comparison",
                 fill = "FDR",
-                rowOrder = Fig4.rowOrder) +
+                rowOrder = Fig4.rowOrder, 
+                annotate = "FDR") +
           scale_fill_gradient2(high = "red", 
                          mid = "white", 
                          low = "blue", 
@@ -226,7 +228,8 @@ ptpr <- plotMethodRanks(objs,
                 fill = "TPR",
                 colorLow = "blue", 
                 colorHigh = "white",
-                rowOrder = Fig4.rowOrder)  
+                rowOrder = Fig4.rowOrder,
+                annotate = "TPR")  
 
 ggdraw() +
   draw_plot(pfdr + ylab("") + xlab(""), 0.57, 0, 0.22, 1) +
@@ -385,7 +388,7 @@ objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-"), 
                       function(x) x[2]))
 plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Covariate",
-                excludeMethods = NULL, Nlabel = FALSE) + 
+                excludeMethods = NULL, Nlabel = FALSE, annotate = "propPossible") + 
   ggtitle("GWAS")
 ggsave(file.path(outdir, "FigureS1.pdf"), width=4, height=4)
 ```
@@ -398,7 +401,8 @@ wcs <- which(grepl("GSEA", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
+                Nlabel = FALSE, annotate = "propPossible") + 
   ggtitle("GSEA")
 ggsave(file.path(outdir, "FigureS2.pdf"), width=4, height=4)
 ```
@@ -410,7 +414,8 @@ wcs <- which(grepl("ChIPseq", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
+                Nlabel = FALSE, annotate = "propPossible") + 
   ggtitle("ChIP-Seq")
 ggsave(file.path(outdir, "FigureS3.pdf"), width=5, height=4)
 ```
@@ -425,7 +430,7 @@ objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
 plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
-                excludeMethods = NULL, Nlabel = FALSE) + 
+                excludeMethods = NULL, Nlabel = FALSE, annotate = "propPossible") + 
   ggtitle("RNA-seq")
 ggsave(file.path(outdir, "FigureS4.pdf"), width=4, height=4)
 ```
@@ -445,15 +450,18 @@ cv <- gsub(".rds", "", unlist(lapply(str_split(m0, pattern = "-"),
                       function(x) x[2])))
 
 # by dataset
-pa <- plotMethodRanks(objs, colLabels = ds, alpha = alpha, xlab = "Dataset") + 
+pa <- plotMethodRanks(objs, colLabels = ds, alpha = alpha, 
+                      xlab = "Dataset", annotate = "propPossible") + 
   ggtitle("scRNA-seq")
 
 # by method
-pb <- plotMethodRanks(objs, colLabels = meth, alpha = alpha, xlab = "Method") + 
+pb <- plotMethodRanks(objs, colLabels = meth, alpha = alpha,
+                      xlab = "Method", annotate = "propPossible") + 
   ggtitle("scRNA-seq")
 
 # by covariate
-pc <- plotMethodRanks(objs, colLabels = cv, alpha = alpha, xlab = "Covariate") + 
+pc <- plotMethodRanks(objs, colLabels = cv, alpha = alpha,
+                      xlab = "Covariate", annotate = "propPossible") + 
   ggtitle("scRNA-seq")
 
 plot_grid(pa, pb, pc)
@@ -475,7 +483,8 @@ wcs <- which(grepl("microbiome", casestudy) &
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", Nlabel = FALSE) + 
+plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
+                Nlabel = FALSE, annotate = "propPossible") + 
   ggtitle("Microbiome")
 ggsave(file.path(outdir, "FigureS6.pdf"), width=7.5, height=4)
 ```

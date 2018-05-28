@@ -34,6 +34,10 @@
 #'  averaged over in the x-axis casestudy label. Default is TRUE. If FALSE
 #'  assumes each column represents one benchmark object (legend labels will not 
 #'  include the word "Mean").
+#' @param annotate character indicating what should be plotted as text labels
+#'  (heatmap plot only). Default is proportion of total possible rejections 
+#'  (propPossible). Could also be another variable (from \code{fill} choices) 
+#'  or NULL (for no text label annotations).
 #' @author Keegan Korthauer  
 
 plotMethodRanks <- function(objects, colLabels, alpha = 0.10, 
@@ -46,9 +50,10 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                                                "scott-empirical"),
                             rowOrder = NULL,
                             tableOnly = FALSE,
-                            Nlabel = TRUE){
+                            Nlabel = TRUE,
+                            annotate = "propPossible"){
   fill <- match.arg(fill)
-  tidy_df <- function(objects, colLabels, fill){
+  tidy_df <- function(objects, colLabels, fill, annotate){
     # create tidy data frame where each row is a method / dataset observation
     # of a rank 
     ranks <- data.frame()
@@ -77,6 +82,11 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         if (fill %in% c("TPR", "FDR") && !(fill %in% tmp$performanceMetric))
           stop(fill, " is not found in performanceMetrics")
         
+        if (!is.null(annotate)){
+          if (annotate %in% c("TPR", "FDR") && !(annotate %in% tmp$performanceMetric))
+            stop(annotate, " is not found in performanceMetrics")
+        }
+        
         tmp <- tmp %>%
           dplyr::filter( performanceMetric == pmcol) %>%
           dplyr::rename( method = blabel) %>%
@@ -93,7 +103,8 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                   propMaxRej = ifelse(nrejects == min(nrejects) & 
                                       nrejects == max(nrejects) &
                                       nrejects == 0, 0, 
-                                      nrejects / max(nrejects, na.rm = TRUE))) %>%
+                                      nrejects / max(nrejects, na.rm = TRUE)),
+                  propPossible = nrejects / nrow(x)) %>%
           mutate(casestudy = colLabels[i])
         
         ranks <- rbind(ranks, tmp)
@@ -107,16 +118,18 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     
     for (l in seq_along(objects)){
       x <- readRDS(objects[l])
-      tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x)), fill) %>%
+      tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x)), 
+                     fill, annotate) %>%
         group_by(method, casestudy) %>%
         summarize(nrejects = mean(nrejects),
                   rank = mean(rank),
-                  propMaxRej = mean(propMaxRej))
+                  propMaxRej = mean(propMaxRej),
+                  propPossible= mean(propPossible))
       ranks <- rbind(ranks, as.data.frame(tmp))
     }
     
   }else{
-    ranks <- tidy_df(objects, colLabels, fill)
+    ranks <- tidy_df(objects, colLabels, fill, annotate)
   }
   
   # exclude methods 
@@ -128,6 +141,14 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
   ranks <- ranks %>% complete(method, casestudy)
   
   # average over datasets within case study
+  if (fill %in% c("FDR", "TPR")){
+    annot <- "nrejects"
+  }else{
+    annot <- annotate
+  }
+  
+  if(is.null(annot))
+    annot <- "propPossible"
   ranks_avg <- ranks %>% 
     group_by( casestudy, method) %>%
     summarize( mean_rank = mean(rank, na.rm = TRUE),
@@ -135,6 +156,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                mean_nrej = mean(nrejects, na.rm = TRUE),
                min_prop = min(propMaxRej, na.rm = TRUE),
                max_prop = max(propMaxRej, na.rm = TRUE),
+               topLayer = mean(get(annot), na.rm = TRUE),
                nsets = sum(!is.na(nrejects)))
   
   if(Nlabel){
@@ -233,6 +255,14 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         ylab("Method") +
         labs(fill = paste0("Mean ", fill))
     }
+    
+    if (!is.null(annotate)){
+      Fig <- Fig + 
+        geom_text(data = ranks_avg, 
+                  aes(label = ifelse(is.na(topLayer), "", 
+                                     sprintf("%.3f", round(topLayer,3)))))
+    }
+    
     return(Fig)
   }else{
     message("Line plot only supported for mean rank")
