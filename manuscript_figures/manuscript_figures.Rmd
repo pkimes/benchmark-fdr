@@ -55,7 +55,9 @@ alpha <- 0.10
 
 ```{r Figure2}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("yeast", objects) & grepl("de5", objects)] 
+resfile <- objects[grepl("yeast", objects) & 
+                   grepl("de5", objects) & 
+                  !grepl("_uninfCov", objects)] 
 de5 <- readRDS(file=resfile)
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
@@ -205,7 +207,8 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 # non-null
 wcs <- which(grepl("RNAseq", casestudy) & 
             !grepl(c("brain|mir|null|polyester"), dataset) &
-            !grepl("scRNAseq", casestudy))
+            !grepl("scRNAseq", casestudy) &
+            !grepl("_uninfCov", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
              unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
@@ -494,7 +497,7 @@ ggsave(file.path(outdir, "FigureS6.pdf"), width=7.5, height=4)
 ```{r}
 # non-null
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|null"), dataset) &
+            !grepl(c("brain|mir|polyester|null|_uninfCov"), dataset) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
@@ -520,7 +523,7 @@ plotMethodRanks(objs,
 
 # null
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|de"), dataset) &
+            !grepl(c("brain|mir|polyester|de|_uninfCov"), dataset) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
@@ -538,7 +541,7 @@ plotMethodRanks(objs,
 
 ```{r}
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|yeast|null"), dataset) &
+            !grepl(c("brain|mir|yeast|null|_uninfCov"), dataset) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
