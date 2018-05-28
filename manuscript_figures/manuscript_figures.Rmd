@@ -141,8 +141,9 @@ if (length(sim) > 0){
 # remove microbiome objects from 'null' comparisons
 # removing baxter, goodrich and papa OTU-level (since they mostly found 
 # nothing for all methods and the genus-level analysis is also present)
-null <- which(grepl(c("baxter|goodrich|papa"), objects) & 
-              grepl(c("otu"), objects))
+null <- which(grepl(c("goodrich|papa"), objects) & 
+              grepl(c("otu"), objects) | 
+              grepl("baxter", objects))
 
 if (length(null) > 0){
   objects <- objects[-null]
@@ -164,14 +165,13 @@ Fig4.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = 
                             tableOnly = TRUE)$method)
 Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha)
 Fig4
-ggsave(file.path(outdir, "Figure4a.pdf"), width=6, height=4)
 
+# not excluding any methods
 Fig4All.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha = alpha, 
                                tableOnly = TRUE, excludeMethods = NULL)$method)
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL)
 Fig4All
-ggsave(file.path(outdir, "Figure4a_all.pdf"), width=6, height=4)
 
 ```
 
@@ -462,10 +462,11 @@ ggsave(file.path(outdir, "FigureS5.pdf"), width=8, height=5.5)
 # excluding log-ubiquity
 # excluding enigma-so4 (no discoveries)
 wcs <- which(grepl("microbiome", casestudy) & 
-              !(grepl(c("baxter|goodrich|papa"), dataset) & 
+              !(grepl(c("goodrich|papa"), dataset) & 
               grepl(c("otu"), dataset)) &
               !grepl("log-ubiquity", dataset) &
-              !grepl("so4", dataset))
+              !grepl("so4", dataset) &
+              !grepl("baxter", dataset) )
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
                       function(x) x[1]))
