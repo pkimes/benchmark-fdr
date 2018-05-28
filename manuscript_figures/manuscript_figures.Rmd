@@ -215,24 +215,25 @@ pfdr <- plotMethodRanks(objs,
                 alpha = alpha, xlab = "Comparison",
                 fill = "FDR",
                 rowOrder = Fig4.rowOrder) +
-          scale_fill_gradient2(high = scales::muted("red"), 
+          scale_fill_gradient2(high = "red", 
                          mid = "white", 
-                         low = scales::muted("blue"), 
+                         low = "blue", 
                          midpoint = alpha)
 
 ptpr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
                 alpha = alpha, xlab = "Comparison",
                 fill = "TPR",
-                colorLow = scales::muted("blue"), 
+                colorLow = "blue", 
                 colorHigh = "white",
                 rowOrder = Fig4.rowOrder)  
 
-plot_grid(Fig4, pfdr + ylab("") + xlab(""), ptpr + ylab("") + xlab(""), 
-          ncol=3, rel_widths = c(1,0.3,0.3))
+ggdraw() +
+  draw_plot(pfdr + ylab("") + xlab(""), 0.57, 0, 0.22, 1) +
+  draw_plot(ptpr + ylab("") + xlab(""), 0.78, 0, 0.22, 1) +
+  draw_plot(Fig4, 0, 0, 0.60, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0.57), c(1, 1), size = 15)
 ggsave(file.path(outdir, "Figure4.pdf"), width=12, height=5)
-
-
 ```
 
 # Figure 5
