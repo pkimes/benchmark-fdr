@@ -28,10 +28,13 @@
 #' @param xlab character with the x label (default is "Case Study")   
 #' @param tableOnly logical whether or not to return a tibble of the summarized
 #'  results instead of a plot.
-#'  @param rowOrder numerical vector with order of rows/methods (default is 
+#' @param rowOrder numerical vector with order of rows/methods (default is 
 #'  NULL, which means rows will be ordered by mean fill value).
-#'  @param Nlabel logical whether or not to include the number of datasets 
-#'  averaged over in the x-axis casestudy label. Default is TRUE.
+#' @param Nlabel logical whether or not to include the number of datasets 
+#'  averaged over in the x-axis casestudy label. Default is TRUE. If FALSE
+#'  assumes each column represents one benchmark object (legend labels will not 
+#'  include the word "Mean").
+#' @author Keegan Korthauer  
 
 plotMethodRanks <- function(objects, colLabels, alpha = 0.10, 
                             colorLow = "navy", colorHigh = "yellow",
@@ -195,6 +198,10 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         xlab(xlab) +
         ylab("Method") +
         labs(fill = "Mean proportion\nmax rejections")
+      
+      if(!Nlabel)
+        Fig <- Fig +
+          labs(fill = "Proportion max\nrejections") 
     }else if (fill == "meanRank"){
       # reorder rows
       if (is.null(rowOrder))
@@ -208,6 +215,10 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         xlab(xlab) +
         ylab("Method") +
         labs(fill = "Mean rank")
+      
+      if(!Nlabel)
+        Fig <- Fig +
+        labs(fill = "Rank") 
     }else{
       # reorder rows
       if (is.null(rowOrder))
