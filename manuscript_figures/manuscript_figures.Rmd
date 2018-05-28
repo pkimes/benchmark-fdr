@@ -172,7 +172,6 @@ Fig4All.rowOrder <- levels(plotMethodRanks(objects, colLabels = casestudy, alpha
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL)
 Fig4All
-
 ```
 
 Extract a table of the values in Figure 4.
@@ -214,14 +213,19 @@ labs <- gsub(".rds", "",
 pfdr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
                 alpha = alpha, xlab = "Comparison",
-                colorLow = "yellow", colorHigh = "navy",
                 fill = "FDR",
-                rowOrder = Fig4.rowOrder) 
+                rowOrder = Fig4.rowOrder) +
+          scale_fill_gradient2(high = scales::muted("red"), 
+                         mid = "white", 
+                         low = scales::muted("blue"), 
+                         midpoint = alpha)
 
 ptpr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
                 alpha = alpha, xlab = "Comparison",
                 fill = "TPR",
+                colorLow = scales::muted("blue"), 
+                colorHigh = "white",
                 rowOrder = Fig4.rowOrder)  
 
 plot_grid(Fig4, pfdr + ylab("") + xlab(""), ptpr + ylab("") + xlab(""), 
