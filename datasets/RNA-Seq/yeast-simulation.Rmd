@@ -490,7 +490,7 @@ if (!file.exists(plotfile)){
   qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
                    qq =TRUE)
-  failed <- ifelse(sapply(null5, 
+  failed <- ifelse(sapply(null10, 
                           function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
                    "Failed", "OK")
   pdf(plotfile, width=4, height=4)
@@ -560,7 +560,7 @@ if (!file.exists(plotfile)){
   qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
                    qq =TRUE)
-  failed <- ifelse(sapply(null5, 
+  failed <- ifelse(sapply(de5, 
                           function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
                    "Failed", "OK")
   pdf(plotfile, width=4, height=4)
@@ -631,7 +631,7 @@ if (!file.exists(plotfile)){
   qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
                    qq =TRUE)
-  failed <- ifelse(sapply(null5, 
+  failed <- ifelse(sapply(de10, 
                           function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
                    "Failed", "OK")
   pdf(plotfile, width=4, height=4)
