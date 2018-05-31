@@ -278,8 +278,10 @@ looped over many replications and results averaged over them.
 #' @param uninformativeCovariate logical indicating whether to replace overall mean 
 #'  independent covariate with a randomly generated (uninformative) covariate. 
 #'  Default is FALSE.
+#' @param qq logical whether to return qqplot of test statistics (for diagnosing
+#'  problems with Scott method)
 simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
-                             bd, uninformativeCovariate = FALSE){
+                             bd, uninformativeCovariate = FALSE, qq = FALSE){
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -316,7 +318,12 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
   resultsNames(dds_test) # lists the coefficients
   resTEST <- results(dds_test, name="fake_B_vs_A", independentFiltering = FALSE)
 
- 
+  if(qq){
+    return(ggplot(data.frame(resTEST), aes(sample = stat)) + 
+             geom_qq() +
+             geom_abline())
+  }
+  
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
                                pval=resTEST$pvalue, 
                                SE=resTEST$lfcSE, 
@@ -408,6 +415,23 @@ if (!file.exists(resfile_n5)){
 }else{
   null5 <- readRDS(file = resfile_n5)
 }
+
+# qqplots
+plotfile <- file.path(datdir, "null5_qqplots.pdf")
+if (!file.exists(plotfile)){
+  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                   qq =TRUE)
+  failed <- ifelse(sapply(null5, 
+                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
+                   "Failed", "OK")
+  pdf(plotfile, width=4, height=4)
+  for(i in 1:length(qqs)){
+    print(qqs[[i]] +
+      ggtitle(paste0(failed[i])))
+  }
+  dev.off()
+}
 ```
 
 ## Plot average results over replications
@@ -457,6 +481,24 @@ if (!file.exists(resfile_n10)){
   saveRDS(null10, file = resfile_n10)
 }else{
   null10 <- readRDS(file = resfile_n10)
+}
+
+
+# qqplots
+plotfile <- file.path(datdir, "null10_qqplots.pdf")
+if (!file.exists(plotfile)){
+  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                   qq =TRUE)
+  failed <- ifelse(sapply(null5, 
+                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
+                   "Failed", "OK")
+  pdf(plotfile, width=4, height=4)
+  for(i in 1:length(qqs)){
+    print(qqs[[i]] +
+      ggtitle(paste0(failed[i])))
+  }
+  dev.off()
 }
 ```
 
@@ -511,6 +553,23 @@ if (!file.exists(resfile_d5)){
 }else{
   de5 <- readRDS(file = resfile_d5)
 }
+
+# qqplots
+plotfile <- file.path(datdir, "de5_qqplots.pdf")
+if (!file.exists(plotfile)){
+  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                   qq =TRUE)
+  failed <- ifelse(sapply(null5, 
+                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
+                   "Failed", "OK")
+  pdf(plotfile, width=4, height=4)
+  for(i in 1:length(qqs)){
+    print(qqs[[i]] +
+      ggtitle(paste0(failed[i])))
+  }
+  dev.off()
+}
 ```
 
 ## Plot average results over replications
@@ -564,6 +623,23 @@ if(!file.exists(resfile_d10)){
   saveRDS(de10, file = resfile_d10)
 }else{
   de10 <- readRDS(file = resfile_d10)
+}
+
+# qqplots
+plotfile <- file.path(datdir, "de10_qqplots.pdf")
+if (!file.exists(plotfile)){
+  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                   qq =TRUE)
+  failed <- ifelse(sapply(null5, 
+                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
+                   "Failed", "OK")
+  pdf(plotfile, width=4, height=4)
+  for(i in 1:length(qqs)){
+    print(qqs[[i]] +
+      ggtitle(paste0(failed[i])))
+  }
+  dev.off()
 }
 ```
 
