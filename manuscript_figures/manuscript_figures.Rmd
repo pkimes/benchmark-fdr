@@ -366,6 +366,92 @@ ggsave(file.path(outdir, "FigureS0A-B.pdf"), width=10, height=4)
 
 ```
 
+## Uninformative covariate impact on simulations
+
+Here we'll contrast the results of informative and uninformative covariates 
+on the yeast simulation (null and DE sample size 5).
+
+
+```{r FigureS7}
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("yeast", objects) & 
+                   grepl("de5|null5", objects)] 
+de5 <- readRDS(file=resfile[grepl("de5", resfile) & !grepl("uninf", resfile)])
+de5_uninf <- readRDS(file=resfile[grepl("de5", resfile) & grepl("uninf", resfile)])
+null5 <- readRDS(file=resfile[grepl("null5", resfile) & !grepl("uninf", resfile)])
+null5_uninf <- readRDS(file=resfile[grepl("null5", resfile) & grepl("uninf", resfile)])
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+res5d_u <- plotsim_standardize(de5_uninf, alpha = seq(0.01, 0.10, 0.01))
+res5n <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
+res5n_u <- plotsim_standardize(null5_uninf, alpha = seq(0.01, 0.10, 0.01))
+
+pa <- plotsim_average(res5n_u, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        expand_limits(y=.7) +
+        xlab("") +
+        ggtitle("")
+
+pb <- plotsim_average(res5n, met="TNR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        theme(legend.position="none", plot.title = element_text(hjust = 0.5))+
+        expand_limits(y=.7) +
+        xlab("") +
+        ggtitle("")
+
+pc <- plotsim_average(res5d_u, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        theme(legend.position="none") +
+        expand_limits(y=0.2) +
+        xlab("") +
+        ggtitle("")
+
+pd <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        theme(legend.position="none") +
+        expand_limits(y=0.2) +
+        xlab("") +
+        ggtitle("")
+
+pe <- plotsim_average(res5d_u, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        theme(legend.position="none") +
+        expand_limits(y=0.33) +
+        ggtitle("")
+
+pf <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) +
+        theme(legend.position="none") +
+        expand_limits(y=0.33) +
+        ggtitle("")
+
+
+leg <- get_legend(pa)
+pa <- pa + theme(legend.position="none", plot.title = element_text(hjust = 0.5)) 
+
+FigT  <- plot_grid(pa, pb, ncol = 2, 
+          #labels = LETTERS[1:2], 
+          label_size = 20)
+
+FigB  <- plot_grid(pc, pd, pe, pf, ncol = 2, 
+          #labels = LETTERS[3:6], 
+          label_size = 20)
+
+Fig <- ggdraw() +
+  draw_plot(FigT + ylab("") + xlab(""), 0, 0.64, 1, 0.3) +
+  draw_plot(FigB + ylab("") + xlab(""), 0.005, 0, 1, 0.6) +
+  draw_plot_label(c("Uninformative Covariate", "Informative Covariate"), 
+                  c(0.14, 0.64), c(1,1), c(0,0), size = 15) +
+  draw_plot_label(c("Null Simulation", "DE Simulation"), 
+                  c(0.36, 0.37), c(0.96,0.62), size = 13) 
+
+Fig <- plot_grid(Fig, leg, ncol = 2, rel_widths = c(1, 0.2))
+Fig
+ggsave(file.path(outdir, "FigureS7.pdf"), width=10, height=11)
+
+```
+
 ## Within case-study heatmaps of method rankings 
 
 Here we generate heatmaps for each case study, where each column represents a different
