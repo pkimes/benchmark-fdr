@@ -107,6 +107,13 @@ file.remove(file.path(datdir, "Snf2_countdata.tar"),
 Each of the data files contains two columns, one with a gene/feature name, and one
 with the count value.
 
+We'll also download the list of 'bad' replicates which were especially poorly 
+correlated to the others, as determined by the authors.
+
+```{r}
+download.file(url = "https://github.com/bartongroup/profDGE48/raw/master/Bad_replicate_identification/exclude.lst", destfile = (file.path(datdir, "badreps.txt")))
+```
+
 ## Read data into R and create a count table
 
 Here we make use of the map and map2 functions in the `purrr` package, to swiftly 
@@ -118,11 +125,14 @@ Finally, the `reduce` function is used to join all the replicates together.
 files <- dir(path = datdir, pattern = "*.bam.gbgout", full.names = TRUE)
 sample_names <- sapply(strsplit(dir(path = datdir, pattern = "*.bam.gbgout"), "_MID"),
                        function(x) x[[1]])
+badreps <- read_tsv(file.path(datdir, "badreps.txt"), col_names = FALSE)$X1
+badreps <- unlist(lapply(strsplit(badreps, "_MID"), function(x) x[1]))
 
 counts <- files %>%
   purrr::map(read_tsv, col_names = FALSE) %>% # read in all the files individually
   purrr::map2(sample_names, ~ dplyr:::rename(.x, !! .y := X2, feature = X1) ) %>% # add sample names
-  purrr::reduce(left_join, by = "feature") # reduce with rbind into one dataframe
+  purrr::reduce(left_join, by = "feature") %>% # reduce with rbind into one dataframe
+  dplyr::select(-badreps ) # remove badreps
 ```
 
 # Analysis of full 48v48 (non-null)
