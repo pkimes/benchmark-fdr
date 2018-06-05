@@ -54,30 +54,6 @@ B <- 100
 bd <- initializeBenchDesign()
 ```
 
-As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
-for simulations with Gaussian or t-distributed noise. Again, we include both
-`nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
-series of simulations use test statistics simulated with Gaussian noise, we include
-Scott's FDR Regression in all of the comparisons.
-
-```{r}
-bdplus <- bd
-bdplus <- addBMethod(bdplus, "scott-theoretical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = test_statistic,
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'theoretical',
-                     control = list(lambda = 0.01))
-bdplus <- addBMethod(bdplus, "scott-empirical",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = test_statistic,
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'empirical',
-                     control = list(lambda = 0.01))
-```
-
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
@@ -115,7 +91,7 @@ We next run the simulations.
 if (file.exists(spiky_file)) {
     res <- readRDS(spiky_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -129,7 +105,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r spiky-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -201,7 +177,7 @@ We next run the simulations.
 if (file.exists(flattop_file)) {
     res <- readRDS(flattop_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -215,7 +191,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r flattop-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -287,7 +263,7 @@ We next run the simulations.
 if (file.exists(skew_file)) {
     res <- readRDS(skew_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -301,7 +277,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r skew-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -373,7 +349,7 @@ We next run the simulations.
 if (file.exists(bimodal_file)) {
     res <- readRDS(bimodal_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -387,7 +363,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r bimodal-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 

@@ -74,6 +74,14 @@ bdplus <- addBMethod(bdplus, "scott-empirical",
                      control = list(lambda = 0.01))
 ```
 
+Since all simulation settings in this case study use t-distributed noise, we must specify
+the number of degrees of freedom for ASH. We add an additional parameter to the `ashq`
+method with the corresponding degrees of freedom of the noise distribution.
+
+```{r}
+bdplus <- modifyBMethod(bdplus, "ashq", df = 5)
+```
+
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
