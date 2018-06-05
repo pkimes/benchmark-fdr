@@ -288,10 +288,10 @@ looped over many replications and results averaged over them.
 #' @param uninformativeCovariate logical indicating whether to replace overall mean 
 #'  independent covariate with a randomly generated (uninformative) covariate. 
 #'  Default is FALSE.
-#' @param qq logical whether to return qqplot of test statistics (for diagnosing
-#'  problems with Scott method)
+#' @param pvalHists logical whether to return histograms of pvalues by covariate
+#'  instead of SB objects
 simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
-                             bd, uninformativeCovariate = FALSE, qq = FALSE){
+                             bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -315,53 +315,62 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
     names(truth) <- rownames(dds_test)
  
     # randomly sample a log2FC from original FCs (without regard to DE)
+    counts_new <- counts(dds_test)
     log2FC <- rep(0, nrow(dds_test))
     log2FC[DE] <- resFULL$log2FoldChange[DE]
 
-    counts_new <- counts(dds_test)
-    counts_new[,colData(dds_test)$fake=="A"] <- counts(dds_test)[,colData(dds_test)$fake=="A"] * 2^log2FC
+    # randomize which condition is shifted up or down
+    ran <- runif(nrow(dds_test)) 
+    multiplier <- ifelse(ran < 0.5, 2^log2FC, 1/(2^log2FC))
+    refcond <- ifelse(ran < 0.5, "A", "B")
+    down <- which(ran < 0.5)
+    
+    counts_new[down,colData(dds_test)$fake==unique(refcond[down])] <- 
+        counts(dds_test)[down, colData(dds_test)$fake==unique(refcond[down])] *
+        multiplier[down]
+    counts_new[-down,colData(dds_test)$fake==unique(refcond[-down])] <- 
+        counts(dds_test)[-down, colData(dds_test)$fake==unique(refcond[-down])] *
+        multiplier[-down]
+           
     counts_new <- apply(counts_new, 2, as.integer)
+    
+    
     counts(dds_test) <- counts_new
   }
+  
+  # replace existing size factors 
+  dds_test <- estimateSizeFactors(dds_test)
   
   dds_test <- DESeq(dds_test, parallel = FALSE)
   resultsNames(dds_test) # lists the coefficients
   resTEST <- results(dds_test, name="fake_B_vs_A", independentFiltering = FALSE)
-
-  if(qq){
-    return(ggplot(data.frame(resTEST), aes(sample = stat)) + 
-             geom_qq() +
-             geom_abline())
-  }
   
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
                                pval=resTEST$pvalue, 
-                               SE=resTEST$lfcSE, 
-                               ind_covariate = ifelse(uninformativeCovariate, 
-                                                      rnorm(nrow(resTEST)),
-                                                      resTEST$baseMean),
+                               SE=resTEST$lfcSE,                 
+                               ind_covariate = resTEST$baseMean,
                                effect_size = resTEST$log2FoldChange, 
                                test_statistic = resTEST$stat,
                                qvalue = truth,
                                pzero = rowSums(counts(dds_test)==0)/
-                                       ncol(counts(dds_test))  ))
+                                       ncol(counts(dds_test)))) %>%
+                dplyr::filter(!is.na(pval)) 
   
-  # filter NAs and those with less than 50% expressed 
-  geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+  if(uninformativeCovariate)
+    geneExp$ind_covariate <- rnorm(nrow(geneExp))
+  
+   if(pvalHists){
+    return(strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy =10))
+  }
 
   sb <- bd %>% buildBench(data=geneExp, parallel = FALSE, 
                           truthCols = "qvalue",
                           ftCols = "ind_covariate")
   
   assayNames(sb) <- "qvalue"
-sb <- addDefaultMetrics(sb)
-  pf <- estimatePerformanceMetrics(sb, tidy=TRUE, alpha=seq(0.01, 0.1, 0.01))
-pf %>% filter(performanceMetric %in% c("rejections", "FDR", "TPR")) %>%
-  with(table(is.na(value), blabel, performanceMetric))
-
-
+  sb <- addDefaultMetrics(sb)
   rowData(sb)$log2FC <- geneExp$effect_size
-  
+    
   return(sb)
 }
  
@@ -425,23 +434,6 @@ if (!file.exists(resfile_n5)){
 }else{
   null5 <- readRDS(file = resfile_n5)
 }
-
-# qqplots
-plotfile <- file.path(datdir, "null5_qqplots.pdf")
-if (!file.exists(plotfile)){
-  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   qq =TRUE)
-  failed <- ifelse(sapply(null5, 
-                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
-                   "Failed", "OK")
-  pdf(plotfile, width=4, height=4)
-  for(i in 1:length(qqs)){
-    print(qqs[[i]] +
-      ggtitle(paste0(failed[i])))
-  }
-  dev.off()
-}
 ```
 
 ## Plot average results over replications
@@ -493,23 +485,6 @@ if (!file.exists(resfile_n10)){
   null10 <- readRDS(file = resfile_n10)
 }
 
-
-# qqplots
-plotfile <- file.path(datdir, "null10_qqplots.pdf")
-if (!file.exists(plotfile)){
-  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   qq =TRUE)
-  failed <- ifelse(sapply(null10, 
-                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
-                   "Failed", "OK")
-  pdf(plotfile, width=4, height=4)
-  for(i in 1:length(qqs)){
-    print(qqs[[i]] +
-      ggtitle(paste0(failed[i])))
-  }
-  dev.off()
-}
 ```
 
 ## Plot average results over replications
@@ -546,7 +521,7 @@ if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 # Sim D5: DE Comparison 5v5
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 Snf2 samples,
-where the groups are selected randomly and 500 DE genes are added. 
+where the groups are selected randomly and 2000 DE genes are added. 
 This will be done for 100 random splits.
 
 ## Generate a list of SB results objects
@@ -554,7 +529,7 @@ This will be done for 100 random splits.
 ```{r d5, results='hide', message=FALSE}
 rseed <- 198
 sampleSize <- 5
-nDE <- 500
+nDE <- 2000
 
 if (!file.exists(resfile_d5)){
   de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -564,19 +539,15 @@ if (!file.exists(resfile_d5)){
   de5 <- readRDS(file = resfile_d5)
 }
 
-# qqplots
-plotfile <- file.path(datdir, "de5_qqplots.pdf")
+# pvalue histograms
+plotfile <- file.path(datdir, "de5_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   qq =TRUE)
-  failed <- ifelse(sapply(de5, 
-                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
-                   "Failed", "OK")
-  pdf(plotfile, width=4, height=4)
-  for(i in 1:length(qqs)){
-    print(qqs[[i]] +
-      ggtitle(paste0(failed[i])))
+                   pvalHists = TRUE)
+  pdf(plotfile, width=8, height=4)
+  for(i in 1:length(hists)){
+    print(hists[[i]])
   }
   dev.off()
 }
@@ -617,7 +588,7 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 # Sim D10: DE Comparison 10v10
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 Snf2 samples,
-where the groups are selected randomly and 500 DE genes are added.
+where the groups are selected randomly and 2000 DE genes are added.
 This will be done for 100 random splits.
 
 ## Generate a list of SB results objects
@@ -625,7 +596,7 @@ This will be done for 100 random splits.
 ```{r d10, results='hide', message=FALSE}
 rseed <- 961
 sampleSize <- 10
-nDE <- 500
+nDE <- 2000
 
 if(!file.exists(resfile_d10)){
   de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -635,19 +606,15 @@ if(!file.exists(resfile_d10)){
   de10 <- readRDS(file = resfile_d10)
 }
 
-# qqplots
-plotfile <- file.path(datdir, "de10_qqplots.pdf")
+# pvalue histograms
+plotfile <- file.path(datdir, "de10_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  qqs <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
+  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
                    resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   qq =TRUE)
-  failed <- ifelse(sapply(de10, 
-                          function(x) sum(is.na(assays(x)$qvalue[,22])) > 0),
-                   "Failed", "OK")
-  pdf(plotfile, width=4, height=4)
-  for(i in 1:length(qqs)){
-    print(qqs[[i]] +
-      ggtitle(paste0(failed[i])))
+                   pvalHists = TRUE)
+  pdf(plotfile, width=8, height=4)
+  for(i in 1:length(hists)){
+    print(hists[[i]])
   }
   dev.off()
 }
@@ -808,7 +775,7 @@ if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 ## Sim D5: DE Comparison 5v5
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 Snf2 samples,
-where the groups are selected randomly and 500 DE genes are added. 
+where the groups are selected randomly and 2000 DE genes are added. 
 This will be done for 100 random splits.
 
 ### Generate a list of SB results objects
@@ -816,7 +783,7 @@ This will be done for 100 random splits.
 ```{r d5-uc, results='hide', message=FALSE}
 rseed <- 198
 sampleSize <- 5
-nDE <- 500
+nDE <- 2000
 
 if (!file.exists(resfile_d5_uninfCov)){
   de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
@@ -863,7 +830,7 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 ## Sim D10: DE Comparison 10v10
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 Snf2 samples,
-where the groups are selected randomly and 500 DE genes are added.
+where the groups are selected randomly and 2000 DE genes are added.
 This will be done for 100 random splits.
 
 ### Generate a list of SB results objects
@@ -871,7 +838,7 @@ This will be done for 100 random splits.
 ```{r d10-uc, results='hide', message=FALSE}
 rseed <- 961
 sampleSize <- 10
-nDE <- 500
+nDE <- 2000
 
 if(!file.exists(resfile_d10_uninfCov)){
   de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 

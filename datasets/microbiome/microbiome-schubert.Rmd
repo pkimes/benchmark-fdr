@@ -169,7 +169,7 @@ rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ### Mean Abundance (across non-zero samples)
 
 ```{r, schubert-abun, fig.width=10, fig.height=3.2, eval=TRUE}
-strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
+strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=17, binwidth=0.05)
 ```
 
 ```{r, schubert-abun-scatter, fig.width=4.5, fig.height=3.5}
