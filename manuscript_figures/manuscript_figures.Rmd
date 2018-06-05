@@ -44,7 +44,7 @@ for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
 # dataset names later on will be incorrect)
 path <- "../results"
 
-# set up results directorie
+# set up results directory
 outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
@@ -57,7 +57,8 @@ alpha <- 0.10
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast", objects) & 
                    grepl("de5", objects) & 
-                  !grepl("-uninfCov", objects)] 
+                  !grepl("uninfCov", objects)] 
+                  !grepl("uninfCov", objects)] 
 de5 <- readRDS(file=resfile)
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
@@ -208,7 +209,7 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 wcs <- which(grepl("RNAseq", casestudy) & 
             !grepl(c("brain|mir|null|polyester"), dataset) &
             !grepl("scRNAseq", casestudy) &
-            !grepl("-uninfCov", casestudy))
+            !grepl("uninfCov", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
              unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
@@ -583,7 +584,7 @@ ggsave(file.path(outdir, "FigureS6.pdf"), width=7.5, height=4)
 ```{r}
 # non-null
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|null|-uninfCov"), objects) &
+            !grepl(c("brain|mir|polyester|null|uninfCov"), objects) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
@@ -609,7 +610,7 @@ plotMethodRanks(objs,
 
 # null
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|de|-uninfCov"), objects) &
+            !grepl(c("brain|mir|polyester|de|uninfCov"), objects) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
@@ -627,7 +628,7 @@ plotMethodRanks(objs,
 
 ```{r}
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|yeast|null|-uninfCov"), objects) &
+            !grepl(c("brain|mir|yeast|null|uninfCov"), objects) &
             !grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
@@ -664,6 +665,99 @@ plotMethodRanks(objs,
                 colLabels = labs, 
                 alpha = alpha, xlab = "Comparison",
                 excludeMethods = NULL) 
+```
+
+
+# Alternative Supplementary Figures
+
+## All Case Studies
+
+This plot is an alternative to Supplementary Figures S1-S6.
+We include all case studies in a single plot.
+
+```{r}
+## read list of case study results
+objects <- list.files(path, recursive=TRUE, pattern="rds", full.names=TRUE)
+
+## exclude yeast and polyester simulations
+objects <- objects[!grepl("yeast", objects) & !grepl("polyester", objects)]
+
+## create shorter names for case studies
+object_labs <- gsub("\\.rds", "", basename(objects))
+object_labs <- gsub("-benchmark", "", object_labs)
+
+## read in case study results (proportion of rejects vs. case study max)
+objdat <- tidy_df(objects, object_labs, "propMaxRejections", NULL)
+objdat <- as_tibble(objdat)
+objdat <- tidyr::complete(objdat, method, casestudy)
+
+## exclude 'enigma-so4-otus' results with no significant calls
+objdat <- dplyr::filter(objdat, casestudy != "enigma-so4-otus")
+
+## create table of case study-to-assay mapping
+studies <- tibble(
+    casestudy = c("cbp-csaw", "h3k4me3-csaw", "human", "mouse", "bmi-maf", "bmi-samplesize",
+                  "enigma-al-otus", "enigma-ph-otus", "enigma-so4-otus", "goodrich-genus",
+                  "papa-genus", "schubert-otus", "brain", "mir200c",
+                  "human-mast-det", "human-mast-mean", "human-scdd-det",
+                  "human-scdd-mean", "human-wilcox-det", "human-wilcox-mean",
+                  "mouse-mast-det", "mouse-mast-mean", "mouse-scdd-det",
+                  "mouse-scdd-mean", "mouse-wilcox-det", "mouse-wilcox-mean"),
+    assay = c(rep("ChIP-seq", 2), rep("GSEA", 2), rep("GWAS", 2), rep("Microbiome", 6),
+              rep("RNA-seq", 2), rep("scRNA-seq", 12)))
+
+## add assay labels to results table
+objdat <- left_join(objdat, studies, by = "casestudy")
+objdat <- dplyr::filter(objdat, !is.na(assay))
+
+
+## create table of total tests for each case study
+objdat_tab <- dplyr::select(objdat_props, casestudy, nrejects, propPossible, assay)
+objdat_tab <- dplyr::distinct(objdat_tab)
+objdat_tab <- dplyr::mutate(objdat_tab, `Total Tests` = scales::comma(round(nrejects / propPossible)))
+
+## hack to get total counts and heatmap in same plot
+objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow")
+
+## specify method order
+method_order <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
+                  "scott-empirical", "scott-theoretical", "ashq")
+objdat_joint <- dplyr::mutate(objdat_joint, method = factor(method, levels = c(method_order, "Total Tests")))
+
+
+## create table of rejected proportion for top methods per case study
+objdat_props <- dplyr::group_by(objdat, casestudy)
+objdat_props <- dplyr::filter(objdat_props, nrejects == max(nrejects, na.rm = TRUE))
+objdat_props <- dplyr::ungroup(objdat_props)
+objdat_props <- dplyr::mutate(objdat_props,
+                              lab = paste0(nrejects, "\n(", 100*round(propPossible, 4), "%)"))
+objdat_props$plotrow <- "real"
+```
+
+```{r, fig.width = 12, fig.height = 5}
+SFigAlt <- ggplot(objdat_joint, aes(x = casestudy, y = method, fill = propMaxRej)) +
+    scale_x_discrete("Case Study", expand = c(0, 0)) +
+    scale_y_discrete("Method", expand = c(0, 0)) +
+    geom_tile() +
+    geom_text(aes(label = lab), data = objdat_props, size = 1.8, color = "white") +
+    geom_tile(data = filter(objdat_joint, plotrow == "fake"), fill = "white") + 
+    geom_text(aes(label = cnt), data = dplyr::filter(objdat_joint, !is.na(cnt)), size = 2) + 
+    scale_fill_distiller("% Rejected\n(relative to max)",
+                         palette = "Blues", direction = 1, limits = c(0, 1),
+                         labels = scales::percent) +
+    facet_grid(plotrow ~ assay, scales = "free", space = "free") +
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+          strip.text.y = element_blank(),
+          legend.position = c(.99, .85), legend.justification = c(1, 1),
+          legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+          legend.direction = "horizontal",
+          legend.text = element_text(size = 7),
+          legend.title = element_text(size = 9),
+          legend.margin = margin(6, 10, 6, 10))
+SFigAlt
+
+ggsave(file.path(outdir, "FigureSAlt.pdf"), gp, width = 12, height = 5)
 ```
 
 # Session information

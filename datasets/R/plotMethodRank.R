@@ -53,66 +53,6 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                             Nlabel = TRUE,
                             annotate = "propPossible"){
   fill <- match.arg(fill)
-  tidy_df <- function(objects, colLabels, fill, annotate){
-    # create tidy data frame where each row is a method / dataset observation
-    # of a rank 
-    ranks <- data.frame()
-    
-    for (i in seq_along(objects)){
-      if ( class(objects[[i]]) == "character") {
-        x <- readRDS(objects[i])
-      }else if ( class(objects[[i]]) == "SummarizedBenchmark") {
-        x <- objects[[i]]
-      }
-      
-      assayNames(x) <- "qvalue"
-      x <- addDefaultMetrics( x )
-      
-      hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, sum)
-      NAmethods <- names(hasResults)[hasResults == 0]
-      
-      if (fill %in% c("propMaxRejections", "meanRank")){
-        pmcol <- "rejections"
-      }else{
-        pmcol <- fill
-      }
-      
-      if (sum(hasResults) > 0){
-        tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE)
-        if (fill %in% c("TPR", "FDR") && !(fill %in% tmp$performanceMetric))
-          stop(fill, " is not found in performanceMetrics")
-        
-        if (!is.null(annotate)){
-          if (annotate %in% c("TPR", "FDR") && !(annotate %in% tmp$performanceMetric))
-            stop(annotate, " is not found in performanceMetrics")
-        }
-        
-        tmp <- tmp %>%
-          dplyr::filter( performanceMetric == pmcol) %>%
-          dplyr::rename( method = blabel) %>%
-          dplyr::filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
-          dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
-          dplyr::filter( !method == "unadjusted") %>%
-          dplyr::filter( !(method %in% NAmethods)) %>%
-          select( method, value ) %>%
-          dplyr::rename( nrejects = value) %>%
-          mutate( method = gsub("-df03", "", method)) %>%
-          mutate( method = gsub("(-a)(.*)", "", method)) %>%
-          na.omit() %>%
-          mutate( rank = rank(nrejects) / n(),
-                  propMaxRej = ifelse(nrejects == min(nrejects) & 
-                                      nrejects == max(nrejects) &
-                                      nrejects == 0, 0, 
-                                      nrejects / max(nrejects, na.rm = TRUE)),
-                  propPossible = nrejects / nrow(x)) %>%
-          mutate(casestudy = colLabels[i])
-        
-        ranks <- rbind(ranks, tmp)
-      }
-    }
-    return(ranks)
-  }
-  
   if (is.list(readRDS(objects[1]))){
     ranks <- data.frame()
     
@@ -278,3 +218,66 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     return(Fig)
   }  
 }
+
+
+
+tidy_df <- function(objects, colLabels, fill, annotate){
+    ## create tidy data frame where each row is a method / dataset observation
+    ## of a rank 
+    ranks <- data.frame()
+    
+    for (i in seq_along(objects)){
+        if ( class(objects[[i]]) == "character") {
+            x <- readRDS(objects[i])
+        }else if ( class(objects[[i]]) == "SummarizedBenchmark") {
+            x <- objects[[i]]
+        }
+        
+        assayNames(x) <- "qvalue"
+        x <- addDefaultMetrics( x )
+        
+        hasResults <- apply(!is.na( assays(x)[["qvalue"]] ), 2, sum)
+        NAmethods <- names(hasResults)[hasResults == 0]
+        
+        if (fill %in% c("propMaxRejections", "meanRank")){
+            pmcol <- "rejections"
+        }else{
+            pmcol <- fill
+        }
+        
+        if (sum(hasResults) > 0){
+            tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE)
+            if (fill %in% c("TPR", "FDR") && !(fill %in% tmp$performanceMetric))
+                stop(fill, " is not found in performanceMetrics")
+            
+            if (!is.null(annotate)){
+                if (annotate %in% c("TPR", "FDR") && !(annotate %in% tmp$performanceMetric))
+                    stop(annotate, " is not found in performanceMetrics")
+            }
+            
+            tmp <- tmp %>%
+                dplyr::filter( performanceMetric == pmcol) %>%
+                dplyr::rename( method = blabel) %>%
+                dplyr::filter( is.na(param.alpha) | (param.alpha == alpha)) %>%
+                dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
+                dplyr::filter( !method == "unadjusted") %>%
+                dplyr::filter( !(method %in% NAmethods)) %>%
+                select( method, value ) %>%
+                dplyr::rename( nrejects = value) %>%
+                mutate( method = gsub("-df03", "", method)) %>%
+                mutate( method = gsub("(-a)(.*)", "", method)) %>%
+                na.omit() %>%
+                mutate( rank = rank(nrejects) / n(),
+                       propMaxRej = ifelse(nrejects == min(nrejects) & 
+                                           nrejects == max(nrejects) &
+                                           nrejects == 0, 0, 
+                                           nrejects / max(nrejects, na.rm = TRUE)),
+                       propPossible = nrejects / nrow(x)) %>%
+                mutate(casestudy = colLabels[i])
+            
+            ranks <- rbind(ranks, tmp)
+        }
+    }
+    return(ranks)
+}
+
