@@ -667,7 +667,6 @@ plotMethodRanks(objs,
                 excludeMethods = NULL) 
 ```
 
-
 # Alternative Supplementary Figures
 
 ## All Case Studies
@@ -710,11 +709,19 @@ studies <- tibble(
 objdat <- left_join(objdat, studies, by = "casestudy")
 objdat <- dplyr::filter(objdat, !is.na(assay))
 
+## create table of rejected proportion for top methods per case study
+objdat_props <- dplyr::group_by(objdat, casestudy)
+objdat_props <- dplyr::filter(objdat_props, nrejects == max(nrejects, na.rm = TRUE))
+objdat_props <- dplyr::ungroup(objdat_props)
+objdat_props <- dplyr::mutate(objdat_props, lab = paste0(100*round(propPossible, 4), "%"))
+objdat_props$plotrow <- "real"
 
 ## create table of total tests for each case study
 objdat_tab <- dplyr::select(objdat_props, casestudy, nrejects, propPossible, assay)
 objdat_tab <- dplyr::distinct(objdat_tab)
 objdat_tab <- dplyr::mutate(objdat_tab, `Total Tests` = scales::comma(round(nrejects / propPossible)))
+objdat_tab <- dplyr::select(objdat_tab, casestudy, assay, `Total Tests`) 
+objdat_tab <- tidyr::gather(objdat_tab, method, cnt, -casestudy, -assay)
 
 ## hack to get total counts and heatmap in same plot
 objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow")
@@ -723,15 +730,6 @@ objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow
 method_order <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
                   "scott-empirical", "scott-theoretical", "ashq")
 objdat_joint <- dplyr::mutate(objdat_joint, method = factor(method, levels = c(method_order, "Total Tests")))
-
-
-## create table of rejected proportion for top methods per case study
-objdat_props <- dplyr::group_by(objdat, casestudy)
-objdat_props <- dplyr::filter(objdat_props, nrejects == max(nrejects, na.rm = TRUE))
-objdat_props <- dplyr::ungroup(objdat_props)
-objdat_props <- dplyr::mutate(objdat_props,
-                              lab = paste0(nrejects, "\n(", 100*round(propPossible, 4), "%)"))
-objdat_props$plotrow <- "real"
 ```
 
 ```{r, fig.width = 12, fig.height = 5}
