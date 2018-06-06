@@ -755,7 +755,7 @@ SFigAlt <- ggplot(objdat_joint, aes(x = casestudy, y = method, fill = propMaxRej
           legend.margin = margin(6, 10, 6, 10))
 SFigAlt
 
-ggsave(file.path(outdir, "FigureSAlt.pdf"), gp, width = 12, height = 5)
+ggsave(file.path(outdir, "FigureSAlt.pdf"), SFigAlt, width = 12, height = 5)
 ```
 
 # Session information
