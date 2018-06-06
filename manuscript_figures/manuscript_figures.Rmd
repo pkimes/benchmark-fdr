@@ -390,41 +390,41 @@ res5n_u <- plotsim_standardize(null5_uninf, alpha = seq(0.01, 0.10, 0.01))
 
 pa <- plotsim_average(res5n_u, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
-        expand_limits(y=.7) +
+        expand_limits(y=0.93) +
         xlab("") +
         ggtitle("")
 
 pb <- plotsim_average(res5n, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
         theme(legend.position="none", plot.title = element_text(hjust = 0.5))+
-        expand_limits(y=.7) +
+        expand_limits(y=.93) +
         xlab("") +
         ggtitle("")
 
 pc <- plotsim_average(res5d_u, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
         theme(legend.position="none") +
-        expand_limits(y=0.2) +
+        expand_limits(y=0.18) +
         xlab("") +
         ggtitle("")
 
 pd <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
         theme(legend.position="none") +
-        expand_limits(y=0.2) +
+        expand_limits(y=0.18) +
         xlab("") +
         ggtitle("")
 
 pe <- plotsim_average(res5d_u, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
         theme(legend.position="none") +
-        expand_limits(y=0.33) +
+        expand_limits(y=c(0.10,0.55)) +
         ggtitle("")
 
 pf <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
         theme(legend.position="none") +
-        expand_limits(y=0.33) +
+        expand_limits(y=c(0.10,0.55)) +
         ggtitle("")
 
 
