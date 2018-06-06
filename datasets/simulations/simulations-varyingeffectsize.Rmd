@@ -15,7 +15,7 @@ output:
 In this set of simulations, we consider settings with both null and non-null
 tests with varying distribution of effect sizes under the non-null (alternative)
 setting. An informative covariate is included in the setting as described in
-`simulations-informative-sine.Rmd`. 
+`simulations-informative-cubic.Rmd`. 
 
 
 # Workspace Setup
@@ -77,7 +77,7 @@ All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                          # integer: number of hypothesis tests
-pi0 <- pi0_sine(0.90)               # numeric: proportion of null hypotheses
+pi0 <- pi0_cubic(0.90)              # numeric: proportion of null hypotheses
 tstat_dist <- rnorm_perturber(1/2)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1/2)    # functional: dist to calc p-values
 icovariate <- runif                 # functional: independent covariate

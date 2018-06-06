@@ -14,7 +14,7 @@ output:
 
 In this set of simulations, we consider settings with both null and non-null
 tests with varying proportion of null tests. An informative covariate is included
-in the setting as described in `simulations-informative-sine.Rmd`. 
+in the setting as described in `simulations-informative-cubic.Rmd`. 
 
 
 # Workspace Setup
@@ -97,7 +97,7 @@ First, we consider the setting where 80% of tests are null.
 ## Data Simulation
 
 ```{r null80-parameters}
-pi0 <- pi0_sine(0.80)             # numeric: proportion of null hypotheses
+pi0 <- pi0_cubic(0.80)             # numeric: proportion of null hypotheses
 seed <- 608
 ```
 
@@ -181,7 +181,7 @@ Next, we consider the setting where 90% of tests are null.
 ## Data Simulation
 
 ```{r null90-parameters}
-pi0 <- pi0_sine(0.90)             # numeric: proportion of null hypotheses
+pi0 <- pi0_cubic(0.90)             # numeric: proportion of null hypotheses
 seed <- 808
 ```
 
@@ -265,7 +265,7 @@ Next, we consider the setting where 95% of tests are null.
 ## Data Simulation
 
 ```{r null95-parameters}
-pi0 <- pi0_sine(0.95)             # numeric: proportion of null hypotheses
+pi0 <- pi0_cubic(0.95)             # numeric: proportion of null hypotheses
 seed <- 913
 ```
 
@@ -349,7 +349,7 @@ Next, we consider the setting where 99% of tests are null.
 ## Data Simulation
 
 ```{r null99-parameters}
-pi0 <- pi0_sine(0.99)             # numeric: proportion of null hypotheses
+pi0 <- pi0_cubic(0.99)             # numeric: proportion of null hypotheses
 seed <- 2015
 ```
 
