@@ -58,7 +58,7 @@ objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast", objects) & 
                    grepl("de5", objects) & 
                   !grepl("uninfCov", objects)] 
-                  !grepl("uninfCov", objects)] 
+
 de5 <- readRDS(file=resfile)
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
