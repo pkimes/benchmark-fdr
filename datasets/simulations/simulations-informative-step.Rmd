@@ -38,6 +38,7 @@ dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 ## intermediary files we create below
 gauss_file <- file.path(resdir, "informative-step-benchmark-gaussian.rds")
 tdist_file <- file.path(resdir, "informative-step-benchmark-t5.rds")
+tdist11_file <- file.path(resdir, "informative-step-benchmark-t11.rds")
 chisq_file <- file.path(resdir, "informative-step-benchmark-chisq4.rds")
 
 ## number of cores for parallelization
@@ -172,7 +173,7 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Student's t Setting
+# Student's t Setting (df = 5)
 
 Next, we consider the setting with t-distributed noise.
 
@@ -267,6 +268,101 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+# Student's t Setting (df = 11)
+
+Next, we consider a second setting with t-distributed noise.
+
+## Data Simulation
+
+```{r t11-parameters}
+tstat <- rnorm_generator(6)    # functional: dist of alternative test stats
+tstat_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
+seed <- 9158
+```
+
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+bdplust <- modifyBMethod(bdplus, "ashq", df = 11)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
+
+```{r t11-run-simulation}
+if (file.exists(tdist11_file)) {
+    res <- readRDS(tdist11_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = tdist11_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r t11-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, t11-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, t11-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r t11-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r t11-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r t11-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
 # Chi-Squared Setting
 
 Finally, we consider the setting with chi-squared distributed noise.
@@ -351,23 +447,31 @@ plotsim_average(resdf, met = "TNR", filter_set = c(excludeSet, "ashq"),
 ```
 
 We also take a look at the distribution of rejects for each method as a function of
-the effect size and independent covariate.
+the effect size and independent covariate. Again, we plot these without `ashq`.
 
 ```{r chisq4-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+                  alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+                  alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
-the overlap of rejections between methods.
+the overlap of rejections between methods. Again, without `ashq`.
 
 ```{r chisq4-metrics-upset, results = "hide"}
-if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = c(excludeSet, "ashq")) >= 3) {
+    aggupset(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+             alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
 ```
 
+# Session Info
+
+```{r}
+sessionInfo()
+```

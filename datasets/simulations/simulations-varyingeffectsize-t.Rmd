@@ -79,7 +79,7 @@ the number of degrees of freedom for ASH. We add an additional parameter to the 
 method with the corresponding degrees of freedom of the noise distribution.
 
 ```{r}
-bdplus <- modifyBMethod(bdplus, "ashq", df = 5)
+bdplus <- modifyBMethod(bdplus, "ashq", df = 11)
 ```
 
 All simulation settings will share the following parameters.
@@ -87,8 +87,8 @@ All simulation settings will share the following parameters.
 ```{r parameters-shared}
 m <- 20000                          # integer: number of hypothesis tests
 pi0 <- pi0_sine(0.90)               # numeric: proportion of null hypotheses
-tstat_dist <- rt_perturber(5)       # functional: sampling dist/noise for test stats
-null_dist <- rt_2pvaluer(5)         # functional: dist to calc p-values
+tstat_dist <- rt_perturber(11)       # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)         # functional: dist to calc p-values
 icovariate <- runif                 # functional: independent covariate
 ```
 
