@@ -209,7 +209,7 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 wcs <- which(grepl("RNAseq", casestudy) & 
             !grepl(c("brain|mir|null|polyester"), dataset) &
             !grepl("scRNAseq", casestudy) &
-            !grepl("uninfCov", casestudy))
+            !grepl("uninfCov", dataset))
 objs <- objects[wcs]
 labs <- gsub(".rds", "", 
              unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
