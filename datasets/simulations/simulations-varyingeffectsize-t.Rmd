@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Informative Covariate (step)"
+title: "Simulation Study: Varying Effect Size (t noise)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -13,10 +13,11 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with an informative covariate. The covariate is sampled uniformly from
-the interval [0, 1], and the conditional probability of a test being non-null
-is a non-smooth (monotone) step function of the covariate. We include simulation results
-again with Gaussian, t-distributed, and Chi-Squared distributed noise.
+tests with varying distribution of effect sizes under the non-null (alternative)
+setting. An informative covariate is included in the setting as described in
+`simulations-informative-sine.Rmd`. This set of simulations is similar to those
+presented in `simulations-varyingeffectsize.Rmd`, however, t-distributed noise
+is used to perturb effects.
 
 # Workspace Setup
 
@@ -36,9 +37,10 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-gauss_file <- file.path(resdir, "informative-step-benchmark-gaussian.rds")
-tdist_file <- file.path(resdir, "informative-step-benchmark-t5.rds")
-chisq_file <- file.path(resdir, "informative-step-benchmark-chisq4.rds")
+spiky_file <- file.path(resdir, "varyinges-t-benchmark-spiky.rds")
+flattop_file <- file.path(resdir, "varyinges-t-benchmark-flattop.rds")
+skew_file <- file.path(resdir, "varyinges-t-benchmark-skew.rds")
+bimodal_file <- file.path(resdir, "varyinges-t-benchmark-bimodal.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -50,7 +52,9 @@ bd <- initializeBenchDesign()
 
 As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
 for simulations with Gaussian or t-distributed noise. Again, we include both
-`nulltype = "empirical"` and `nulltype = "theoretical"`. 
+`nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
+series of simulations use test statistics simulated with Gaussian noise, we include
+Scott's FDR Regression in all of the comparisons.
 
 ```{r}
 bdplus <- bd
@@ -70,12 +74,22 @@ bdplus <- addBMethod(bdplus, "scott-empirical",
                      control = list(lambda = 0.01))
 ```
 
+Since all simulation settings in this case study use t-distributed noise, we must specify
+the number of degrees of freedom for ASH. We add an additional parameter to the `ashq`
+method with the corresponding degrees of freedom of the noise distribution.
+
+```{r}
+bdplus <- modifyBMethod(bdplus, "ashq", df = 5)
+```
+
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
-m <- 20000                        # integer: number of hypothesis tests
-pi0 <- pi0_step(0.90)             # numeric: proportion of null hypotheses
-icovariate <- runif               # functional: independent covariate
+m <- 20000                          # integer: number of hypothesis tests
+pi0 <- pi0_sine(0.90)               # numeric: proportion of null hypotheses
+tstat_dist <- rt_perturber(5)       # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(5)         # functional: dist to calc p-values
+icovariate <- runif                 # functional: independent covariate
 ```
 
 Simulation results will be presented excluding a subset of methods, and
@@ -86,30 +100,30 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 ```
 
-# Gaussian Setting
+# Spiky Setting
 
-First, we consider the setting with Gaussian noise.
+First, we consider the setting where the effect sizes under the alternative are
+distributed according to a "spiky" unimodal distribution centered around zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r gauss-parameters}
-tstat <- rnorm_generator(4)       # functional: dist of alternative test stats
-tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
-null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
-seed <- 608
+```{r spiky-parameters}
+tstat <- sampler_spiky       # functional: dist of alternative test stats
+seed <- 778
 ```
 
-We next run the simulations (including Scott's FDR Regression).
+We next run the simulations.
 
-```{r gauss-run-simulation}
-if (file.exists(gauss_file)) {
-    res <- readRDS(gauss_file)
+```{r spiky-run-simulation}
+if (file.exists(spiky_file)) {
+    res <- readRDS(spiky_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = gauss_file)
+    saveRDS(res, file = spiky_file)
 }
 ```
 
@@ -118,16 +132,16 @@ if (file.exists(gauss_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r gauss-one-simulation}
+```{r spiky-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, gauss-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, spiky-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, gauss-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, spiky-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -135,7 +149,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r gauss-metrics-averages, results = "hide"}
+```{r spiky-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -154,7 +168,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r gauss-metrics-covlineplot, results = "hide"}
+```{r spiky-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -163,7 +177,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r gauss-metrics-upset, results = "hide"}
+```{r spiky-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -172,39 +186,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Student's t Setting
+# Flat-Top Setting
 
-Next, we consider the setting with t-distributed noise.
+Next, we consider the setting where the effect sizes under the alternative are
+distributed according to a "flat top" unimodal distribution centered around zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r t5-parameters}
-tstat <- rnorm_generator(6)    # functional: dist of alternative test stats
-tstat_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
-null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
-seed <- 815
+```{r flattop-parameters}
+tstat <- sampler_flat_top       # functional: dist of alternative test stats
+seed <- 980
 ```
 
-For the t-distributed noise setting, we must specify the number of degrees of freedom
-for ASH. We add an additional parameter to the `ashq` method with the corresponding
-degrees of freedom of the noise distribution.
+We next run the simulations.
 
-```{r}
-bdplust <- modifyBMethod(bdplus, "ashq", df = 5)
-```
-
-We next run the simulations (including Scott's FDR Regression and ASH with degrees of
-freedom specified).
-
-```{r t5-run-simulation}
-if (file.exists(tdist_file)) {
-    res <- readRDS(tdist_file)
+```{r flattop-run-simulation}
+if (file.exists(flattop_file)) {
+    res <- readRDS(flattop_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = tdist_file)
+    saveRDS(res, file = flattop_file)
 }
 ```
 
@@ -213,16 +218,16 @@ if (file.exists(tdist_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r t5-one-simulation}
+```{r flattop-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, t5-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, flattop-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, t5-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, flattop-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -230,7 +235,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r t5-metrics-averages, results = "hide"}
+```{r flattop-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -249,7 +254,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r t5-metrics-covlineplot, results = "hide"}
+```{r flattop-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -258,7 +263,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r t5-metrics-upset, results = "hide"}
+```{r flattop-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -267,31 +272,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Chi-Squared Setting
+# Skewed Setting
 
-Finally, we consider the setting with chi-squared distributed noise.
+Next, we consider the setting where the effect sizes under the alternative are
+distributed according to a skewed unimodal distribution not centered at zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r chisq4-parameters}
-tstat <- rnorm_generator(15)       # functional: dist of alternative test stats
-tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
-null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
-seed <- 1023
+```{r skew-parameters}
+tstat <- sampler_skew       # functional: dist of alternative test stats
+seed <- 206
 ```
 
-We next run the simulations. We do not include FDR Regression because the test statistics
-are not approximately normally distributed.
+We next run the simulations.
 
-```{r chisq4-run-simulation}
-if (file.exists(chisq_file)) {
-    res <- readRDS(chisq_file)
+```{r skew-run-simulation}
+if (file.exists(skew_file)) {
+    res <- readRDS(skew_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = chisq_file)
+    saveRDS(res, file = skew_file)
 }
 ```
 
@@ -300,16 +304,16 @@ if (file.exists(chisq_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r chisq4-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+```{r skew-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, chisq4-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, skew-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, chisq4-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, skew-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -317,43 +321,26 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r chisq4-metrics-averages, results = "hide"}
+```{r skew-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
-plotsim_average(resdf, met = "rejections", filter_set = excludeSet,
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
-plotsim_average(resdf, met = "FDR", filter_set = excludeSet,
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
-plotsim_average(resdf, met = "TPR", filter_set = excludeSet,
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
-plotsim_average(resdf, met = "TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-```
-
-Since `ashq` is not appropriate when the test statistics are not approximately normal or t,
-we also plot the results without this method.
-
-```{r chisq4-metrics-averages-noash, results = "hide"}
-plotsim_average(resdf, met = "rejections", filter_set = c(excludeSet, "ashq"),
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met = "FDR", filter_set = c(excludeSet, "ashq"),
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met = "TPR", filter_set = c(excludeSet, "ashq"),
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met = "TNR", filter_set = c(excludeSet, "ashq"),
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 ```
 
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r chisq4-metrics-covlineplot, results = "hide"}
+```{r skew-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -362,7 +349,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r chisq4-metrics-upset, results = "hide"}
+```{r skew-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -371,3 +358,88 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+# Bimodal Setting
+
+Finally, we consider the setting where the effect sizes under the alternative are
+distributed according to a bimodal distribution (equal mixture of two normal distributions
+centered at -2, 2, with variance 1), again, as defined in the ASH simulations.
+
+## Data Simulation
+
+```{r bimodal-parameters}
+tstat <- sampler_bimodal       # functional: dist of alternative test stats
+seed <- 913
+```
+
+We next run the simulations.
+
+```{r bimodal-run-simulation}
+if (file.exists(bimodal_file)) {
+    res <- readRDS(bimodal_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = bimodal_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r bimodal-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, bimodal-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, bimodal-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r bimodal-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r bimodal-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r bimodal-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```

@@ -183,13 +183,22 @@ null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
 ```
 
-We next run the simulations (including Scott's FDR Regression).
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+bdplust <- modifyBMethod(bdplus, "ashq", df = 5)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
 
 ```{r t5-run-simulation}
 if (file.exists(tdist_file)) {
     res <- readRDS(tdist_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -306,6 +315,17 @@ plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
 
 plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+Since `ashq` is not appropriate when the test statistics are not approximately normal or t,
+we also plot the results without this method.
+
+```{r chisq4-metrics-averages-noash, results = "hide"}
+plotsim_average(resdf, met="rejections", filter_set = c(excludeSet, "ashq"),
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = c(excludeSet, "ashq"),
                 merge_ihw = TRUE, errorBars = TRUE) 
 ```
 
