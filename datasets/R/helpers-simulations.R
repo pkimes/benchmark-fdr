@@ -152,6 +152,7 @@ pi0_cosine <- function(pi0) {
     }
 }
 
+## shifted/stretched sine function (non-monotone)
 pi0_sine <- function(pi0) {
     stopifnot(pi0 < 1L, pi0 >= 0L)
     if (pi0 >= 0.5) {
@@ -161,6 +162,11 @@ pi0_sine <- function(pi0) {
     }
 }
 
+## simple step function to test different levels of "informativeness" with pi0 = 80%
+pi0_varyinfo80 <- function(zz) {
+    stopifnot(zz <= 1L, zz >= 0L)
+    function(x) { ifelse(x > 4/5, 0.8 * (1 - zz), 0.2 * (4 + zz)) }
+}
 
 ## ##############################################################################
 ## CODE DERIVED FROM EXTERNAL SOURCE
