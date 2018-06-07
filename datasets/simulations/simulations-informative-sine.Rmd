@@ -38,7 +38,7 @@ dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 ## intermediary files we create below
 gauss_file <- file.path(resdir, "informative-sine-benchmark-gaussian.rds")
 tdist_file <- file.path(resdir, "informative-sine-benchmark-t5.rds")
-tdist11_file <- file.path(resdir, "informative-cubic-benchmark-t11.rds")
+tdist11_file <- file.path(resdir, "informative-sine-benchmark-t11.rds")
 chisq_file <- file.path(resdir, "informative-sine-benchmark-chisq4.rds")
 
 ## number of cores for parallelization
