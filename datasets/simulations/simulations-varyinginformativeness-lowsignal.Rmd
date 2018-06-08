@@ -43,12 +43,12 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-info00_file <- file.path(resdir, "varyinginfo-benchmark-level00.rds")
-info20_file <- file.path(resdir, "varyinginfo-benchmark-level20.rds")
-info40_file <- file.path(resdir, "varyinginfo-benchmark-level40.rds")
-info60_file <- file.path(resdir, "varyinginfo-benchmark-level60.rds")
-info80_file <- file.path(resdir, "varyinginfo-benchmark-level80.rds")
-info100_file <- file.path(resdir, "varyinginfo-benchmark-level100.rds")
+info00_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level00.rds")
+info20_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level20.rds")
+info40_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level40.rds")
+info60_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level60.rds")
+info80_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level80.rds")
+info100_file <- file.path(resdir, "varyinginfo-lowsignal-benchmark-level100.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -86,7 +86,7 @@ All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                        # integer: number of hypothesis tests
-tstat <- rnorm_generator(4)       # functional: dist of alternative test stats
+tstat <- rnorm_generator(2)       # functional: dist of alternative test stats
 tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 icovariate <- runif               # functional: independent covariate

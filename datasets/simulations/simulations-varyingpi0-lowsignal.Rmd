@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Informativeness"
+title: "Simulation Study: Varying Null Proportion (lower signal)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -13,17 +13,9 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with varying levels of informativeness of an informative covariate. The
-covariate is sampled uniformly from the interval [0, 1], and the conditional
-probability of a test being non-null is a step function of the covariate with
-two levels (over the intervals [0, 4/5], (4/5, 1]) where the size of the step
-is used to indicate the informativeness of the covariate.
+tests with varying proportion of null tests. An informative covariate is included
+in the setting as described in `simulations-informative-sine.Rmd`. 
 
-For all settings, the marginal proportion of null hypotheses is set to 80%.
-A tuning parameter is used to modify the informativeness of the covariate
-such that 0 corresponds to an uninformative covariate, and 1 corresponds to a
-fully informative covariate (i.e. all tests with covariate values in [0, 4/5]
-are null and all tests in (4/5, 1] are non-null).
 
 # Workspace Setup
 
@@ -43,12 +35,14 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-info00_file <- file.path(resdir, "varyinginfo-benchmark-level00.rds")
-info20_file <- file.path(resdir, "varyinginfo-benchmark-level20.rds")
-info40_file <- file.path(resdir, "varyinginfo-benchmark-level40.rds")
-info60_file <- file.path(resdir, "varyinginfo-benchmark-level60.rds")
-info80_file <- file.path(resdir, "varyinginfo-benchmark-level80.rds")
-info100_file <- file.path(resdir, "varyinginfo-benchmark-level100.rds")
+null05_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop05.rds")
+null10_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop10.rds")
+null20_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop20.rds")
+null50_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop50.rds")
+null80_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop80.rds")
+null90_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop90.rds")
+null95_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop95.rds")
+null99_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop99.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -86,7 +80,7 @@ All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                        # integer: number of hypothesis tests
-tstat <- rnorm_generator(4)       # functional: dist of alternative test stats
+tstat <- rnorm_generator(2)       # functional: dist of alternative test stats
 tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 icovariate <- runif               # functional: independent covariate
@@ -100,28 +94,28 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 ```
 
-# Informativeness = 0 Setting
+# 5% Null Setting
 
-First, we consider the setting where the informativeness is 0.
+First, we consider the setting where 5% of tests are null.
 
 ## Data Simulation
 
-```{r info00-parameters}
-pi0 <- pi0_varyinfo80(0.00)             # numeric: proportion of null hypotheses
+```{r null05-parameters}
+pi0 <- pi0_sine(0.05)             # numeric: proportion of null hypotheses
 seed <- 1010
 ```
 
 We next run the simulations.
 
-```{r info00-run-simulation}
-if (file.exists(info00_file)) {
-    res <- readRDS(info00_file)
+```{r null05-run-simulation}
+if (file.exists(null05_file)) {
+    res <- readRDS(null05_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info00_file)
+    saveRDS(res, file = null05_file)
 }
 ```
 
@@ -130,16 +124,16 @@ if (file.exists(info00_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info00-one-simulation}
+```{r null05-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info00-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null05-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info00-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null05-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -147,7 +141,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info00-metrics-averages, results = "hide"}
+```{r null05-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -166,7 +160,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info00-metrics-covlineplot, results = "hide"}
+```{r null05-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -175,7 +169,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info00-metrics-upset, results = "hide"}
+```{r null05-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -184,28 +178,28 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Informativeness = 20 Setting
+# 10% Null Setting
 
-Next, we consider the setting where the informativeness is 0.20.
+Next, we consider the setting where 10% of tests are null.
 
 ## Data Simulation
 
-```{r info20-parameters}
-pi0 <- pi0_varyinfo80(0.20)             # numeric: proportion of null hypotheses
+```{r null10-parameters}
+pi0 <- pi0_sine(0.10)             # numeric: proportion of null hypotheses
 seed <- 1201
 ```
 
 We next run the simulations.
 
-```{r info20-run-simulation}
-if (file.exists(info20_file)) {
-    res <- readRDS(info20_file)
+```{r null10-run-simulation}
+if (file.exists(null10_file)) {
+    res <- readRDS(null10_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info20_file)
+    saveRDS(res, file = null10_file)
 }
 ```
 
@@ -214,16 +208,16 @@ if (file.exists(info20_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info20-one-simulation}
+```{r null10-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info20-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null10-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info20-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null10-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -231,7 +225,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info20-metrics-averages, results = "hide"}
+```{r null10-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -250,7 +244,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info20-metrics-covlineplot, results = "hide"}
+```{r null10-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -259,7 +253,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info20-metrics-upset, results = "hide"}
+```{r null10-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -268,28 +262,28 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Informativeness = 40 Setting
+# 20% Null Setting
 
-Next, we consider the setting where the informativeness is 0.40.
+Next, we consider the setting where 20% of tests are null.
 
 ## Data Simulation
 
-```{r info40-parameters}
-pi0 <- pi0_varyinfo80(0.40)             # numeric: proportion of null hypotheses
+```{r null20-parameters}
+pi0 <- pi0_sine(0.20)             # numeric: proportion of null hypotheses
 seed <- 51
 ```
 
 We next run the simulations.
 
-```{r info40-run-simulation}
-if (file.exists(info40_file)) {
-    res <- readRDS(info40_file)
+```{r null20-run-simulation}
+if (file.exists(null20_file)) {
+    res <- readRDS(null20_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info40_file)
+    saveRDS(res, file = null20_file)
 }
 ```
 
@@ -298,16 +292,16 @@ if (file.exists(info40_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info40-one-simulation}
+```{r null20-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info40-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null20-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info40-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null20-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -315,7 +309,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info40-metrics-averages, results = "hide"}
+```{r null20-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -334,7 +328,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info40-metrics-covlineplot, results = "hide"}
+```{r null20-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -343,7 +337,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info40-metrics-upset, results = "hide"}
+```{r null20-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -352,28 +346,28 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Informativeness = 60 Setting
+# 50% Null Setting
 
-Next, we consider the setting where the informativeness is 0.60.
+Next, we consider the setting where 50% of tests are null.
 
 ## Data Simulation
 
-```{r info60-parameters}
-pi0 <- pi0_varyinfo80(0.60)             # numeric: proportion of null hypotheses
+```{r null50-parameters}
+pi0 <- pi0_sine(0.50)             # numeric: proportion of null hypotheses
 seed <- 500
 ```
 
 We next run the simulations.
 
-```{r info60-run-simulation}
-if (file.exists(info60_file)) {
-    res <- readRDS(info60_file)
+```{r null50-run-simulation}
+if (file.exists(null50_file)) {
+    res <- readRDS(null50_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info60_file)
+    saveRDS(res, file = null50_file)
 }
 ```
 
@@ -382,16 +376,16 @@ if (file.exists(info60_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info60-one-simulation}
+```{r null50-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info60-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null50-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info60-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null50-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -399,7 +393,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info60-metrics-averages, results = "hide"}
+```{r null50-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -418,7 +412,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info60-metrics-covlineplot, results = "hide"}
+```{r null50-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -427,7 +421,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info60-metrics-upset, results = "hide"}
+```{r null50-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -436,28 +430,28 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Informativeness = 80 Setting
+# 80% Null Setting
 
-Next, we consider the setting where the informativeness is 0.80.
+Next, we consider the setting where 80% of tests are null.
 
 ## Data Simulation
 
-```{r info80-parameters}
-pi0 <- pi0_varyinfo80(0.80)             # numeric: proportion of null hypotheses
+```{r null80-parameters}
+pi0 <- pi0_sine(0.80)             # numeric: proportion of null hypotheses
 seed <- 608
 ```
 
 We next run the simulations.
 
-```{r info80-run-simulation}
-if (file.exists(info80_file)) {
-    res <- readRDS(info80_file)
+```{r null80-run-simulation}
+if (file.exists(null80_file)) {
+    res <- readRDS(null80_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info80_file)
+    saveRDS(res, file = null80_file)
 }
 ```
 
@@ -466,16 +460,16 @@ if (file.exists(info80_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info80-one-simulation}
+```{r null80-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info80-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null80-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info80-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null80-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -483,7 +477,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info80-metrics-averages, results = "hide"}
+```{r null80-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -502,7 +496,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info80-metrics-covlineplot, results = "hide"}
+```{r null80-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -511,7 +505,7 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info80-metrics-upset, results = "hide"}
+```{r null80-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -520,28 +514,28 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
-# Informativeness = 100 Setting
+# 90% Null Setting
 
-Finally, we consider the setting where the informativeness is 1.00.
+Next, we consider the setting where 90% of tests are null.
 
 ## Data Simulation
 
-```{r info100-parameters}
-pi0 <- pi0_varyinfo80(1.00)             # numeric: proportion of null hypotheses
+```{r null90-parameters}
+pi0 <- pi0_sine(0.90)             # numeric: proportion of null hypotheses
 seed <- 808
 ```
 
 We next run the simulations.
 
-```{r info100-run-simulation}
-if (file.exists(info100_file)) {
-    res <- readRDS(info100_file)
+```{r null90-run-simulation}
+if (file.exists(null90_file)) {
+    res <- readRDS(null90_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info100_file)
+    saveRDS(res, file = null90_file)
 }
 ```
 
@@ -550,16 +544,16 @@ if (file.exists(info100_file)) {
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info100-one-simulation}
+```{r null90-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info100-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, null90-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info100-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, null90-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
 ```
 
@@ -567,7 +561,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 
 We plot the averaged results across `r B` replications.
 
-```{r info100-metrics-averages, results = "hide"}
+```{r null90-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -586,7 +580,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info100-metrics-covlineplot, results = "hide"}
+```{r null90-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
@@ -595,7 +589,175 @@ covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info100-metrics-upset, results = "hide"}
+```{r null90-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 95% Null Setting
+
+Next, we consider the setting where 95% of tests are null.
+
+## Data Simulation
+
+```{r null95-parameters}
+pi0 <- pi0_sine(0.95)             # numeric: proportion of null hypotheses
+seed <- 913
+```
+
+We next run the simulations.
+
+```{r null95-run-simulation}
+if (file.exists(null95_file)) {
+    res <- readRDS(null95_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = null95_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r null95-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, null95-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, null95-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r null95-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r null95-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r null95-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 99% Null Setting
+
+Next, we consider the setting where 99% of tests are null.
+
+## Data Simulation
+
+```{r null99-parameters}
+pi0 <- pi0_sine(0.99)             # numeric: proportion of null hypotheses
+seed <- 2015
+```
+
+We next run the simulations.
+
+```{r null99-run-simulation}
+if (file.exists(null99_file)) {
+    res <- readRDS(null99_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = null99_file)
+}
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r null99-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, null99-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, null99-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r null99-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r null99-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r null99-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
