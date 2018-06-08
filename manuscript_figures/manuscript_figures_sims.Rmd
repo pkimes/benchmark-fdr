@@ -1,0 +1,471 @@
+---
+title: "Simulation Figures for Genome Biology (simulations)"
+author: "Rafalab"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Figure2-load-data}
+# Load packages and source benchmark FDR
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(cowplot)
+library(tibble)
+library(ggthemes)
+library(grid)
+library(SummarizedBenchmark)
+
+## load helper functions
+for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+# assumes sb objects are in the following location
+path <- file.path("..", "datasets", "simulations", "results")
+
+# set up results directory
+outdir <- "./figures"
+dir.create(outdir, showWarnings = FALSE)
+
+# set alpha cutoff for plots that are fixed at a certain value of alpha
+alpha <- 0.10
+
+methodset <- c("bonf", "bh", "ihw-a10", "qvalue", "bl-df03", "lfdr",
+               "scott-empirical", "scott-theoretical", "ashq")
+```
+
+# Data Preparation
+
+First, we load summaries for all simulations results.
+
+```{r}
+summary_file <- paste0("allres_alpha", 100*alpha, ".rds")
+
+if (file.exists(summary_file)) {
+    res <- readRDS(summary_file)
+} else {
+    res_files <- list.files(path, "\\.rds$", full.names = TRUE)
+    res <- lapply(res_files, function(x) {
+        zz <- readRDS(x)
+        zz <- plotsim_standardize(zz, alpha = alpha)
+        zz <- dplyr::select(zz, rep, blabel, key, alpha, value)
+
+        zz <- dplyr::group_by(zz, blabel, key, alpha)
+        zz <- dplyr::summarize(zz,
+                               med_value = median(value, na.rm = TRUE),
+                               mean_value = mean(value, na.rm = TRUE),
+                               nNA = sum(is.na(value)))
+        dplyr::ungroup(zz)
+    })
+    names(res) <- gsub("\\.rds$", "", basename(res_files))
+    saveRDS(res, summary_file)
+}
+
+## merge all simulation summaries
+res <- bind_rows(res, .id = "setting")
+
+## create shorter simulation setting labels
+res <- dplyr::mutate(res, dist = gsub(".*?-benchmark-(.*)", "\\1", setting),
+                     setting = gsub("(.*?)-benchmark-.*", "\\1", setting))
+
+## only use subset of methods for plotting
+res <- dplyr::filter(res, blabel %in% methodset)
+res <- dplyr::rename(res, Method = blabel)
+
+## remove suffixes for unused tuning parameters
+res <- dplyr::mutate(res, Method = gsub("-df03", "", Method),
+                     Method = gsub("(-a)(.*)", "", Method))
+methodset <- gsub("-df03", "", methodset)
+methodset <- gsub("(-a)(.*)", "", methodset)
+
+## add candy color scheme from datasets/R/colorPalette.R
+res <- dplyr::left_join(res, candycols, by = "Method")
+
+## treat methods as factors for forced ordering
+res <- dplyr::mutate(res, Method = factor(Method, levels = methodset))
+```
+
+# Null Simulations
+
+We subset on simulation results that look at informative and non-informative covariates across
+different noise distributions.
+
+```{r}
+res_nullset <- dplyr::filter(res, setting == "null")
+res_nullset <- dplyr::mutate(res_nullset, dist = factor(dist, levels = c("gaussian", "t5", "chisq4")))
+res_nullset <- tidyr::complete(res_nullset, setting, Method, dist, key)
+```
+
+For null simulations, rather than the false discovery rate, we take a look at the number
+false positives since the FDR will be 1 if any rejections are made.
+
+In these plots, `ashq`, `scott-theoretical` and `scott-theoretical` are excluded for the Chi-Squared
+simulation settings.
+
+```{r, fig.width = 8, fig.height = 3}
+dplyr::filter(res_nullset, key == "rejectprop") %>%
+    filter(! (Method == "ashq" & dist == "chisq4"),
+           ! (grepl("scott", Method) & dist == "chisq4")) %>%
+    ggplot(aes(x = Method, y = mean_value)) +
+    geom_bar(color = "black", fill = "gray", stat = "identity") +
+    facet_grid(. ~ dist) +
+    coord_flip() +
+    scale_y_continuous("Average % Rejected Tests", breaks = seq(0, 1, .01), labels = scales::percent) +
+    theme_bw() +
+    ggtitle("Rejected proportion of in null simulations (average over 100 replications)") 
+```
+
+Additionally, we take a look at the FWER (the proportion of simulation replicates out of 100
+with at least one rejection).
+
+```{r, fig.width = 8, fig.height = 3}
+gp <- dplyr::filter(res_nullset, key == "FWER") %>%
+    filter(! (Method == "ashq" & dist == "chisq4"),
+           ! (grepl("scott", Method) & dist == "chisq4")) %>%
+    ggplot(aes(x = Method, y = mean_value)) +
+    geom_bar(color = "black", fill = "gray", stat = "identity") +
+    facet_grid(. ~ dist) +
+    coord_flip() +
+    scale_y_continuous("FWER", breaks = seq(0, 1, .2), labels = scales::percent) +
+    theme_bw() +
+    ggtitle("Proportion of replications with at least one false positive (over 100 replications)") 
+
+ggsave(file.path(outdir, "FigureSsim-null.pdf"), gp, width = 8, height = 3)
+```
+
+# Informative and Non-Informative Covariates
+
+We subset on simulation results that look at informative and non-informative covariates across
+different noise distributions.
+
+```{r}
+res_covset <- dplyr::filter(res, grepl("informative", setting))
+res_covset <- dplyr::mutate(res_covset, dist = factor(dist,
+                                                      levels = c("gaussian", "t11", "t5", "chisq4"),
+                                                      labels = c(expression("Noise: " * N(0, 1)),
+                                                                 expression("Noise: " * t[11]),
+                                                                 expression("Noise: " * t[5]),
+                                                                 expression("Noise: " * {chi^2}[4]))))
+res_covset <- dplyr::mutate(res_covset, setting = factor(setting,
+                                                         levels = c("noninformative", "informative-step",
+                                                                    "informative-cubic", "informative-sine")))
+res_covset <- tidyr::complete(res_covset, setting, Method, dist, key)
+```
+
+First, we look at the false discovery rate across the 100 replications.
+We create the plot with a discrete color scale.
+
+```{r, fig.width = 8, fig.height = 6}
+fdr_bins <- c(0, .05, .07, .09, .11, .13, .15, .2, 1)
+dplyr::filter(res_covset, key == "FDR") %>%
+    dplyr::mutate(val = cut(mean_value, breaks = fdr_bins, include.lowest = TRUE)) %>%
+    ggplot() +
+    geom_tile(aes(x = setting, y = Method, fill = val)) +
+    scale_x_discrete("Setting", expand = c(0, 0)) + 
+    scale_y_discrete(expand = c(0, 0)) + 
+    scale_fill_manual("FDR", values = RColorBrewer::brewer.pal(9, "PRGn")[2:9],
+                      na.value = "gray50", drop = FALSE) +
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
+    guides(fill = guide_legend(keywidth = 2, keyheight = 1)) +
+    facet_grid(. ~ dist, scales = "free", space = "free", labeller= label_parsed) +
+    ggtitle(paste0("Mean FDR across 100 replications (alpha = ", alpha, ")"))
+```
+
+We can create this plot with a continuous color scale as well.
+However, it is incredibly hard to distinguish values if we look at the entire range of
+possible values, so we will clamp them down to be between 0 and 0.2 (values above 0.2 will be
+set to 0.2).
+
+```{r, fig.width = 8, fig.height = 6}
+gp_fdr <- dplyr::filter(res_covset, key == "FDR", setting != "null") %>%
+    ggplot() +
+    geom_tile(aes(x = setting, y = Method, fill = mean_value)) +
+    scale_x_discrete("Setting", expand = c(0, 0)) + 
+    scale_y_discrete(expand = c(0, 0)) + 
+    scale_fill_gradient2("FDR", low = RColorBrewer::brewer.pal(6, "PRGn")[1],
+                         high = RColorBrewer::brewer.pal(6, "PRGn")[6],
+                         midpoint = alpha, na.value = "gray50", limits = c(0, .2),
+                         oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
+    facet_grid(. ~ dist, scales = "free", space = "free", labeller = label_parsed) + 
+    ggtitle(paste0("Mean FDR across 100 replications (alpha = ", alpha, ")"))
+gp_fdr
+```
+
+We can also look at the true positive rates.
+
+```{r, fig.width = 8, fig.height = 6}
+gp_tpr <- dplyr::filter(res_covset, key == "TPR") %>%
+    ggplot() +
+    geom_tile(aes(x = setting, y = Method, fill = mean_value)) +
+    scale_x_discrete("Setting", expand = c(0, 0)) + 
+    scale_y_discrete(expand = c(0, 0)) + 
+    scale_fill_distiller("TPR", palette = "Blues", limits = c(0, 1), direction = 1) +
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
+    facet_grid(. ~ dist, scales = "free", space = "free", labeller = label_parsed) + 
+    ggtitle(paste0("Mean TPR across 100 replications (alpha = ", alpha, ")"))
+gp_tpr
+```
+
+Alternatively, rather than using heatmaps, we can use scatterplots to look at these values.
+
+```{r, fig.width = 7, fig.height = 6}
+## looking at FDR vs TPR
+col <- as.character(res_covset$col)
+names(col) <- as.character(res_covset$Method)
+
+dplyr::select(res_covset, Method, setting, dist, key, mean_value, col, lty) %>%
+    dplyr::filter(key %in% c("FDR", "TPR")) %>%
+    tidyr::spread(key, mean_value) %>%
+    ggplot(aes(x = FDR, y = TPR, color = Method)) +
+    geom_point(alpha = 1/2) +
+    scale_color_manual(values = col) +
+    facet_grid(dist ~ setting, labeller = labeller(dist = label_parsed)) +
+    theme_bw()
+
+## looking at noninformative vs. informative (cubic)
+dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
+    dplyr::filter(setting %in% c("noninformative", "informative-cubic"),
+                  key %in% c("TPR"),
+                  ! Method %in% c("ashq", "bonf")) %>%
+    tidyr::spread(setting, mean_value) %>%
+    ggplot(aes(x = noninformative, y = `informative-cubic`, color = Method)) +
+    geom_point(alpha = 1/2) +
+    scale_color_manual(values = col) +
+    facet_wrap( ~ dist, nrow = 1, scales = "free", labeller = labeller(dist = label_parsed)) +
+    theme_bw() +
+    scale_x_continuous(labels = scales::percent) + 
+    scale_y_continuous(labels = scales::percent) + 
+    geom_abline(color = "blue", lty = 2, alpha = 1/3) +
+    ggtitle("Mean TPR for Informative and Noninformative Simulations") 
+
+## looking at noninformative vs. informative (cubic)
+pfdr <- dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
+    dplyr::filter(setting %in% c("noninformative", "informative-cubic"),
+                  key %in% c("FDR")) %>%
+    tidyr::spread(setting, mean_value) %>%
+    ggplot(aes(x = noninformative, y = `informative-cubic`, color = Method)) +
+    geom_abline(color = "blue", lty = 2, alpha = 1/3) +
+    geom_vline(xintercept = 0.10, color = "red", lty = 2, alpha = 1/3) +
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) +
+    geom_point(alpha = 1/2) +
+    scale_color_manual(values = col) +
+    facet_wrap( ~ dist, nrow = 2, scales = "free", labeller = labeller(dist = label_parsed)) +
+    theme_bw() +
+    scale_x_continuous("FDR w/ Noninformative Covariate", labels = scales::percent, limits = c(0, 1)) + 
+    scale_y_continuous("FDR w/ Informative Covariate (cubic)", labels = scales::percent, limits = c(0, 1)) + 
+    ggtitle("Mean FDR for Informative and Noninformative Simulations") 
+
+## looking at noninformative vs. informative (cubic)
+ptpr <- dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
+    dplyr::filter(setting %in% c("noninformative", "informative-cubic"),
+                  key %in% c("TPR")) %>%
+    tidyr::spread(setting, mean_value) %>%
+    ggplot(aes(x = noninformative, y = `informative-cubic`, color = Method)) +
+    geom_abline(color = "blue", lty = 2, alpha = 1/3) +
+    geom_vline(xintercept = 0.10, color = "red", lty = 2, alpha = 1/3) +
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) +
+    geom_point(alpha = 1/2) +
+    scale_color_manual(values = col) +
+    facet_wrap( ~ dist, nrow = 2, scales = "free", labeller = labeller(dist = label_parsed)) +
+    theme_bw() +
+    scale_x_continuous("TPR w/ Noninformative Covariate", labels = scales::percent, limits = c(0, 1)) + 
+    scale_y_continuous("TPR w/ Informative Covariate (cubic)", labels = scales::percent, limits = c(0, 1)) + 
+    ggtitle("Mean TPR for Informative and Noninformative Simulations") 
+```
+
+We can plot both FDR and TPR together.
+
+```{r, fig.width = 11, fig.height = 4.5}
+plot_grid(pfdr, ptpr)
+
+gp <- plot_grid(pfdr + coord_cartesian(c(0, .2), c(0, .2)) + guides(color = FALSE, linetype = FALSE),
+                ptpr + coord_cartesian(c(.6, 1), c(.6, 1)), rel_widths = c(1, 1.4), labels = LETTERS[1:2])
+gp
+
+ggsave(file.path(outdir, "FigureSsim-noise.pdf"), gp, width = 11, height = 4.5)
+```
+
+# Varying Null Proportions
+
+Next, we subset on simulation results that look at varying the null proportions.
+
+```{r}
+res_pi0set <- dplyr::filter(res, grepl("varyingpi0", setting))
+res_pi0set <- dplyr::rename(res_pi0set, pi0 = dist)
+res_pi0set <- dplyr::mutate(res_pi0set, pi0 = as.numeric(gsub("nullprop", "", pi0)))
+res_pi0set <- tidyr::complete(res_pi0set, setting, Method, pi0, key)
+res_pi0set <- dplyr::mutate(res_pi0set, setting = factor(setting, levels = c("varyingpi0", "varyingpi0-lowsignal"),
+                                                         labels = c("high signal", "low signal")))
+```
+
+We take a look at the TPR and FDR as function of the proportion of null hypotheses.
+
+```{r, fig.width = 8, fig.height = 10}
+## looking at FDR vs TPR
+col <- as.character(res_pi0set$col)
+names(col) <- as.character(res_pi0set$Method)
+lty <- as.character(res_pi0set$lty)
+names(lty) <- as.character(res_pi0set$Method)
+
+pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, col, lty) %>%
+    dplyr::filter(key == "FDR") %>%
+    ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
+    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    geom_point(alpha = 1/2, position = position_dodge(width = .01)) +
+    scale_color_manual(values = col) +
+    scale_linetype_manual(values = lty) + 
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
+    scale_x_continuous("Null Proportion", labels = scales::percent, breaks = seq(0, 1, .1)) + 
+    scale_y_continuous("FDR", labels = scales::percent) + 
+    theme_bw() +
+    facet_grid(setting ~ .) + 
+    ggtitle("Average FDR Across Varying Null Proportion")
+pfdr
+
+pfdr + coord_cartesian(ylim = c(0, .25))
+
+ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, col, lty) %>%
+    dplyr::filter(key == "TPR") %>%
+    ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
+    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    geom_point(alpha = 1/2, position = position_dodge(width = .01)) +
+    scale_color_manual(values = col) +
+    scale_linetype_manual(values = lty) + 
+    scale_x_continuous("Null Proportion", labels = scales::percent, breaks = seq(0, 1, .1)) + 
+    scale_y_continuous("TPR", labels = scales::percent) + 
+    theme_bw() +
+    facet_grid(setting ~ .) + 
+    ggtitle("Average TPR Across Varying Null Proportion")
+ptpr
+```
+
+Again, we can plot both FDR and TPR together.
+
+```{r, fig.width = 10, fig.height = 5}
+gp <- plot_grid(pfdr + coord_cartesian(ylim = c(0, .25)) + guides(color = FALSE, linetype = FALSE),
+                ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
+gp
+ggsave(file.path(outdir, "FigureSsim-nullprop.pdf"), gp, width = 10, height = 5)
+```
+
+# Unimodal Effect Sizes
+
+Next, we subset on simulation results that look at varying unimodal simulation settings
+that were used in the simulations of the ASH paper.
+
+```{r}
+res_unimodal <- dplyr::filter(res, grepl("varyinges", setting), dist != "bimodal")
+res_unimodal <- dplyr::rename(res_unimodal, signal = dist)
+res_unimodal <- tidyr::separate(res_unimodal, setting, c("setting", "dist"), by = "-", fill = "right")
+res_unimodal$dist[is.na(res_unimodal$dist)] <- "gaussian"
+res_unimodal <- tidyr::complete(res_unimodal, setting, Method, dist, signal, key)
+res_unimodal <- dplyr::mutate(res_unimodal, dist = factor(dist,
+                                                          levels = c("gaussian", "t", "chisq"),
+                                                          labels = c(expression("Noise: " * N(0, 1)),
+                                                                 expression("Noise: " * t[11]),
+                                                                 expression("Noise: " * {chi^2}[4]))))
+```
+
+We take a look at the TPR and FDR as function of the informativeness.
+
+```{r, fig.width = 8, fig.height = 5}
+## looking at FDR vs TPR
+col <- as.character(res_unimodal$col)
+names(col) <- as.character(res_unimodal$Method)
+lty <- as.character(res_unimodal$lty)
+names(lty) <- as.character(res_unimodal$Method)
+
+uniplot <- dplyr::select(res_unimodal, Method, dist, signal, key, mean_value, col, lty) %>%
+    dplyr::filter(key %in% c("FDR", "TPR")) %>%
+    tidyr::spread(key, mean_value) %>%
+    ggplot(aes(x = TPR, y = FDR, color = Method)) +
+    geom_point(alpha = 1/2) +
+    scale_color_manual(values = col) +
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
+    scale_x_continuous("TPR", labels = scales::percent, breaks = seq(0, 1, .2)) + 
+    scale_y_continuous("FDR", labels = scales::percent, breaks = seq(0, 1, .2)) + 
+    theme_bw() +
+    facet_grid(signal ~ dist, labeller = labeller(dist = label_parsed)) + 
+    ggtitle("Average FDR and TPR Across Unimodal Settings")
+uniplot
+
+ggsave(file.path(outdir, "FigureSsim-unimodal.pdf"), uniplot, width = 8, height = 5)
+```
+
+# Varying Informativeness
+
+Next, we subset on simulation results that look at varying informativeness of the
+informative covariate.
+
+```{r}
+res_infoset <- dplyr::filter(res, grepl("varyinginfo", setting))
+res_infoset <- dplyr::rename(res_infoset, level = dist)
+res_infoset <- dplyr::mutate(res_infoset, level = as.numeric(gsub("level", "", level)))
+res_infoset <- tidyr::complete(res_infoset, setting, Method, level, key)
+res_infoset <- dplyr::mutate(res_infoset, setting = factor(setting, levels = c("varyinginfo", "varyinginfo-lowsignal"),
+                                                         labels = c("high signal", "low signal")))
+```
+
+We take a look at the TPR and FDR as function of the informativeness.
+
+```{r, fig.width = 8, fig.height = 10}
+## looking at FDR vs TPR
+col <- as.character(res_infoset$col)
+names(col) <- as.character(res_infoset$Method)
+lty <- as.character(res_infoset$lty)
+names(lty) <- as.character(res_infoset$Method)
+
+pfdr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, col, lty) %>%
+    dplyr::filter(key == "FDR") %>%
+    ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
+    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    geom_point(alpha = 1/2, position = position_dodge(width = .01)) +
+    scale_color_manual(values = col) +
+    scale_linetype_manual(values = lty) + 
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
+    scale_x_continuous("Informativeness", labels = scales::percent, breaks = seq(0, 1, .1)) + 
+    scale_y_continuous("FDR", labels = scales::percent) + 
+    theme_bw() +
+    facet_grid(setting ~ .) + 
+    ggtitle("Average FDR Across Varying Informativeness")
+pfdr
+
+ptpr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, col, lty) %>%
+    dplyr::filter(key == "TPR") %>%
+    ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
+    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    geom_point(alpha = 1/2, position = position_dodge(width = .01)) +
+    scale_color_manual(values = col) +
+    scale_linetype_manual(values = lty) + 
+    scale_x_continuous("Informativeness", labels = scales::percent, breaks = seq(0, 1, .1)) + 
+    scale_y_continuous("TPR", labels = scales::percent) + 
+    theme_bw() +
+    facet_grid(setting ~ ., scales = "free_y") + expand_limits(y = 0) +
+    ggtitle("Average TPR Across Varying Informativeness")
+ptpr
+```
+
+Again, we can plot both FDR and TPR together.
+
+```{r, fig.width = 10, fig.height = 5}
+gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr,
+          rel_widths = c(1, 1.25), labels = LETTERS[1:2])
+gp
+
+ggsave(file.path(outdir, "FigureSsim-informativeness.pdf"), gp, width = 10, height = 5)
+```
