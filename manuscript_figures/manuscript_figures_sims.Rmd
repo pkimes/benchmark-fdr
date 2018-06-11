@@ -13,7 +13,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ```{r Figure2-load-data}
 # Load packages and source benchmark FDR
 library(tidyr)
@@ -125,11 +124,12 @@ dplyr::filter(res_nullset, key == "rejectprop") %>%
            ! (grepl("scott", Method) & dist == "chisq4")) %>%
     ggplot(aes(x = Method, y = mean_value, color = Method)) +
     geom_point() +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se)) + 
     facet_grid(. ~ dist) +
     scale_color_manual(values = col, guide = FALSE) +
     scale_y_continuous("Average % Rejected Tests", breaks = seq(0, 1, .01), labels = scales::percent) +
     theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-    ggtitle("Rejected proportion of in null simulations (average over 100 replications)") 
+    ggtitle("Rejected proportion in null simulations (average over 100 replications)") 
 ```
 
 Additionally, we take a look at the FWER (the proportion of simulation replicates out of 100
@@ -156,6 +156,7 @@ gp <- dplyr::filter(res_nullset, key == "TNR") %>%
            ! (grepl("scott", Method) & dist == "chisq4")) %>%
     ggplot(aes(x = Method, y = mean_value, color = Method)) +
     geom_point() +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se)) + 
     facet_grid(. ~ dist) +
     scale_y_continuous("TPR", labels = scales::percent) +
     scale_color_manual(values = col, guide = FALSE) +
@@ -193,13 +194,19 @@ col <- as.character(res_covset$col)
 names(col) <- as.character(res_covset$Method)
 
 ## looking at noninformative vs. informative (cubic)
-dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
+dplyr::select(res_covset, Method, setting, dist, key, mean_value, se) %>%
     dplyr::filter(setting %in% c("noninformative", "informative-cubic"),
                   key %in% c("TPR"),
                   ! Method %in% c("ashq", "bonf")) %>%
-    tidyr::spread(setting, mean_value) %>%
-    ggplot(aes(x = noninformative, y = `informative-cubic`, color = Method)) +
-    geom_point(alpha = 1) +
+    dplyr::mutate(plus1se = mean_value + se, minus1se = mean_value - se) %>%
+    dplyr::select(-se) %>%
+    tidyr::gather(metric, value, mean_value, plus1se, minus1se) %>%
+    tidyr::unite(metric, c("setting", "metric")) %>%
+    tidyr::spread(metric, value) %>%
+    ggplot(aes(x = noninformative_mean_value, y = `informative-cubic_mean_value`, color = Method)) +
+    geom_errorbar(aes(ymin = `informative-cubic_minus1se`, ymax = `informative-cubic_plus1se`), width = 0) +
+    geom_errorbarh(aes(xmin = noninformative_minus1se, xmax = noninformative_plus1se), height = 0) + 
+    ##geom_point(alpha = 1) +
     scale_color_manual(values = col) +
     facet_wrap( ~ dist, nrow = 1, scales = "free", labeller = labeller(dist = label_parsed)) +
     scale_x_continuous(labels = scales::percent) + 
@@ -245,7 +252,8 @@ ptpr <- dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
 We can plot both FDR and TPR together.
 
 ```{r, fig.width = 15, fig.height = 7.5}
-gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr, , rel_widths = c(1, 1.4), labels = LETTERS[1:2])
+gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr,
+                rel_widths = c(1, 1.4), labels = LETTERS[1:2])
 gp
 
 ggsave(file.path(outdir, "FigureSsim-noise.pdf"), gp, width = 11, height = 4.5)
@@ -279,10 +287,12 @@ names(col) <- as.character(res_pi0set$Method)
 lty <- as.character(res_pi0set$lty)
 names(lty) <- as.character(res_pi0set$Method)
 
-pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, col, lty) %>%
-    dplyr::filter(key == "FDR") %>%
+## not including SE because it's too small
+pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
+    dplyr::filter(key == "FDR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
@@ -292,10 +302,12 @@ pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, col, lt
     facet_grid(setting ~ .) + 
     ggtitle("Average FDR Across Varying Null Proportion")
 
-ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, col, lty) %>%
-    dplyr::filter(key == "TPR") %>%
+## not including SE because it's too small
+ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
+    dplyr::filter(key == "TPR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
@@ -346,10 +358,17 @@ names(col) <- as.character(res_unimodal$Method)
 lty <- as.character(res_unimodal$lty)
 names(lty) <- as.character(res_unimodal$Method)
 
-uniplot <- dplyr::select(res_unimodal, Method, dist, signal, key, mean_value, col, lty) %>%
+## We don't include the error bars because the SEs are so small
+uniplot <- dplyr::select(res_unimodal, Method, dist, signal, key, mean_value, se, col, lty) %>%
     dplyr::filter(key %in% c("FDR", "TPR")) %>%
-    tidyr::spread(key, mean_value) %>%
-    ggplot(aes(x = TPR, y = FDR, color = Method)) +
+    dplyr::mutate(plus1se = mean_value + se, minus1se = mean_value - se) %>%
+    dplyr::select(-se) %>%
+    tidyr::gather(metric, value, mean_value, plus1se, minus1se) %>%
+    tidyr::unite(metric, c("key", "metric")) %>%
+    tidyr::spread(metric, value) %>%
+    ggplot(aes(x = TPR_mean_value, y = FDR_mean_value, color = Method)) +
+    ##geom_errorbar(aes(ymin = FDR_minus1se, ymax = FDR_plus1se), width = 0) +
+    ##geom_errorbarh(aes(xmin = TPR_minus1se, xmax = TPR_plus1se), height = 0) + 
     geom_point(alpha = 1) +
     scale_color_manual(values = col) +
     geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
@@ -385,10 +404,12 @@ names(col) <- as.character(res_infoset$Method)
 lty <- as.character(res_infoset$lty)
 names(lty) <- as.character(res_infoset$Method)
 
-pfdr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, col, lty) %>%
+## not including SE because it's too small
+pfdr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, se, q10, q90, col, lty) %>%
     dplyr::filter(key == "FDR") %>%
     ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0) +
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
@@ -399,10 +420,11 @@ pfdr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, col,
     ggtitle("Average FDR Across Varying Informativeness")
 pfdr
 
-ptpr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, col, lty) %>%
+ptpr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "TPR") %>%
     ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
+    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0) +    
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
