@@ -245,13 +245,16 @@ ptpr <- dplyr::select(res_covset, Method, setting, dist, key, mean_value) %>%
 We can plot both FDR and TPR together.
 
 ```{r, fig.width = 15, fig.height = 7.5}
-plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr)
-
-gp <- plot_grid(pfdr + coord_cartesian(c(0, .2), c(0, .2)) + guides(color = FALSE, linetype = FALSE),
-                ptpr + coord_cartesian(c(.6, 1), c(.6, 1)), rel_widths = c(1, 1.4), labels = LETTERS[1:2])
+gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr, , rel_widths = c(1, 1.4), labels = LETTERS[1:2])
 gp
 
-ggsave(file.path(outdir, "FigureSsim-noise.pdf"), gp, width = 15, height = 7.5)
+ggsave(file.path(outdir, "FigureSsim-noise.pdf"), gp, width = 11, height = 4.5)
+
+gp_zoom <- plot_grid(pfdr + coord_cartesian(c(0, .2), c(0, .2)) + guides(color = FALSE, linetype = FALSE),
+                     ptpr + coord_cartesian(c(.6, 1), c(.6, 1)), rel_widths = c(1, 1.4), labels = LETTERS[1:2])
+gp_zoom
+
+ggsave(file.path(outdir, "FigureSsim-noise-zoom.pdf"), gp_zoom, width = 11, height = 4.5)
 ```
 
 # Varying Null Proportions
