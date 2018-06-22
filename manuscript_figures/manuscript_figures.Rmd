@@ -193,6 +193,10 @@ tabS3 <- tabS3 %>%
   spread(casestudy, mean_prop)
 
 xtable(tabS3)
+
+# generate detailed case study table for creating sim vs cs ranks boxplots
+casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha,
+                                 tableOnly = TRUE)
 ```
 
 Create more panels with heatmaps of yeast simulation results.
@@ -241,6 +245,39 @@ ggdraw() +
   draw_plot(Fig4, 0, 0, 0.60, 1) +
   draw_plot_label(c("A", "B"), c(0, 0.57), c(1, 1), size = 15)
 ggsave(file.path(outdir, "Figure4.pdf"), width=12, height=5)
+
+# generate detailed case study table for creating sim vs cs ranks boxplots
+yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
+                                 tableOnly = TRUE)
+```
+
+Create boxplot of ranking in sims versus rankings in case studies using the
+`casestudy.tab` and `yeastsim.tab` objects created above.
+
+```{r}
+casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
+  select(casestudy, method, prop_casestudy)
+yeastsim.tab <- yeastsim.tab %>% 
+  mutate(prop_yeastsim = mean_prop) %>% 
+  filter(casestudy == "de5") %>%
+  select(casestudy, method, prop_yeastsim)
+  
+rank.tab <- left_join(casestudy.tab, yeastsim.tab, by = "method") %>%
+  left_join(candycols %>% dplyr::mutate(method=Method), by = "method")
+
+col <- as.character(rank.tab$col)
+names(col) <- as.character(rank.tab$method)
+
+rank.tab$method <- factor(rank.tab$method,
+                          levels = yeastsim.tab$method[order(yeastsim.tab$prop_yeastsim)])
+
+ggplot(rank.tab, aes(y = prop_casestudy, x = method, group = method, fill = method)) +
+  geom_boxplot() +
+  scale_fill_manual(values=col) +
+  theme_bw() +
+  xlab("Method (ordered by rejections in Yeast simulation (n=5))") + 
+  ylab("Proportion of maximum rejections in casestudies")
+ggsave(file.path(outdir, "Figure_simVcasestudyRanks.pdf"), width=6, height=4)
 ```
 
 # Figure 5
