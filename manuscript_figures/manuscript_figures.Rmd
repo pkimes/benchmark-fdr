@@ -246,7 +246,7 @@ ggdraw() +
   draw_plot_label(c("A", "B"), c(0, 0.57), c(1, 1), size = 15)
 ggsave(file.path(outdir, "Figure4.pdf"), width=12, height=5)
 
-# generate detailed case study table for creating sim vs cs ranks boxplots
+# generate detailed yeast sim table for creating sim vs cs ranks boxplots
 yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
                                  tableOnly = TRUE)
 ```
