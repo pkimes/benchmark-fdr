@@ -59,7 +59,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     for (l in seq_along(objects)){
       x <- readRDS(objects[l])
       tmp <- tidy_df(x, colLabels = rep(colLabels[l], length(x)), 
-                     fill, annotate) %>%
+                     fill, annotate, alpha) %>%
         group_by(method, casestudy) %>%
         summarize(nrejects = mean(nrejects),
                   rank = mean(rank),
@@ -69,7 +69,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     }
     
   }else{
-    ranks <- tidy_df(objects, colLabels, fill, annotate)
+    ranks <- tidy_df(objects, colLabels, fill, annotate, alpha)
   }
   
   # exclude methods 
@@ -221,7 +221,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
 
 
 
-tidy_df <- function(objects, colLabels, fill, annotate){
+tidy_df <- function(objects, colLabels, fill, annotate, alpha){
     ## create tidy data frame where each row is a method / dataset observation
     ## of a rank 
     ranks <- data.frame()
