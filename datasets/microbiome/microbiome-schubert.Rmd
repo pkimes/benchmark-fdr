@@ -286,6 +286,37 @@ if (!file.exists(otu_bench_file_abun)) {
 }
 ```
 
+## Benchmark Metrics (mean abun)
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, schubert-metrics-abun, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, schubert-plot-abun, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+# Ubiquity/Abundance comparison
+
+Here we compare the method ranks for the different comparisons at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(otu_bench_file, otu_bench_file_abun), 
+                colLabels = c("OTU","OTU-abun"), 
+                alpha = 0.10, xlab = "Comparison")
+```
+
 # Session Info
 
 ```{r}

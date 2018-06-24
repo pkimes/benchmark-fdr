@@ -256,6 +256,25 @@ if (!file.exists(ph_bench_file_abun)) {
     sb <- readRDS(ph_bench_file_abun)
 }
 ```
+### Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, ph-metrics-abun, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, ph-plot-abun, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 ## SO4
 
@@ -368,6 +387,25 @@ if (!file.exists(so4_bench_file_abun)) {
 } else {
     sb <- readRDS(so4_bench_file_abun)
 }
+```
+### Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, so4-metrics-abun, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, so4-plot-abun, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
 ## Al
@@ -482,14 +520,36 @@ if (!file.exists(al_bench_file_abun)) {
     sb <- readRDS(al_bench_file_abun)
 }
 ```
+### Benchmark Metrics
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, al-metrics-abun, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, al-plot-abun, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
 
 # Response comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r, eval = FALSE}
-plotMethodRanks(c(so4_bench_file, ph_bench_file, al_bench_file), 
-                colLabels = c("SO4", "pH", "Al"), 
+```{r}
+plotMethodRanks(c(so4_bench_file, so4_bench_file_abun,
+                  ph_bench_file, ph_bench_file_abun,
+                  al_bench_file, al_bench_file_abun), 
+                colLabels = c("SO4", "SO4-abun", "pH", "ph-abun",
+                              "Al", "Al-abun"), 
                 alpha = 0.10, xlab = "Comparison")
 ```
 

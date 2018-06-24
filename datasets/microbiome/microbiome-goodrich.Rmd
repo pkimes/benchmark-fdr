@@ -417,14 +417,44 @@ if (!file.exists(gns_bench_file_abun)) {
     sb <- readRDS(gns_bench_file_abun)
 }
 ```
+## Benchmark Metrics - mean abun
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, goodrich-genus-metrics-abun, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, goodrich-genus-plot-abun, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, goodrich-genus-overlap-abun}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+```{r, goodrich-genus-covariates-abun}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
 
 # OTU/Genus comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r, eval = FALSE}
-plotMethodRanks(c(otu_bench_file, gns_bench_file), 
-                colLabels = c("OTU", "Genus"), 
+```{r}
+plotMethodRanks(c(otu_bench_file, gns_bench_file, gns_bench_file_abun), 
+                colLabels = c("OTU", "Genus", "Genus-abun"), 
                 alpha = 0.10, xlab = "Comparison")
 ```
 
