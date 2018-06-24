@@ -54,12 +54,15 @@ dir.create(enigma_dir, showWarnings = FALSE)
 # to have high correlations, and Al to be in the middle
 so4_result_file <- file.path(resdir, "enigma-so4-otus-results.rds")
 so4_bench_file <- file.path(sbdir, "enigma-so4-otus-benchmark.rds")
+so4_bench_file_abun <- file.path(sbdir, "enigma-so4-otus-abun-benchmark.rds")
 
 ph_result_file <- file.path(resdir, "enigma-ph-otus-results.rds")
 ph_bench_file <- file.path(sbdir, "enigma-ph-otus-benchmark.rds")
+ph_bench_file_abun <- file.path(sbdir, "enigma-ph-otus-abun-benchmark.rds")
 
 al_result_file <- file.path(resdir, "enigma-al-otus-results.rds")
 al_bench_file <- file.path(sbdir, "enigma-al-otus-benchmark.rds")
+al_bench_file_abun <- file.path(sbdir, "enigma-al-otus-abun-benchmark.rds")
 ```
 
 # Data Preparation
@@ -155,11 +158,11 @@ if (!file.exists(ph_result_file)) {
 }
 ```
 
-## Covariate Diagnostics
+### Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative.
 
-### Ubiquity
+#### Ubiquity
 
 ```{r, ph-ubi-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
@@ -170,7 +173,7 @@ strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
-### Mean Abundance (across non-zero samples)
+#### Mean Abundance (across non-zero samples)
 
 ```{r, ph-abun-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
@@ -180,7 +183,7 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-## Multiple-Testing Correction
+### Multiple-Testing Correction
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -207,7 +210,7 @@ if (!file.exists(ph_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+### Benchmark Metrics
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -227,6 +230,33 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+### Multiple-Testing Correction - mean abundance
+
+Let's use `mean_abun_present` as our `ind_covariate`.
+
+```{r, ph-labelcovariate-abun}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, ph-sb-abun, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(ph_bench_file_abun)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = ph_bench_file_abun)
+} else {
+    sb <- readRDS(ph_bench_file_abun)
+}
+```
+
 ## SO4
 
 Next, we'll look at SO4 levels
@@ -241,11 +271,11 @@ if (!file.exists(so4_result_file)) {
 }
 ```
 
-## Covariate Diagnostics
+### Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative.
 
-### Ubiquity
+#### Ubiquity
 
 ```{r, so4-ubi-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
@@ -256,7 +286,7 @@ strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
-### Mean Abundance (across non-zero samples)
+#### Mean Abundance (across non-zero samples)
 
 ```{r, so4-abun-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
@@ -266,7 +296,7 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-## Multiple-Testing Correction
+### Multiple-Testing Correction
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -293,7 +323,7 @@ if (!file.exists(so4_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+### Benchmark Metrics
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -313,6 +343,33 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+### Multiple-Testing Correction - mean abundance
+
+Let's use `mean_abun_present` as our `ind_covariate`.
+
+```{r, so4-labelcovariate-abun}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, so4-sb-abun, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(so4_bench_file_abun)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = so4_bench_file_abun)
+} else {
+    sb <- readRDS(so4_bench_file_abun)
+}
+```
+
 ## Al
 
 Finally, we'll look at Al levels
@@ -327,11 +384,11 @@ if (!file.exists(al_result_file)) {
 }
 ```
 
-## Covariate Diagnostics
+### Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative.
 
-### Ubiquity
+#### Ubiquity
 
 ```{r, al-ubi-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
@@ -342,7 +399,7 @@ strat_hist(res, pvalue="pval", covariate="ubiquity", maxy=10, binwidth=0.05)
 rank_scatter(res, pvalue="pval", covariate="ubiquity")
 ```
 
-### Mean Abundance (across non-zero samples)
+#### Mean Abundance (across non-zero samples)
 
 ```{r, al-abun-hist, fig.width=10, fig.height=3.2}
 strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0.05)
@@ -352,7 +409,7 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-## Multiple-Testing Correction
+### Multiple-Testing Correction
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -379,7 +436,7 @@ if (!file.exists(al_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+### Benchmark Metrics
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -398,11 +455,39 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 ```{r}
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
+
+### Multiple-Testing Correction - mean abundance
+
+Let's use `mean_abun_present` as our `ind_covariate`.
+
+```{r, al-labelcovariate-abun}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, al-sb-abun, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(al_bench_file_abun)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = al_bench_file_abun)
+} else {
+    sb <- readRDS(al_bench_file_abun)
+}
+```
+
 # Response comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r}
+```{r, eval = FALSE}
 plotMethodRanks(c(so4_bench_file, ph_bench_file, al_bench_file), 
                 colLabels = c("SO4", "pH", "Al"), 
                 alpha = 0.10, xlab = "Comparison")

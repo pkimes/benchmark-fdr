@@ -58,6 +58,7 @@ otu_bench_file_log_ubiquity <- file.path(sbdir, "baxter-otus-log-ubiquity-benchm
 gns_result_file <- file.path(resdir, "baxter-genus-results.rds")
 gns_bench_file <- file.path(sbdir, "baxter-genus-benchmark.rds")
 gns_bench_file_log_ubiquity <- file.path(sbdir, "baxter-genus-log-ubiquity-benchmark.rds")
+gns_bench_file_abun <- file.path(sbdir, "baxter-genus-mean-abun-benchmark.rds")
 ```
 
 # Data Preparation
@@ -514,11 +515,40 @@ plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+## Multiple-Testing Correction - mean abundance
+
+Let's use `mean_abun_present` as our `ind_covariate`.
+
+```{r, baxter-genus-labelcovariate-abun}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, baxter-genus-sb-abun, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file_abun)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/crc_baxter_results.tar.gz"
+    saveRDS(sb, file = gns_bench_file_abun)
+} else {
+    sb <- readRDS(gns_bench_file_abun)
+}
+```
+
 # OTU/Genus comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r}
+```{r, eval = FALSE}
 plotMethodRanks(c(otu_bench_file, otu_bench_file_log_ubiquity, 
                   gns_bench_file, gns_bench_file_log_ubiquity), 
                 colLabels = c("OTU", "OTU - log", "Genus", "Genus - log"), 

@@ -53,6 +53,7 @@ otu_result_file <- file.path(resdir, "goodrich-otus-results.rds")
 otu_bench_file <- file.path(sbdir, "goodrich-otus-benchmark.rds")
 gns_result_file <- file.path(resdir, "goodrich-genus-results.rds")
 gns_bench_file <- file.path(sbdir, "goodrich-genus-benchmark.rds")
+gns_bench_file_abun <- file.path(sbdir, "goodrich-genus-abun-benchmark.rds")
 ```
 
 # Data Preparation
@@ -389,11 +390,39 @@ methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
 
+## Multiple-Testing Correction - mean abun
+
+Let's use `mean_abun_present` as our `ind_covariate`.
+
+```{r, goodrich-genus-labelcovariate-abun}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. 
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, goodrich-genus-sb-abun, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file_abun)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
+    saveRDS(sb, file = gns_bench_file_abun)
+} else {
+    sb <- readRDS(gns_bench_file_abun)
+}
+```
+
 # OTU/Genus comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r}
+```{r, eval = FALSE}
 plotMethodRanks(c(otu_bench_file, gns_bench_file), 
                 colLabels = c("OTU", "Genus"), 
                 alpha = 0.10, xlab = "Comparison")
