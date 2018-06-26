@@ -40,7 +40,8 @@ dir.create(outdir, showWarnings = FALSE)
 # set alpha cutoff for plots that are fixed at a certain value of alpha
 alpha <- 0.10
 
-methodset <- c("bonf", "bh", "ihw-a10", "qvalue", "bl-df03", "lfdr",
+methodset <- c("bonf", "bh", paste0("ihw-a", round(alpha * 100)),
+               "qvalue", "bl-df03", "lfdr",
                "scott-empirical", "scott-theoretical", "ashq")
 ```
 
@@ -287,12 +288,12 @@ names(col) <- as.character(res_pi0set$Method)
 lty <- as.character(res_pi0set$lty)
 names(lty) <- as.character(res_pi0set$Method)
 
-## not including SE because it's too small
+## including SE to show variability in FDRR
 pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "FDR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
@@ -302,12 +303,12 @@ pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col
     facet_grid(setting ~ .) + 
     ggtitle("Average FDR Across Varying Null Proportion")
 
-## not including SE because it's too small
+## including SE to show variability in FDRR
 ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "TPR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
     geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
     geom_point(alpha = 1, position = position_dodge(width = .01)) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
@@ -320,15 +321,18 @@ ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col
 Again, we can plot both FDR and TPR together.
 
 ```{r, fig.width = 15, fig.height = 7.5}
-plot_grid(pfdr + guides(color = FALSE, linetype = FALSE),
-          ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
-
-## trimmed ranges
-gp <- plot_grid(pfdr + coord_cartesian(ylim = c(0, .25)) + guides(color = FALSE, linetype = FALSE),
+gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE),
                 ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
 gp
 
 ggsave(file.path(outdir, "FigureSsim-nullprop.pdf"), gp, width = 15, height = 7.5)
+
+## trimmed ranges
+gp_zoom <- plot_grid(pfdr + coord_cartesian(ylim = c(0, .25)) + guides(color = FALSE, linetype = FALSE),
+                     ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
+gp_zoom
+
+ggsave(file.path(outdir, "FigureSsim-nullprop-zoom.pdf"), gp_zoom, width = 15, height = 7.5)
 ```
 
 # Unimodal Effect Sizes
