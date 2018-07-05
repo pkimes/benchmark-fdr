@@ -53,6 +53,7 @@ dir.create(sbdir, showWarnings = FALSE)
 # results files
 resfile_N <- file.path(sbdir, paste0("bmi-samplesize-benchmark.rds"))
 resfile_AF <- file.path(sbdir, paste0("bmi-maf-benchmark.rds"))
+resfile_uninf <- file.path(sbdir, paste0("bmi-uninf-benchmark.rds"))
 
 # set up parallel backend
 cores <- 8
@@ -199,6 +200,12 @@ bmi <- bmi %>%
     select(pval, SE, effect_size, ind_covar_N, ind_covar_AF, test_statistic) 
 ```
 
+Now we'll add an random (uninformative covariate) to compare results with.
+
+```{r}
+bmi <- bmi %>% mutate(ind_covar_uninf = rnorm(nrow(bmi)))
+```
+
 # Data Analysis
 
 ## Differential Testing
@@ -232,6 +239,10 @@ ggplot(data=bmi, aes(x = ind_covar_N, y = SE)) +
 ggplot(data=bmi, aes(x = ind_covar_AF, y = SE)) +
   geom_hex(bins = 125)+
   xlab("Covariate: Minor allele frequency") 
+
+ggplot(data=bmi, aes(x = ind_covar_AF, y = SE)) +
+  geom_hex(bins = 125)+
+  xlab("Covariate: Random") 
 ```
 
 
@@ -262,6 +273,19 @@ rank_scatter(bmi, pvalue="pval", covariate="ind_covar_AF") +
  
 ```{r, fig.width=10, fig.height=3.2, message=FALSE}
 strat_hist(bmi, pvalue="pval", covariate="ind_covar_AF", maxy=2)
+```
+
+### Covariate two: Random
+
+Next we look at the random (uninformative) covariate.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(bmi, pvalue="pval", covariate="ind_covar_uninf") +
+  ggtitle("Covariate 1: Minor allele frequency")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(bmi, pvalue="pval", covariate="ind_covar_uninf", maxy=2)
 ```
 
 ## Multiple-Testing Correction
@@ -353,6 +377,34 @@ if (!is.na(duration)) {
 }
 ```
 
+### Covariate three: Random
+
+Now, we'll repeat the multiple testing correction using the other covariate (random):
+
+```{r, GWAS1-sb3, results="hide", message=FALSE}
+duration <- NA
+if (!file.exists(resfile_uninf)) {
+    t1 <- proc.time()
+    sbU <- bd %>% buildBench(data=(bmi %>% mutate(ind_covariate=ind_covar_uninf) %>%
+                                    filter(!is.na(ind_covariate))), 
+                              ftCols = c("ind_covar_uninf", "effect_size"),
+                              parallel=TRUE, BPPARAM=multicoreParam)
+    metadata(sbU)$data_download_link <-    
+                     "http://portals.broadinstitute.org/collaboration/giant/images/3/3a/BMI.SNPadjSMK.zip"
+    saveRDS(sbU, file = resfile_uninf)
+    duration <- round((proc.time()-t1)[3]/60, 1)
+} else {
+    sbU <- readRDS(resfile_uninf)
+}
+```
+
+```{r, echo=FALSE}
+if (!is.na(duration)) {
+    message("This step took ", duration, " minutes for ", nrow(bmi), " SNPs using ",
+            cores, " cores.")
+}
+```
+
 ## Benchmark Metrics
 
 Next, we'll add the default performance metric for q-value assays and 
@@ -430,13 +482,48 @@ covariateLinePlot(sbAF, alpha=0.05, covname="effect_size", nbins=25,
 covariateLinePlot(sbAF, alpha=0.05, covname="ind_covar_AF", nbins=25)
 ```
 
+### Covariate three: Random
+
+Next, we'll look at the performance metrics for the other covariate (random).
+
+```{r, GWAS1-metrics3}
+# rename assay to qvalue
+assayNames(sbU) <- "qvalue"
+sbU <- addDefaultMetrics(sbU)
+```
+
+Now, we'll plot the results.
+
+```{r, GWAS1-plot3, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sbU, supplementary=FALSE) +
+  ggtitle("Covariate 3: Random")
+
+rejection_scatter_bins(sbU, covariate="ind_covar_uninf", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("Covariate 3: Random")
+
+# upset plot 
+plotFDRMethodsOverlap(sbU, 
+                      alpha=0.05, nsets=ncol(sbAF),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE)
+```
+
+```{r, fig.width=8, fig.height=3.5}
+covariateLinePlot(sbU, alpha=0.05, covname="effect_size", nbins=25, 
+                 trans = "log1p")
+covariateLinePlot(sbU, alpha=0.05, covname="ind_covar_uninf", nbins=25)
+```
+
+
 # Covariate comparison
 
 Here we compare the method ranks for the two covariates at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(resfile_AF, resfile_N), 
-                colLabels = c("MAF", "Sample Size"), 
+plotMethodRanks(c(resfile_AF, resfile_N, resfile_uninf), 
+                colLabels = c("MAF", "Sample Size", "Random"), 
                 alpha = 0.10, xlab = "Covariate", 
                 excludeMethods = NULL)
 ```
