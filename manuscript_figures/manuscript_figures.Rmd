@@ -255,6 +255,8 @@ Create boxplot of ranking in sims versus rankings in case studies using the
 `casestudy.tab` and `yeastsim.tab` objects created above.
 
 ```{r}
+library(ggbeeswarm)
+
 casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
   select(casestudy, method, prop_casestudy)
 yeastsim.tab <- yeastsim.tab %>% 
@@ -270,14 +272,23 @@ names(col) <- as.character(rank.tab$method)
 
 rank.tab$method <- factor(rank.tab$method,
                           levels = yeastsim.tab$method[order(yeastsim.tab$prop_yeastsim)])
+x <- match(rank.tab$casestudy.x, dataset)
+rank.tab$casestudy <- casestudy[x]
 
-ggplot(rank.tab, aes(y = prop_casestudy, x = method, group = method, fill = method)) +
-  geom_boxplot() +
-  scale_fill_manual(values=col) +
+ggplot(rank.tab , 
+       aes(y = prop_casestudy, x = method, group = method, color = Method)) +
+  geom_boxplot(aes(x = prop_yeastsim, group = as.factor(prop_yeastsim), y = prop_casestudy),
+                   alpha = 0.3, width = 0.04, outlier.shape = NA) +
+  geom_quasirandom(aes(x = prop_yeastsim, y = prop_casestudy, color = Method, shape = casestudy),
+                   alpha = 0.6, cex=3, width = 0.002,  groupOnX = TRUE,
+                   varwidth = TRUE) +
+  scale_color_manual(values=col) +
   theme_bw() +
-  xlab("Method (ordered by rejections in Yeast simulation (n=5))") + 
-  ylab("Proportion of maximum rejections in casestudies")
-ggsave(file.path(outdir, "Figure_simVcasestudyRanks.pdf"), width=6, height=4)
+  xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
+  ylab("Proportion of maximum rejections in casestudies") +
+  labs(shape = "Case Study") 
+ggsave(file.path(outdir, "Figure_simVcasestudyRanks_points.pdf"), width=6, height=4)
+
 ```
 
 # Figure 5
