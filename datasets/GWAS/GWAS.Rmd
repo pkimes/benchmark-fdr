@@ -203,6 +203,7 @@ bmi <- bmi %>%
 Now we'll add an random (uninformative covariate) to compare results with.
 
 ```{r}
+set.seed(39580)
 bmi <- bmi %>% mutate(ind_covar_uninf = rnorm(nrow(bmi)))
 ```
 
