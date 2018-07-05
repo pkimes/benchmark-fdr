@@ -56,6 +56,7 @@ filtered_file <- file.path(resdir, "cbp-csaw-counts-filtered.rds")
 normfacs_file <- file.path(resdir, "cbp-csaw-counts-normfacs.rds")
 result_file <- file.path(resdir, "cbp-csaw-results.rds")
 bench_file <- file.path(sbdir, "cbp-csaw-benchmark.rds")
+bench_file_uninf <- file.path(sbdir, "cbp-csaw-uninf-benchmark.rds")
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
@@ -247,6 +248,10 @@ if (file.exists(result_file)) {
 
 ## covert to df for downstream analysis
 res_df <- as.data.frame(res_ranges)
+
+## add random covariate 
+set.seed(11245)
+res_df$uninf_covar = rnorm(nrow(res_df))
 ```
 
 ## Covariate Diagnostics
@@ -271,8 +276,20 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "width") +
     xlab("Region Width")
 ```
 
-```{r, meancov-diag-hist, fig.width=10, fig.height=3.2}
+```{r, width-diag-hist, fig.width=10, fig.height=3.2}
 strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 3)
+```
+
+### Random
+
+```{r, rand-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "uninf_covar") +
+    ggtitle("Random independent covariate") +
+    xlab("Region Width")
+```
+
+```{r, rand-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "uninf_covar", maxy = 35, numQ = 3)
 ```
 
 ## Multiple-Testing Correction
@@ -294,7 +311,24 @@ if (!file.exists(bench_file)) {
 }
 ```
 
+We'll also compare to the random covariate.
+
+```{r}
+if (!file.exists(bench_file_uninf)) {
+    res_df$ind_covariate <- res_df$uninf_covar
+    res_df$pval <- res_df$PValue
+
+    bd <- initializeBenchDesign()
+    sbU <- buildBench(bd, data = res_df, ftCols = "ind_covariate")
+    saveRDS(sbU, file = bench_file_uninf)
+} else {
+    sbU <- readRDS(bench_file_uninf)
+}
+```
+
 ## Benchmark Metrics
+
+### Region width
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -321,6 +355,44 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```{r, rnaseq-lineplots}
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
+
+### Random
+
+We'll do the same for the random (uninformative covariate).
+
+```{r, chipseq-metrics-rand}
+assayNames(sbU) <- "qvalue"
+sbU <- addDefaultMetrics(sbU)
+```
+
+Now, we'll plot the results.
+
+```{r, chipseq-scatter-rand, results="hide"}
+rejections_scatter(sbU, supplementary = FALSE)
+rejection_scatter_bins(sbU, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+```
+
+```{r, chipseq-overlap-rand}
+plotFDRMethodsOverlap(sbU, alpha = 0.05, nsets = ncol(sb),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+```
+
+```{r, rnaseq-lineplot-rand}
+covariateLinePlot(sbU, alpha = 0.05, covname = "ind_covariate")
+```
+
+## Covariate comparison
+
+Here we compare the method ranks for the two covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(benchfile, benchfile_uninf), 
+                colLabels = c("Region width", "Random"), 
+                alpha = 0.10, xlab = "Covariate", 
+                excludeMethods = NULL)
+``` 
 
 # Session Info
 
