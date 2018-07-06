@@ -555,6 +555,9 @@ if (!file.exists(al_result_file)) {
 } else {
     res <- readRDS(al_result_file)
 }
+
+# remove OTUs with missing pvals
+res <- res %>% filter(!is.na(pval))
 ```
 
 Add random (uninformative) covariate.
