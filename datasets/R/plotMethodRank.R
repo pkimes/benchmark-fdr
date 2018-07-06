@@ -262,7 +262,7 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
                 dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
                 dplyr::filter( !method == "unadjusted") %>%
                 dplyr::filter( !(method %in% NAmethods)) %>%
-                select( method, value ) %>%
+                dplyr::select( method, value ) %>%
                 dplyr::rename( nrejects = value) %>%
                 mutate( method = gsub("-df03", "", method)) %>%
                 mutate( method = gsub("(-a)(.*)", "", method)) %>%
