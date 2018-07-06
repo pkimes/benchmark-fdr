@@ -48,8 +48,8 @@ deseq_file <- file.path(datdir, "mouse-deseq.rds")
 goset_file <- file.path(datdir, "mouse-gosets.rds")
 result_file <- file.path(resdir, "mouse-results.rds")
 bench_file <- file.path(sbdir, "mouse-benchmark.rds")
+bench_file_uninf <- file.path(sbdir, "mouse-uninf-benchmark.rds")
 ```
-
 
 # Data Preparation
 
@@ -118,6 +118,11 @@ if (!file.exists(result_file)) {
 } else {
     goRes <- readRDS(result_file)
 }
+
+## Add random (uninformative) covariate
+set.seed(7476)
+goRes$rand_covar <- rnorm(nrow(goRes))
+
 ```
 
 ## Covariate Diagnostics
@@ -148,13 +153,37 @@ dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
     strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=10)
 ```
 
+### Random
+
+We will explore whether the random covariate can be used as a covariate for modern multiple-testing correction methods in the context of GSEA. In the plot below, the log10 of the p-values is plotted as a function of the 
+random covariate. This covariate looks independent of the p-values.
+
+```{r informativeCovariate-rand, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
+              covariate = "rand_covar", bins = 50, 
+              funfill = log10_trans()) +
+    ylim(0, 12) +
+    ggtitle("Over-represented gene sets") +
+    ylab(expression(-log[10]~"(p-value)") ) 
+```
+
+We can also explore if the covariate seems to be independent under the null. 
+
+```{r assumptions-rand, message=FALSE, fig.width=10, fig.height=3.2}
+## filter numInCat below only used for plotting
+## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
+#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
+dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
+    strat_hist( pval="over_represented_pvalue", covariate="rand_covar", maxy=10)
+```
+
 ## Multiple-Testing Correction
 
 Generating the *SummarizedBenchmark* object:
  
 ```{r setup-benckmark, message=FALSE}
 ## rename columns and prepare for benchmarking
-res <- dplyr::select(goRes, over_represented_pvalue, numInCat) %>%
+res <- dplyr::select(goRes, over_represented_pvalue, numInCat, rand_covar) %>%
     dplyr::rename(pval = over_represented_pvalue,
                   ind_covariate = numInCat) %>%
     dplyr::mutate(pval = pmin(pval, 1))
@@ -177,7 +206,22 @@ if (!file.exists(bench_file)) {
 }
 ```
 
+We'll also compare the results to an uninformative (random) covariate.
+
+```{r run-benchmark-rand}
+if (!file.exists(bench_file_uninf)) {
+  res$ind_covariate <- res$rand_covar
+  sGSEAMouse_rand <- buildBench(bd, res, ftCols = "ind_covariate")
+  saveRDS(sGSEAMouse_rand, file = bench_file_uninf)
+} else {
+  sGSEAMouse_rand <- readRDS(bench_file_uninf)
+}
+```
+
+
 ## Benchmark Metrics
+
+### Gene Set Size
 
 ```{r}
 assayNames(sGSEAMouse) <- "qvalue"
@@ -196,6 +240,37 @@ plotFDRMethodsOverlap(sGSEAMouse, alpha = 0.1, supplementary = FALSE,
 ```{r}
 covariateLinePlot(sGSEAMouse, alpha = 0.1, covname = "ind_covariate", trans="log1p")
 ```
+
+### Random
+
+```{r}
+assayNames(sGSEAMouse_rand) <- "qvalue"
+sGSEAMouse_rand <- addDefaultMetrics(sGSEAMouse_rand)
+sGSEAMouse_rand <- estimatePerformanceMetrics(sGSEAMouse_rand, addColData=TRUE)
+```
+
+```{r plottingResults-rand}
+rejections_scatter(sGSEAMouse_rand, as_fraction=FALSE, supplementary=FALSE)
+```
+  
+```{r}
+plotFDRMethodsOverlap(sGSEAMouse_rand, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
+```
+
+```{r}
+covariateLinePlot(sGSEAMouse_rand, alpha = 0.1, covname = "ind_covariate", trans = "log1p")
+```
+
+## Covariate comparison
+
+Here we compare the method ranks for the two covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(bench_file, bench_file_uninf), 
+                colLabels = c("Set Size", "Random"), 
+                alpha = 0.10, xlab = "Covariate", 
+                excludeMethods = NULL)
+``` 
 
 # Session Info
 
