@@ -320,7 +320,7 @@ strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 3)
 
 ```{r, rand-diag-scatter, fig.width=4.5, fig.height=3.5}
 rank_scatter(res_df, pvalue = "PValue", covariate = "uninf_covar") +
-    ggtitle("Region width as independent covariate") +
+    ggtitle("Random independent covariate") +
     xlab("Region Width")
 ```
 
