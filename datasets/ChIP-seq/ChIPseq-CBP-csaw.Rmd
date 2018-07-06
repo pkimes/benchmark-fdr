@@ -388,7 +388,7 @@ covariateLinePlot(sbU, alpha = 0.05, covname = "ind_covariate")
 Here we compare the method ranks for the two covariates at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(benchfile, benchfile_uninf), 
+plotMethodRanks(c(bench_file, bench_file_uninf), 
                 colLabels = c("Region width", "Random"), 
                 alpha = 0.10, xlab = "Covariate", 
                 excludeMethods = NULL)
