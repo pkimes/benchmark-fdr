@@ -71,6 +71,7 @@ dir.create(sbdir, showWarnings = FALSE)
 # results files
 resfile_mean <- file.path(sbdir, "human-benchmark-mast-mean.rds")
 resfile_det <- file.path(sbdir, "human-benchmark-mast-det.rds")
+resfile_uninf <- file.path(sbdir, "human-benchmark-mast-uninf.rds")
 
 # set up parallel backend
 cores <- 8
@@ -204,6 +205,7 @@ saveRDS(humandata, datfile)
 In scrnaseq data, strength of the signal can be a affected by the of level of gene expression. 
 We will explore two potential covariates related to expression level: mean nonzero expression 
 and detection rate (defined as the proportion of cells expressing the gene at a nonzero level). 
+In addition, we'll add a random (uninformative covariate).
 These will also be added to the `rowData` slot of the `SummarizedExperiments`.
 
 ```{r,cov}
@@ -211,9 +213,11 @@ add_covariates_scrnaseq <- function(dat){
   rowData(dat)$meanExp <- apply(assay(dat, "count"), 1, 
                                 function(x) mean(x[x>0]))
   rowData(dat)$detection <- rowMeans(assay(dat, "count") > 0)
+  rowData(dat)$rand_covar <- rnorm(nrow(dat))
   return(dat)
 }
 
+set.seed(2878)
 humandata <- add_covariates_scrnaseq(humandata)
 
 # save results
@@ -255,6 +259,22 @@ strat_hist(data.frame(rowData(humandata)),
            main = "MAST, Covariate 2: Detection Rate") 
 ```
 
+### Covariate three: Random
+
+Next we look at the random (uninformative) covariate.
+
+```{r, fig.width=4.5, fig.height=3.5, message=FALSE}
+rank_scatter(data.frame(rowData(humandata)), 
+             pvalue="mast_p", covariate="rand_covar") + 
+  ggtitle("MAST, Covariate 3: Random")
+```
+ 
+```{r, fig.width=10, fig.height=3.2, message=FALSE}
+strat_hist(data.frame(rowData(humandata)), 
+           pvalue="mast_p", covariate="rand_covar", maxy=16,
+           main = "MAST, Covariate 3: Random") 
+```
+
 ## Multiple-Testing Correction
 
 First, we'll create an object of `BenchDesign` class to hold the data and 
@@ -289,7 +309,7 @@ if (!file.exists(resfile_mean)){
 
 ### Covariate two: Detection Rate
 
-Now, we'll repeat the multiple testing correction using the other covariate (detection rate):
+Now, we'll repeat the multiple testing correction using the covariate detection rate:
 
 ```{r, sb2, results="hide", message=FALSE}
 if (!file.exists(resfile_det)){
@@ -303,6 +323,25 @@ if (!file.exists(resfile_det)){
   saveRDS(sb2, file = resfile_det)
 }else{
   sb2 <- readRDS(resfile_det)
+}
+```
+
+### Covariate two: Detection Rate
+
+Now, we'll repeat the multiple testing correction using the random covariate.
+
+```{r, sb3, results="hide", message=FALSE}
+if (!file.exists(resfile_uninf)){
+  sb3 <- bd %>% buildBench(data.frame(rowData(humandata)) %>% 
+                                   na.omit() %>%
+                                   mutate(pval=mast_p,
+                                          ind_covariate=rand_covar), 
+                          ftCols = c("rand_covar"),
+                          parallel=TRUE)
+
+  saveRDS(sb3, file = resfile_uninf)
+}else{
+  sb3 <- readRDS(resfile_uninf)
 }
 ```
 
@@ -351,7 +390,7 @@ covariateLinePlot(sb1, alpha=0.05, covname="ind_covariate", nbins=25,
 
 ### Covariate two: Detection Rate
 
-Next, we'll look at the performance metrics for the other covariate (detection rate).
+Next, we'll look at the performance metrics for the covariate detection rate.
 
 ```{r, metrics2}
 # rename assay to qvalue
@@ -384,13 +423,49 @@ covariateLinePlot(sb2, alpha=0.05, covname="ind_covariate", nbins=25) +
   ggtitle("MAST, Covariate 2: Detection Rate")
 ```
 
+### Covariate three: Random
+
+Next, we'll look at the performance metrics for the random covariate.
+
+```{r, metrics3}
+# rename assay to qvalue
+assayNames(sb3) <- "qvalue"
+sb3 <- addDefaultMetrics(sb3)
+```
+
+Now, we'll plot the results.
+
+```{r, plot3, results="hide"}
+# plot nrejects by method overall and stratified by covariate
+rejections_scatter(sb3, supplementary=FALSE) +
+  ggtitle("MAST, Covariate 3: Random")
+
+rejection_scatter_bins(sb3, covariate="rand_covar", bins=4,
+                       supplementary=FALSE) +
+  ggtitle("MAST, Covariate 3: Random")
+
+# upset plot 
+plotFDRMethodsOverlap(sb3, 
+                      alpha=0.05, nsets=ncol(sb3),
+                      order.by="freq", decreasing=TRUE,
+                      supplementary=FALSE)
+
+```
+
+```{r, fig.width=8, fig.height=3.5}
+mcols(sb3)$ind_covariate <- mcols(sb3)$rand_covar
+covariateLinePlot(sb3, alpha=0.05, covname="ind_covariate", nbins=25) +
+  ggtitle("MAST, Covariate 3: Random")
+```
+
+
 # Covariate comparison
 
 Here we compare the method ranks for the two covariates at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(resfile_mean, resfile_det), 
-                colLabels = c("Mean nonzero", "Detection rate"), 
+plotMethodRanks(c(resfile_mean, resfile_det, resfile_uninf), 
+                colLabels = c("Mean nonzero", "Detection rate", "Uninf"), 
                 alpha = 0.10, xlab = "Covariate")
 ```
 
