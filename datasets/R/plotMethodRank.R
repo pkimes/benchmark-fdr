@@ -11,12 +11,6 @@
 #'  heatmap columns (same length and order as `objects`). 
 #' @param alpha numeric value indicating which alpha value to use for IHW 
 #'  (needs to be one of the values specified in the bench object). Default 0.10.
-#' @param colorLow character representing the color to be used for the lowest 
-#'  value
-#' @param colorHigh character representing the color to be used for the highest
-#'  value
-#' @param colorNA character representing the color to be used for NA (i.e. 
-#'  for methods that weren't used in the particular benchmark)
 #' @param linePlot logical indicating whether to plot a line plot in lieu of 
 #'  a heatmap  
 #' @param excludeMethods character vector containing the names of methods to
@@ -41,9 +35,9 @@
 #' @author Keegan Korthauer  
 
 plotMethodRanks <- function(objects, colLabels, alpha = 0.10, 
-                            colorLow = "navy", colorHigh = "yellow",
-                            colorNA = "white", xlab = "Case Study",
+                            xlab = "Case Study",
                             fill = c("propMaxRejections", "meanRank", 
+                                     "meanRejections",
                                      "FDR", "TPR"),
                             linePlot = FALSE,
                             excludeMethods = c("scott-theoretical",
@@ -87,6 +81,14 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
     annot <- annotate
   }
   
+  if (fill == "propMaxRejections"){
+    annot2 <- "mean_prop"
+  }else if(fill == "meanRank"){
+    annot2 <- "mean_rank"
+  }else{
+    annot2 <- "mean_nrej"
+  }
+  
   if(is.null(annot))
     annot <- "propPossible"
   ranks_avg <- ranks %>% 
@@ -98,6 +100,14 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                max_prop = max(propMaxRej, na.rm = TRUE),
                topLayer = mean(get(annot), na.rm = TRUE),
                nsets = sum(!is.na(nrejects)))
+  
+  # replace all but max value of annotate variable with NA (within casestudy)
+  maxvals <- ranks_avg %>% 
+    group_by(casestudy) %>%
+    summarize(maxann = max(get(annot2), na.rm=TRUE))
+  ranks_avg <- left_join(ranks_avg, maxvals, by = "casestudy")
+  ranks_avg <- ranks_avg %>%
+    mutate(topLayer = ifelse(get(annot2) == maxann, topLayer, NA))
   
   if(Nlabel){
     if(!is.list(readRDS(objects[1]))){
@@ -154,8 +164,9 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       # heatmap : rows method, cols casestudy
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_prop)) + 
         geom_raster() + 
-        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA,
-                            limits=c(0,1)) +
+        scale_fill_distiller("% Rejected\n(relative to max)",
+                             palette = "Blues", direction = 1, limits = c(0, 1),
+                             labels = scales::percent) +
         theme_bw() +
         xlab(xlab) +
         ylab("Method") +
@@ -172,15 +183,14 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_rank)) + 
         geom_raster() + 
-        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA) +
+        scale_fill_distiller("Mean Rank", palette = "Blues", direction = 1) +
         theme_bw() +
         xlab(xlab) +
-        ylab("Method") +
-        labs(fill = "Mean rank")
+        ylab("Method") 
       
       if(!Nlabel)
         Fig <- Fig +
-        labs(fill = "Rank") 
+          labs(fill = "Rank") 
     }else{
       # reorder rows
       if (is.null(rowOrder))
@@ -189,18 +199,18 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_nrej)) + 
         geom_raster() + 
-        scale_fill_gradient(low = colorLow, high = colorHigh, na.value = colorNA) +
+        scale_fill_distiller(paste0("Mean ", fill), palette = "Blues", direction = 1) +
         theme_bw() +
         xlab(xlab) +
-        ylab("Method") +
-        labs(fill = paste0("Mean ", fill))
+        ylab("Method")
     }
     
     if (!is.null(annotate)){
       Fig <- Fig + 
         geom_text(data = ranks_avg, 
                   aes(label = ifelse(is.na(topLayer), "", 
-                                     sprintf("%.3f", round(topLayer,3)))))
+                                     scales::percent(topLayer))),
+                  color = "white")
     }
     
     return(Fig)
