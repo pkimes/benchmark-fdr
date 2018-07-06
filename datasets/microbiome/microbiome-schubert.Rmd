@@ -50,6 +50,7 @@ cdi_dir <- file.path(datdir, "cdi_schubert_results")
 otu_result_file <- file.path(resdir, "schubert-otus-results.rds")
 otu_bench_file <- file.path(sbdir, "schubert-otus-benchmark.rds")
 otu_bench_file_abun <- file.path(sbdir, "schubert-otus-abun-benchmark.rds")
+otu_bench_file_uninf <- file.path(sbdir, "schubert-otus-uninf-benchmark.rds")
 ```
 
 # Data Preparation
@@ -144,6 +145,13 @@ if (!file.exists(otu_result_file)) {
 }
 ```
 
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(9226)
+res$rand_covar <- rnorm(nrow(res))
+```
+
 Finally, let's try to add phylogeny as covariates. Here we'll have columns for each separate taxonomic level.
 
 ```{r, schubert-addphylo, eval=TRUE}
@@ -189,7 +197,17 @@ ggplot(res, aes(x=pval)) +
     facet_wrap(~phylum, scales = "free")
 ```
 
-## Multiple-Testing Correction
+### Random
+
+```{r, schubert-rand, fig.width=10, fig.height=3.2, eval=TRUE}
+strat_hist(res, pvalue="pval", covariate="rand_covar", maxy=17, binwidth=0.05)
+```
+
+```{r, schubert-rand-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="rand_covar")
+```
+
+## Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -218,7 +236,7 @@ if (!file.exists(otu_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+## Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -307,13 +325,65 @@ plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+## Multiple-Testing Correction - random
+
+Let's use `rand_covar` as our `ind_covariate`.
+
+```{r, schubert-labelcovariate-rand, eval=TRUE}
+res <- dplyr::mutate(res, ind_covariate = rand_covar)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, schubert-sb-rand, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(otu_bench_file_uninf)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/cdi_schubert_results.tar.gz"
+    saveRDS(sb, file = otu_bench_file_uninf)
+} else {
+    sb <- readRDS(otu_bench_file_uninf)
+}
+```
+
+## Benchmark Metrics - random
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, schubert-metrics-rand, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, schubert-plot-rand, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+
+
 # Ubiquity/Abundance comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(otu_bench_file, otu_bench_file_abun), 
-                colLabels = c("OTU","OTU-abun"), 
+plotMethodRanks(c(otu_bench_file, otu_bench_file_abun, otu_bench_file_uninf), 
+                colLabels = c("OTU-ubiquity","OTU-abun", "OTU-uninf"), 
                 alpha = 0.10, xlab = "Comparison")
 ```
 

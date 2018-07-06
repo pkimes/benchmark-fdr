@@ -55,14 +55,17 @@ dir.create(enigma_dir, showWarnings = FALSE)
 so4_result_file <- file.path(resdir, "enigma-so4-otus-results.rds")
 so4_bench_file <- file.path(sbdir, "enigma-so4-otus-benchmark.rds")
 so4_bench_file_abun <- file.path(sbdir, "enigma-so4-otus-abun-benchmark.rds")
+so4_bench_file_uninf <- file.path(sbdir, "enigma-so4-otus-uninf-benchmark.rds")
 
 ph_result_file <- file.path(resdir, "enigma-ph-otus-results.rds")
 ph_bench_file <- file.path(sbdir, "enigma-ph-otus-benchmark.rds")
 ph_bench_file_abun <- file.path(sbdir, "enigma-ph-otus-abun-benchmark.rds")
+ph_bench_file_uninf <- file.path(sbdir, "enigma-ph-otus-uninf-benchmark.rds")
 
 al_result_file <- file.path(resdir, "enigma-al-otus-results.rds")
 al_bench_file <- file.path(sbdir, "enigma-al-otus-benchmark.rds")
 al_bench_file_abun <- file.path(sbdir, "enigma-al-otus-abun-benchmark.rds")
+al_bench_file_uninf <- file.path(sbdir, "enigma-al-otus-uninf-benchmark.rds")
 ```
 
 # Data Preparation
@@ -158,6 +161,13 @@ if (!file.exists(ph_result_file)) {
 }
 ```
 
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(44318)
+res$rand_covar <- rnorm(nrow(res))
+```
+
 ### Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative.
@@ -183,7 +193,17 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-### Multiple-Testing Correction
+#### Random
+
+```{r, ph-rand-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="rand_covar", maxy=8, binwidth=0.05)
+```
+
+```{r, ph-rand-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="rand_covar")
+```
+
+### Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -210,7 +230,7 @@ if (!file.exists(ph_bench_file)) {
 }
 ```
 
-### Benchmark Metrics
+### Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -256,7 +276,7 @@ if (!file.exists(ph_bench_file_abun)) {
     sb <- readRDS(ph_bench_file_abun)
 }
 ```
-### Benchmark Metrics
+### Benchmark Metrics - mean abundance
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -276,6 +296,55 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+
+### Multiple-Testing Correction - random
+
+Let's use `rand_covar` as our `ind_covariate`.
+
+```{r, ph-labelcovariate-rand}
+res <- dplyr::mutate(res, ind_covariate = rand_covar)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, ph-sb-rand, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(ph_bench_file_uninf)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = ph_bench_file_uninf)
+} else {
+    sb <- readRDS(ph_bench_file_uninf)
+}
+```
+### Benchmark Metrics - random
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, ph-metrics-rand, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, ph-plot-rand, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+
+
 ## SO4
 
 Next, we'll look at SO4 levels
@@ -288,6 +357,13 @@ if (!file.exists(so4_result_file)) {
 } else {
     res <- readRDS(so4_result_file)
 }
+```
+
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(27349)
+res$rand_covar <- rnorm(nrow(res))
 ```
 
 ### Covariate Diagnostics
@@ -315,7 +391,18 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-### Multiple-Testing Correction
+#### Random
+
+```{r, so4-rand-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="rand_covar", maxy=8, binwidth=0.05)
+```
+
+```{r, so4-rand-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="rand_covar")
+```
+
+
+### Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -342,7 +429,7 @@ if (!file.exists(so4_bench_file)) {
 }
 ```
 
-### Benchmark Metrics
+### Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -388,7 +475,7 @@ if (!file.exists(so4_bench_file_abun)) {
     sb <- readRDS(so4_bench_file_abun)
 }
 ```
-### Benchmark Metrics
+### Benchmark Metrics - mean abundance
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -408,6 +495,54 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+### Multiple-Testing Correction - random
+
+Let's use `rand_covar` as our `ind_covariate`.
+
+```{r, so4-labelcovariate-rand}
+res <- dplyr::mutate(res, ind_covariate = mean_abun_present)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, so4-sb-rand, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(so4_bench_file_uninf)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = so4_bench_file_uninf)
+} else {
+    sb <- readRDS(so4_bench_file_uninf)
+}
+```
+### Benchmark Metrics - random
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, so4-metrics-rand, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, so4-plot-rand, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+
+
 ## Al
 
 Finally, we'll look at Al levels
@@ -420,6 +555,13 @@ if (!file.exists(al_result_file)) {
 } else {
     res <- readRDS(al_result_file)
 }
+```
+
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(19474)
+res$rand_covar <- rnorm(nrow(res))
 ```
 
 ### Covariate Diagnostics
@@ -447,7 +589,18 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-### Multiple-Testing Correction
+#### Random
+
+```{r, al-rand-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="rand_covar", maxy=8, binwidth=0.05)
+```
+
+```{r, al-rand-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="rand_covar")
+```
+
+
+### Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -474,7 +627,7 @@ if (!file.exists(al_bench_file)) {
 }
 ```
 
-### Benchmark Metrics
+### Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -520,7 +673,7 @@ if (!file.exists(al_bench_file_abun)) {
     sb <- readRDS(al_bench_file_abun)
 }
 ```
-### Benchmark Metrics
+### Benchmark Metrics - mean abundance
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -540,16 +693,63 @@ rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
-# Response comparison
+### Multiple-Testing Correction - random
+
+Let's use `rand_covar` as our `ind_covariate`.
+
+```{r, al-labelcovariate-rand}
+res <- dplyr::mutate(res, ind_covariate = rand_covar)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. We remove ASH from
+the default comparison.
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, al-sb-rand, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(al_bench_file_uninf)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = al_bench_file_uninf)
+} else {
+    sb <- readRDS(al_bench_file_uninf)
+}
+```
+### Benchmark Metrics - random
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, al-metrics-rand, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Now, we'll plot the results.
+
+```{r, al-plot-rand, width=15, height=15, eval=TRUE}
+rejections_scatter( sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+# Response/Covariate comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
-```{r}
-plotMethodRanks(c(so4_bench_file, so4_bench_file_abun,
-                  ph_bench_file, ph_bench_file_abun,
-                  al_bench_file, al_bench_file_abun), 
-                colLabels = c("SO4", "SO4-abun", "pH", "ph-abun",
-                              "Al", "Al-abun"), 
+```{r, width = 15, height = 10}
+plotMethodRanks(c(so4_bench_file, so4_bench_file_abun, so4_bench_file_uninf,
+                  ph_bench_file, ph_bench_file_abun, ph_bench_file_uninf,
+                  al_bench_file, al_bench_file_abun, al_bench_file_uninf), 
+                colLabels = c("SO4-ubiquity", "SO4-abun", "SO4-uninf",
+                              "pH-ubiquity", "ph-abun", "pH-uninf",
+                              "Al-ubiquity", "Al-abun", "Al-uninf"),
                 alpha = 0.10, xlab = "Comparison")
 ```
 
