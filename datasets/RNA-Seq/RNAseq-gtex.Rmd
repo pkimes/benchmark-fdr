@@ -46,6 +46,7 @@ dir.create(sbdir, showWarnings = FALSE)
 count_file <- file.path(resdir, "brain-counts.rds")
 result_file <- file.path(resdir, "brain-results.rds")
 bench_file <- file.path(sbdir, "brain-benchmark.rds")
+bench_file_uninf <- file.path(sbdir, "brain-uninf-benchmark.rds")
 
 ## set up parallel backend
 cores <- as.numeric(Sys.getenv("SLURM_NTASKS"))
@@ -89,6 +90,14 @@ if (file.exists(result_file)) {
 }
 ```
 
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(83750)
+res$rand_covar <- rnorm(nrow(res))
+```
+
+
 ## Covariate Diagnostics
 
 In RNA-seq differential expression analysis, it is very well established that the mean expression is an informative covariate that is independent under the null and that can be used to increase power while keeping FDR control.
@@ -116,8 +125,20 @@ strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 25)
 ```
 
+### Random
 
-## Multiple-Testing Correction
+```{r, rand-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue = "pval", covariate = "rand_covar") +
+    ggtitle("Random independent covariate")
+```
+
+```{r, rand-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue = "pval",
+           covariate = "rand_covar", maxy = 25)
+```
+
+
+## Multiple-Testing Correction - mean
 
 We use the common `BenchDesign` with the set of multiple testing correction
 methods already included. We also add in Scott's FDR Regression (both
@@ -151,7 +172,7 @@ if (file.exists(bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+## Benchmark Metrics - mean 
 
 ```{r}
 assayNames(sb) <- "qvalue"
@@ -182,6 +203,83 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 ```{r, rnaseq-lineplots}
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
+
+
+## Multiple-Testing Correction - random
+
+We use the common `BenchDesign` with the set of multiple testing correction
+methods already included. We also add in Scott's FDR Regression (both
+`nulltype = "empirical"` and `nulltype = "theoretical"`)
+since our test statistics are approximately t-distributed. 
+
+```{r}
+if (file.exists(bench_file_uninf)) {
+    sb <- readRDS(bench_file_uninf)
+} else {
+    bd <- initializeBenchDesign()
+    
+    bd <- addBMethod(bd, "scott-theoretical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+    
+   bd <- addBMethod(bd, "scott-empirical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+    
+    res <- res %>% dplyr::mutate(ind_covariate = rand_covar)
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    saveRDS(sb, file = bench_file_uninf)
+}
+```
+
+## Benchmark Metrics - random 
+
+```{r}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+estimatePerformanceMetrics(sb, alpha = 0.05, tidy = TRUE) %>%
+    filter(performanceMetric == "rejections") %>%
+    select(blabel, performanceMetric, alpha, value) %>%
+    mutate(n = nrow(sb), prop = round(value / n, 3)) %>%
+    arrange(desc(value)) %>%
+    as_tibble() %>%
+    print(n = 40)
+```
+
+```{r, rnaseq-scatter-rand}
+rejections_scatter(sb, supplementary = FALSE)
+rejection_scatter_bins(sb, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+```
+
+```{r, rnaseq-overlap-rand}
+plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+```
+
+```{r, rnaseq-lineplots-rand}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+# Covariate comparison
+
+Here we compare the method ranks for the different covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(bench_file, bench_file_uninf), 
+                colLabels = c("mean", "uninf"), 
+                alpha = 0.10, xlab = "Comparison")
+```
+
 
 # Session Info
 
