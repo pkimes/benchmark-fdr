@@ -137,7 +137,7 @@ Additionally, we take a look at the FWER (the proportion of simulation replicate
 with at least one rejection).
 
 ```{r, fig.width = 8, fig.height = 5}
-dplyr::filter(res_nullset, key == "FWER") %>%
+gp_nullA <- dplyr::filter(res_nullset, key == "FWER") %>%
     filter(! (Method == "ashq" & dist == "chisq4"),
            ! (grepl("scott", Method) & dist == "chisq4")) %>%
     ggplot(aes(x = Method, y = mean_value, color = Method)) +
@@ -146,26 +146,33 @@ dplyr::filter(res_nullset, key == "FWER") %>%
     facet_grid(. ~ dist) +
     scale_y_continuous("FWER", breaks = seq(0, 1, .2), labels = scales::percent) +
     theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-    ggtitle("Proportion of replications with at least one false positive (over 100 replications)") 
+    ggtitle("Proportion of replications with at least one false positive (over 100 replications)")
+gp_nullA
 ```
 
 Finally, we plot the TNR as was done for the yeast in silico experiments/simulations.
 
 ```{r, fig.width = 8, fig.height = 5}
-gp <- dplyr::filter(res_nullset, key == "TNR") %>%
+gp_nullB <- dplyr::filter(res_nullset, key == "TNR") %>%
     filter(! (Method == "ashq" & dist == "chisq4"),
            ! (grepl("scott", Method) & dist == "chisq4")) %>%
     ggplot(aes(x = Method, y = mean_value, color = Method)) +
     geom_point() +
     geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se)) + 
     facet_grid(. ~ dist) +
-    scale_y_continuous("TPR", labels = scales::percent) +
+    scale_y_continuous("TNR", labels = scales::percent) +
     scale_color_manual(values = col, guide = FALSE) +
     theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-    ggtitle("Average TNR (over 100 replications)") 
-gp
+    ggtitle("TNR in Null Simulations (over 100 replications)") 
+gp_nullB
 
+ggsave(file.path(outdir, "FigureSsim-nullA.pdf"), gp_nullA, width = 8, height = 5)
+ggsave(file.path(outdir, "FigureSsim-nullB.pdf"), gp_nullB, width = 8, height = 5)
+
+gp_zoom <- plot_grid(pfdr + coord_cartesian(c(0, .2), c(0, .2)) + guides(color = FALSE, linetype = FALSE),
+                     ptpr + coord_cartesian(c(.6, 1), c(.6, 1)), rel_widths = c(1, 1.4), labels = LETTERS[1:2])
 ggsave(file.path(outdir, "FigureSsim-null.pdf"), gp, width = 8, height = 5)
+
 ```
 
 # Informative and Non-Informative Covariates
@@ -279,6 +286,24 @@ res_pi0set <- dplyr::mutate(res_pi0set, setting = factor(setting, levels = c("va
                                                          labels = c("high signal", "low signal")))
 ```
 
+We notice that under certain settings, the mean and SE FDR values are `NA`s for some methods under some
+settings. We take a closer look at these cases.
+
+```{r}
+dplyr::select(res_pi0set, setting, Method, pi0, mean_value, key) %>%
+    dplyr::filter(key %in% c("rejections", "FDR")) %>%
+        tidyr::spread(key, mean_value) %>%
+        dplyr::filter(is.na(FDR))
+```
+
+All cases correspond to methods and settings where the method rejected 0 tests over all replications.
+We deal with these cases by setting these values to zero for plotting purposes.
+
+```{r}
+res_pi0set$se[is.na(res_pi0set$mean_value) & res_pi0set$key == "FDR"] <- 0
+res_pi0set$mean_value[is.na(res_pi0set$mean_value) & res_pi0set$key == "FDR"] <- 0
+```
+
 We take a look at the TPR and FDR as function of the proportion of null hypotheses.
 
 ```{r}
@@ -292,30 +317,34 @@ names(lty) <- as.character(res_pi0set$Method)
 pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "FDR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
-    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
-    geom_point(alpha = 1, position = position_dodge(width = .01)) +
+    geom_line(alpha = 0.85, position = position_dodge(width = .01)) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width=0.025, alpha=0.5) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
     geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
     scale_x_continuous("Null Proportion", labels = scales::percent, breaks = seq(0, 1, .1)) + 
     scale_y_continuous("FDR", labels = scales::percent) + 
     facet_grid(setting ~ .) + 
-    ggtitle("Average FDR Across Varying Null Proportion")
+    ggtitle("Mean FDR Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
 
 ## including SE to show variability in FDRR
 ptpr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "TPR", !is.na(mean_value)) %>%
     ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
-    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), alpha = 1) +
-    geom_point(alpha = 1, position = position_dodge(width = .01)) +
+    geom_line(alpha = 0.85, position = position_dodge(width = .01)) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width=0.025, alpha=0.5) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
     scale_x_continuous("Null Proportion", labels = scales::percent, breaks = seq(0, 1, .1)) + 
     scale_y_continuous("TPR", labels = scales::percent) + 
     facet_grid(setting ~ .) + 
-    ggtitle("Average TPR Across Varying Null Proportion")
+    ggtitle("Mean TPR Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
 ```
 
 Again, we can plot both FDR and TPR together.
@@ -325,14 +354,14 @@ gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE),
                 ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
 gp
 
-ggsave(file.path(outdir, "FigureSsim-nullprop.pdf"), gp, width = 15, height = 7.5)
+ggsave(file.path(outdir, "FigureSsim-nullprop.pdf"), gp, width = 10, height = 5)
 
 ## trimmed ranges
 gp_zoom <- plot_grid(pfdr + coord_cartesian(ylim = c(0, .25)) + guides(color = FALSE, linetype = FALSE),
                      ptpr, rel_widths = c(1, 1.25), labels = LETTERS[1:2])
 gp_zoom
 
-ggsave(file.path(outdir, "FigureSsim-nullprop-zoom.pdf"), gp_zoom, width = 15, height = 7.5)
+ggsave(file.path(outdir, "FigureSsim-nullprop-zoom.pdf"), gp_zoom, width = 10, height = 5)
 ```
 
 # Unimodal Effect Sizes
@@ -408,34 +437,55 @@ names(col) <- as.character(res_infoset$Method)
 lty <- as.character(res_infoset$lty)
 names(lty) <- as.character(res_infoset$Method)
 
+## including SE to show variability in FDRR
+pfdr <- dplyr::select(res_pi0set, Method, setting, pi0, key, mean_value, se, col, lty) %>%
+    dplyr::filter(key == "FDR", !is.na(mean_value)) %>%
+    ggplot(aes(x = pi0 / 100, y = mean_value, color = Method, lty = Method)) +
+    geom_line(alpha = 0.85, position = position_dodge(width = .01)) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width=0.025, alpha=0.5) +
+    scale_color_manual(values = col) +
+    scale_linetype_manual(values = lty) + 
+    geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
+    scale_x_continuous("Null Proportion", labels = scales::percent, breaks = seq(0, 1, .1)) + 
+    scale_y_continuous("FDR", labels = scales::percent) + 
+    facet_grid(setting ~ .) + 
+    ggtitle("Mean FDR Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
 ## not including SE because it's too small
 pfdr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, se, q10, q90, col, lty) %>%
     dplyr::filter(key == "FDR") %>%
     ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
-    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0) +
-    geom_point(alpha = 1, position = position_dodge(width = .01)) +
+    geom_line(alpha = 0.85, position = position_dodge(width = .01)) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width=0.025, alpha=0.5) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
     geom_hline(yintercept = 0.10, color = "red", lty = 2, alpha = 1/3) + 
     scale_x_continuous("Informativeness", labels = scales::percent, breaks = seq(0, 1, .1)) + 
     scale_y_continuous("FDR", labels = scales::percent) + 
     facet_grid(setting ~ .) + 
-    ggtitle("Average FDR Across Varying Informativeness")
+    ggtitle("Mean FDR Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
 pfdr
 
 ptpr <- dplyr::select(res_infoset, Method, setting, level, key, mean_value, se, col, lty) %>%
     dplyr::filter(key == "TPR") %>%
     ggplot(aes(x = level / 100, y = mean_value, color = Method, lty = Method)) +
-    geom_line(alpha = 1/6, position = position_dodge(width = .01)) +
-    ##geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0) +    
-    geom_point(alpha = 1, position = position_dodge(width = .01)) +
+    geom_line(alpha = 0.85, position = position_dodge(width = .01)) +
+    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width=0.025, alpha=0.5) +
     scale_color_manual(values = col) +
     scale_linetype_manual(values = lty) + 
     scale_x_continuous("Informativeness", labels = scales::percent, breaks = seq(0, 1, .1)) + 
     scale_y_continuous("TPR", labels = scales::percent) + 
     facet_grid(setting ~ ., scales = "free_y") + expand_limits(y = 0) +
-    ggtitle("Average TPR Across Varying Informativeness")
+    ggtitle("Mean TPR Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
 ptpr
 ```
 
@@ -443,8 +493,8 @@ Again, we can plot both FDR and TPR together.
 
 ```{r, fig.width = 15, fig.height = 7.5}
 gp <- plot_grid(pfdr + guides(color = FALSE, linetype = FALSE), ptpr,
-          rel_widths = c(1, 1.25), labels = LETTERS[1:2])
+          rel_widths = c(1, 1.25), labels = LETTERS[3:4])
 gp
 
-ggsave(file.path(outdir, "FigureSsim-informativeness.pdf"), gp, width = 15, height = 7.5)
+ggsave(file.path(outdir, "FigureSsim-informativeness.pdf"), gp, width = 10, height = 5)
 ```
