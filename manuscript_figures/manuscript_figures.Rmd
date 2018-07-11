@@ -234,9 +234,9 @@ pfdr <- plotMethodRanks(objs,
                 fill = "FDR",
                 rowOrder = Fig4All.rowOrder, 
                 annotate = "FDR", excludeMethods = NULL) +
-          scale_fill_gradient2(high = "red", 
+          scale_fill_gradient2(high = "darkred", 
                          mid = "white", 
-                         low = "blue", 
+                         low = "darkblue", 
                          midpoint = alpha) +
   labs(fill = "Mean FDR")
 
@@ -840,6 +840,128 @@ SFigAlt <- ggplot(objdat_joint, aes(x = casestudy, y = method, fill = propMaxRej
 SFigAlt
 
 ggsave(file.path(outdir, "FigureSAlt.pdf"), SFigAlt, width = 12, height = 5)
+```
+
+# Informativeness of covariates in case studies
+
+Here we create a heatmap similar to figure 4, but instead of containing the mean
+proportion of maximum rejections, it plots the mean difference in the number of 
+rejections using an informative covariate and the number of rejections using a 
+random uninformative covariate, expressed as a proportion of the number of rejections
+using the uninformative covariate. This is only created for those methods that
+use an informative covariate. 
+
+```{r}
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+
+# remove simulation objects
+sim <- unique(c(which(grepl("simulations", objects)),
+               which(grepl("yeast", objects)),
+               which(grepl("polyester", objects))))
+if (length(sim) > 0){
+  objects <- objects[-sim]
+}
+
+# remove microbiome objects from 'null' comparisons
+# removing baxter, goodrich, papa OTU-level, and So4-enigma (since they mostly found 
+# nothing for all methods and the genus-level analysis is also present)
+# Also remove'log' ubiquity since redundant
+null <- which(grepl(c("goodrich|papa"), objects) & 
+              grepl(c("otu"), objects) | 
+              grepl("baxter", objects) |
+              grepl("log", objects) | 
+              grepl("so4", objects))
+
+if (length(null) > 0){
+  objects <- objects[-null]
+}
+
+# remove chip-seq promoter analysis (since it is the only one that uses 
+# ash and we also include the csaw analysis on the same dataset).
+promot <- which(grepl("promot", objects))
+if (length(promot) > 0){
+  objects <- objects[-promot]
+}
+
+# methods that use a covariate
+cov.methods <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+
+# regexp to construct master data table separating case study datasets, methods
+# and covariates
+obj.names <- str_split(objects, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[1]]))
+extD <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[min(length(x), 2)]]))
+extD <- gsub("samplesize", "n", extD)
+extM <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[min(length(x), 3)]]))
+extC <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[min(length(x), 4)]]))
+inform <-  ifelse(grepl("uninf", objects), "uninf", "inf")
+cov <- inform
+df <- data.frame(filename, casestudy, dataset, inform, cov, stringsAsFactors = FALSE) %>%
+  mutate(dataset = ifelse(grepl("enigma", dataset), paste(dataset, extD, sep="-"),
+                          dataset)) %>%  
+  mutate(dataset = ifelse(casestudy == "scRNAseq", paste(dataset, extM, sep="-"),
+                          dataset)) %>%
+  mutate(cov = ifelse(casestudy == "scRNAseq" & inform != "uninf", extC,  cov)) %>%
+  mutate(cov = ifelse(casestudy == "ChIPseq" & inform != "uninf", "region-width",  cov)) %>%
+  mutate(cov = ifelse(casestudy == "GSEA" & inform != "uninf", "set-size",  cov)) %>%
+  mutate(cov = ifelse(casestudy == "GWAS" & inform != "uninf", extD,  cov)) %>%
+  mutate(cov = ifelse(casestudy == "microbiome" & inform != "uninf", 
+                      ifelse(grepl("abun", filename), "abundance", "ubiquity"),  cov))%>%
+  mutate(cov = ifelse(casestudy == "RNAseq" & inform != "uninf", "mean",  cov))
+  
+tab <- tidy_df(objects=objects, colLabels=filename, 
+              fill="meanRank", annotate=NULL, alpha =0.10) %>%
+  rename(casestudy = "filename") %>%
+  mutate(filename = gsub(".rds", "", filename))
+
+dftab <- left_join(tab, df, by="filename") %>%
+  filter(method %in% cov.methods) %>%
+  select(filename, casestudy, dataset, method, cov, inform, nrejects) %>%
+  mutate(id = paste(casestudy, dataset, method, sep = "-"))
+
+uninftab <- dftab %>% 
+  filter(inform == "uninf") %>%
+  select(id, nrejects) %>%
+  rename(nrejects = "uninf")
+
+inftab <- dftab %>%
+  filter(inform == "inf") %>%
+  select(-inform)
+
+rowOrder <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+
+dftab <- left_join(inftab, uninftab, by = "id") %>%
+  mutate(diff_inf = nrejects - uninf) %>%
+  mutate(diff_inf_percent = diff_inf / nrejects) %>%
+  mutate(method = factor(method, levels = rowOrder)) %>%
+  group_by(casestudy, cov) %>%
+  complete(method, dataset)
+
+Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
+        geom_raster() + 
+        scale_fill_gradientn("% Increase\nin rejections",
+                             labels = scales::percent, trans="log1p",
+                             colours = c("darkblue","white","darkred"), 
+                             values = scales::rescale(c(-.1,0,1)),
+                             guide = "colorbar", limits=c(-.05,0.99)) +
+        theme_bw() +
+        xlab("Case Study") +
+        ylab("Method") +
+        facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
+        ggtitle("Impact of informative covariate on number of rejections") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.985, 0.91), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 9),
+              legend.margin = margin(6, 10, 6, 10))
+
+
+Fig_impactofinfcov
+ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
 ```
 
 # Session information
