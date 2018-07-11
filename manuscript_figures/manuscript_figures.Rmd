@@ -944,8 +944,8 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
         scale_fill_gradientn("% Increase\nin rejections",
                              labels = scales::percent, trans="log1p",
                              colours = c("darkblue","white","darkred"), 
-                             values = scales::rescale(c(-.1,0,1)),
-                             guide = "colorbar", limits=c(-.05,0.99)) +
+                             values = scales::rescale(c(-.05,0,1)),
+                             guide = "colorbar", limits=c(-.05,1)) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
