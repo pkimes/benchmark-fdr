@@ -54,6 +54,7 @@ otu_bench_file <- file.path(sbdir, "goodrich-otus-benchmark.rds")
 gns_result_file <- file.path(resdir, "goodrich-genus-results.rds")
 gns_bench_file <- file.path(sbdir, "goodrich-genus-benchmark.rds")
 gns_bench_file_abun <- file.path(sbdir, "goodrich-genus-abun-benchmark.rds")
+gns_bench_file_uninf <- file.path(sbdir, "goodrich-genus-uninf-benchmark.rds")
 ```
 
 # Data Preparation
@@ -198,7 +199,7 @@ ggplot(res, aes(x=pval)) +
     facet_wrap(~phylum, scales = "free")
 ```
 
-## Multiple-Testing Correction
+## Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -227,7 +228,7 @@ if (!file.exists(otu_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+## Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -304,6 +305,13 @@ if (!file.exists(gns_result_file)) {
 }
 ```
 
+Add random (uninformative) covariate.
+
+```{r}
+set.seed(76291)
+res$rand_covar <- rnorm(nrow(res))
+```
+
 ## Covariate Diagnostics
 
 Here we look to see if the covariates do indeed look informative.
@@ -331,7 +339,18 @@ strat_hist(res, pvalue="pval", covariate="mean_abun_present", maxy=8, binwidth=0
 rank_scatter(res, pvalue="pval", covariate="mean_abun_present")
 ```
 
-## Multiple-Testing Correction
+### Random (uninformative)
+
+```{r, goodrich-uninf-hist, fig.width=10, fig.height=3.2}
+strat_hist(res, pvalue="pval", covariate="rand_covar", maxy=5, binwidth=0.05, numQ=4)
+```
+
+```{r, goodrich-uninf-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res, pvalue="pval", covariate="rand_covar")
+```
+
+
+## Multiple-Testing Correction - ubiquity
 
 Let's use `ubiquity` as our `ind_covariate`.
 
@@ -359,7 +378,7 @@ if (!file.exists(gns_bench_file)) {
 }
 ```
 
-## Benchmark Metrics
+## Benchmark Metrics - ubiquity
 
 Next, we'll add the default performance metric for q-value assays. First, we have
 to rename the assay to 'qvalue'.
@@ -448,13 +467,75 @@ methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
 plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
 ```
 
+
+## Multiple-Testing Correction - random
+
+Let's use `rand_covar` as our `ind_covariate`.
+
+```{r, goodrich-genus-labelcovariate-uninf}
+res <- dplyr::mutate(res, ind_covariate = rand_covar)
+```
+
+First, we'll create an object of `BenchDesign` class to hold the data and 
+add the benchmark methods to the `BenchDesign` object. 
+
+Then, we'll construct the `SummarizedBenchmark` object, which will run
+the functions specified in each method (these are actually sourced in from the
+helper scripts). 
+
+```{r, goodrich-genus-sb-uninf, results="hide", message=FALSE, eval=TRUE}
+if (!file.exists(gns_bench_file_uninf)) {
+    bd <- initializeBenchDesign()
+    bd <- dropBMethod(bd, "ashq")
+    sb <- buildBench(bd, data = res, ftCols = "ind_covariate")
+    metadata(sb)$data_download_link <-
+                   "https://zenodo.org/record/840333/files/ob_goodrich_results.tar.gz"
+    saveRDS(sb, file = gns_bench_file_uninf)
+} else {
+    sb <- readRDS(gns_bench_file_uninf)
+}
+```
+## Benchmark Metrics - random
+
+Next, we'll add the default performance metric for q-value assays. First, we have
+to rename the assay to 'qvalue'.
+
+```{r, goodrich-genus-metrics-uninf, eval=TRUE}
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+
+Now, we'll plot the results.
+
+```{r, goodrich-genus-plot-uninf, width=15, height=15, eval=TRUE}
+rejections_scatter(sb, as_fraction=FALSE, supplementary=FALSE)
+rejection_scatter_bins(sb, covariate="ind_covariate", supplementary=FALSE)
+```
+```{r}
+covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
+```
+
+Note: Benjamini-Hochberg (bh) overlaps exactly with the IHW results.
+
+```{r, goodrich-genus-overlap-uninf}
+plotFDRMethodsOverlap(sb, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100 )
+```
+
+```{r, goodrich-genus-covariates-uninf}
+methods <- c( "lfdr", "ihw-a10", "bl-df03", "qvalue", "bh", "bonf" )
+plotCovariateBoxplots(sb, alpha=0.1, nsets=6, methods=methods)
+```
+
+
+
 # OTU/Genus comparison
 
 Here we compare the method ranks for the different comparisons at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(otu_bench_file, gns_bench_file, gns_bench_file_abun), 
-                colLabels = c("OTU", "Genus", "Genus-abun"), 
+plotMethodRanks(c(otu_bench_file, gns_bench_file, gns_bench_file_abun, gns_bench_file_uninf), 
+                colLabels = c("OTU", "Genus-ubiquity", "Genus-abun", "Genus-uninf"), 
                 alpha = 0.10, xlab = "Comparison")
 ```
 
