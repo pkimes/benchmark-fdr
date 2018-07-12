@@ -334,6 +334,7 @@ RNAseq, scRNAseq, GSEA, GWAS.
 
 ```{r, Figure 5, fig.width = 9, fig.height = 7}
 
+# RNAseq
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
 res <- readRDS(file=resfile)
@@ -347,7 +348,7 @@ pA <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p"
 leg <-  get_legend(pA)
 pA <- pA + theme(legend.position="none")
 
-
+# scRNAseq
 resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
                    grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
 res <- readRDS(file=resfile)
@@ -359,7 +360,7 @@ pB <- covariateLinePlot(res, alpha=alpha, covname="detection", trans="log1p",
   xlab("Detection rate percentile") + 
   theme(legend.position="none")
 
-
+# GSEA
 resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
@@ -370,14 +371,14 @@ pC <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p"
   xlab("Gene Set size percentile") + 
   theme(legend.position="none")
  
-
+# GWAS
 resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
 res <- addDefaultMetrics(res)
 pD <- covariateLinePlot(res, alpha=alpha, covname="ind_covar_AF", trans="log1p",
                         nbins=25) +
-  ggtitle("GWAS case study")+
+  ggtitle("GWAS case study") +
   xlab("Minor Allele Frequency (MAF) percentile") +
   theme(legend.position="none")
 
@@ -395,8 +396,71 @@ and/or histograms in the case studies.
 It will be used to discuss how we evaluated the use of the 
 covariates as independent and informative in the case studies.
 
+We'll do so for the same 4 case studies as in figure 5.
+
 ```{r, Figure 6}
-# TO DO
+# RNAseq 
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
+pa <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 10, axislabs = FALSE) +
+  draw_plot_label("  RNA-seq case study: Brain", 0.5, 1, hjust = 0.5,fontface = "bold", 
+                  size = 12) +
+  draw_plot_label("Overall mean expression pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+
+
+# scRNAseq
+resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
+                   grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
+
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"]) 
+pb <- strat_hist(res, pvalue = "pval",
+           covariate = "detection", maxy = 12, axislabs = FALSE)+
+  draw_plot_label("  scRNA-seq case study: Human, MAST",0.5, 1, hjust = 0.5, fontface = "bold",
+                  size = 12 ) +
+  draw_plot_label("Detection rate pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+ 
+
+# GSEA
+resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
+
+pc <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 35, axislabs = FALSE) +
+  draw_plot_label("  GSEA case study: Mouse", 0.5, 1, hjust = 0.5, fontface = "bold" , size = 12) +
+  draw_plot_label("Gene Set size pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+
+# GWAS
+resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
+
+pd <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covar_AF", maxy = 3, axislabs = FALSE) +
+  draw_plot_label("GWAS case study", 0.5, 1, fontface = "bold", hjust = 0.5, size = 12) +
+  draw_plot_label("Minor Allele Frequency (MAF) pvalue", size = 11, 0.5, 0.14, fontface = "plain", 
+                  hjust = 0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+
+
+p6 <- plot_grid(pa, pb, pc, pd, ncol=1, labels = LETTERS[1:4])
+p6
+ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=7)
+
 ```
 
 # Supplementary Figures
