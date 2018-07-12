@@ -19,13 +19,14 @@
 #'  split on the covariate. Will result in `numQ` + 1 histograms generated. This
 #'  must be less than 6.
 #' @param main a character string that will be used as the main plot title
+#' @param axislabs a logical whether to include x and y axis labels on each panel
 #'        
 #' @return a cowplot object 
 #' 
 #' 
 #' @author Keegan Korthauer     
 strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3,
-                       main = ""){
+                       main = "", axislabs = TRUE){
 
   library(cowplot)
   library(ggplot2)
@@ -42,32 +43,39 @@ strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3,
     stop("pvalue and covariate must be variables that define column names in dat")
   }
   
-  plotOne <- function(d, pvalue, covariate, title=""){
-    ggplot(d, aes(x=get(pvalue))) + 
+  plotOne <- function(d, pvalue, covariate, title="", axislabs){
+    p<- ggplot(d, aes(x=get(pvalue))) + 
       geom_histogram(binwidth = binwidth, boundary = 0, 
                    colour="grey", fill="lightgrey") +
       aes(y=..density..)+
       theme_classic() +
-      theme(axis.title = element_text(face="bold"),
-          plot.title = element_text(face="bold")) +
-      scale_x_continuous(expand = c(0.02, 0)) + 
+      theme(plot.title = element_text(size = 11),
+            axis.title = element_text(size = 11)) +
+      xlim(0,1) +
       scale_y_continuous(expand = c(0.02, 0)) +
       coord_cartesian(ylim=c(0, maxy)) + 
-      xlab("p-value") +
-      ylab("Density") +
-      ggtitle(title)
+      xlab("") +
+      ylab("") +
+      ggtitle(title) 
+    
+    if (axislabs)
+      p <- p + xlab("p-value") + ylab("Density")
+    
+    p
   }
   
   gglist <- vector("list", numQ+1)
   
   for (q in 1:(numQ+1)){
     if(q==(numQ+1)){
-      gglist[[q]] <- plotOne( dat, pvalue=pvalue, covariate=covariate, title="All" )
+      gglist[[q]] <- plotOne( dat, pvalue=pvalue, covariate=covariate, title="All",
+                              axislabs = axislabs)
     }else{
       dat.strat <- dat %>% 
         dplyr::filter(rank(get(covariate), ties="first") <= quantile(rank(get(covariate), ties="first"), q/numQ) &
                rank(get(covariate), ties="first") >= quantile(rank(get(covariate), ties="first"), (q-1)/numQ) )
-      gglist[[q]] <- plotOne(dat.strat, pvalue=pvalue, covariate=covariate, title=paste0("Covariate group ", q))
+      gglist[[q]] <- plotOne(dat.strat, pvalue=pvalue, covariate=covariate, title=paste0("Group ", q),
+                             axislabs = axislabs)
     }
   }
    
