@@ -156,7 +156,7 @@ We can also explore if the covariate seems to be independent under the null.
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
-    strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=10)
+    strat_hist( pval="over_represented_pvalue", covariate="numInCat", maxy=18)
 ```
  
 ### Random

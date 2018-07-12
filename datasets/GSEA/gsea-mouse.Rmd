@@ -150,7 +150,7 @@ And at the same time, it seems to be fair to assume that it is independent under
 ## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
 #dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
 dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
-    strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=10)
+    strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=35)
 ```
 
 ### Random
