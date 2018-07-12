@@ -53,7 +53,7 @@ alpha <- 0.10
 ```
 
 
-```{r Figure2}
+```{r Figure2, fig.width = 10, fig.height = 8}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast", objects) & 
                    grepl("de5", objects) & 
@@ -113,7 +113,7 @@ This is a side-by-side figure displaying the TPR by alpha cutoff, faceted by
 whether the method uses multiple pieces of information or just one (the p-value).
 This figure uses the same data as Figure 1.
   
-```{r, Figure3}
+```{r, Figure3, fig.width = 8, fig.height = 4}
 # Figure 3: TPR of methods using by pieces of information used 
 Fig3 <- plotsim_average(res5d, met="TPR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, facetMethodType = TRUE) 
@@ -127,7 +127,7 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=8, height=4)
 This is a heatmap of methods by case studies with color representing the ranking
 by of number of rejections @ FDR cutoff `r alpha`.
 
-```{r, Figure 4}
+```{r, Figure 4, fig.width = 9, fig.height = 7}
 library(SummarizedBenchmark)
 library(stringr)
 
@@ -173,17 +173,19 @@ obj.names <- str_split(objects, pattern = "/")
 casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
 dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
-Fig4.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
-                   "ashq")
-Fig4 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
-                        annotate = "propPossible")
-Fig4
-
 # not excluding any methods
 Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
                   "scott-empirical", "scott-theoretical", "ashq")
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
-                        excludeMethods = NULL, rowOrder = Fig4All.rowOrder)
+                        excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.96, 0.93), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 9),
+              legend.margin = margin(6, 10, 6, 10))
+
 Fig4All
 ```
 
@@ -210,7 +212,7 @@ casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha,
 
 Create more panels with heatmaps of yeast simulation results.
 
-```{r}
+```{r, fig.width = 14, fig.height = 5}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 
 # grab casestudy names
@@ -238,21 +240,37 @@ pfdr <- plotMethodRanks(objs,
                          mid = "white", 
                          low = "darkblue", 
                          midpoint = alpha) +
-  labs(fill = "Mean FDR")
+          labs(fill = "Mean FDR") +
+          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1)) +
+          ylab("") + xlab("") +  
+          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
 
 ptpr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
                 alpha = alpha, xlab = "Comparison",
                 fill = "TPR",
                 rowOrder = Fig4All.rowOrder,
-                annotate = "TPR", excludeMethods = NULL)  
+                annotate = "TPR", excludeMethods = NULL) +
+          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1)) +
+          ylab("") + xlab("") +  
+          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
+
 
 ggdraw() +
-  draw_plot(pfdr + ylab("") + xlab(""), 0.57, 0, 0.22, 1) +
-  draw_plot(ptpr + ylab("") + xlab(""), 0.78, 0, 0.22, 1) +
-  draw_plot(Fig4All, 0, 0, 0.60, 1) +
-  draw_plot_label(c("A", "B"), c(0, 0.57), c(1, 1), size = 15)
-ggsave(file.path(outdir, "Figure4.pdf"), width=14, height=5)
+  draw_plot(pfdr, 0.51, 0, 0.24, 1) +
+  draw_plot(ptpr, 0.75, 0, 0.24, 1) +
+  draw_plot(Fig4All, 0, 0, 0.5, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0.51), c(1, 1), size = 15) +
+  draw_plot_label("Simulation", 0.72, 0.06, size =11, fontface = "plain")
+ggsave(file.path(outdir, "Figure4.pdf"), width=11, height=5)
 
 # generate detailed yeast sim table for creating sim vs cs ranks boxplots
 yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
@@ -262,7 +280,7 @@ yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
 Create boxplot of ranking in sims versus rankings in case studies using the
 `casestudy.tab` and `yeastsim.tab` objects created above.
 
-```{r}
+```{r, fig.width = 6, fig.height = 4}
 library(ggbeeswarm)
 
 casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
@@ -314,7 +332,7 @@ This is a multi-panel Figure displaying examples of covariate line plots in the
 case studies. We'll create a 4-panel figure with the following case studies:
 RNAseq, scRNAseq, GSEA, GWAS.
 
-```{r, Figure 5}
+```{r, Figure 5, fig.width = 9, fig.height = 7}
 
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
@@ -387,7 +405,7 @@ covariates as independent and informative in the case studies.
 
 Figure 2 panels C-E for a case study. For now picking GWAS.
 
-```{r Figure2.5}
+```{r Figure2.5,  fig.width = 10, fig.height = 4}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
 res <- readRDS(file=resfile)
@@ -439,7 +457,7 @@ Here we'll contrast the results of informative and uninformative covariates
 on the yeast simulation (null and DE sample size 5).
 
 
-```{r FigureS7}
+```{r FigureS7,  fig.width = 10, fig.height = 7}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast", objects) & 
                    grepl("de5|null5", objects)] 
@@ -537,7 +555,7 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 ### GWAS
 
-```{r}
+```{r, fig.width = 5, fig.height = 4.5}
 # by covariate
 wcs <- which(grepl("GWAS", casestudy))
 objs <- objects[wcs]
@@ -552,7 +570,7 @@ ggsave(file.path(outdir, "FigureS1.pdf"), width=5, height=4.5)
 
 ### GSEA
 
-```{r}
+```{r,  fig.width = 6, fig.height = 4.5}
 #by dataset
 wcs <- which(grepl("GSEA", casestudy))
 objs <- objects[wcs]
@@ -567,7 +585,7 @@ ggsave(file.path(outdir, "FigureS2.pdf"), width=6, height=4.5)
 
 ### ChIP-seq
 
-```{r}
+```{r, fig.width = 5, fig.height = 5}
 wcs <- which(grepl("ChIPseq", casestudy))
 objs <- objects[wcs]
 labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
@@ -580,7 +598,7 @@ ggsave(file.path(outdir, "FigureS3.pdf"), width=5, height=5)
 ```
 
 ### RNA-seq
-```{r}
+```{r, fig.width = 6, fig.height = 5}
 # by dataset
 wcs <- which(grepl("RNAseq", casestudy) & 
             !grepl(c("polyester|yeast"), objects) &
@@ -597,7 +615,7 @@ ggsave(file.path(outdir, "FigureS4.pdf"), width=6, height=5)
 
 ### scRNA-seq
 
-```{r}
+```{r, fig.width = 15, fig.height = 6}
 wcs <- which(grepl("scRNAseq", casestudy))
 objs <- objects[wcs]
 ds <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark-"), 
@@ -635,7 +653,7 @@ ggsave(file.path(outdir, "FigureS5.pdf"), width=15, height=6)
 
 ### Microbiome
 
-```{r}
+```{r, fig.width = 14, fig.height = 6.5}
 # by dataset, excluding otu when genus is available
 # excluding log-ubiquity
 # excluding enigma-so4 (no discoveries)
@@ -851,7 +869,7 @@ random uninformative covariate, expressed as a proportion of the number of rejec
 using the uninformative covariate. This is only created for those methods that
 use an informative covariate. 
 
-```{r}
+```{r, fig.width = 15, fig.height = 4.25}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 
 # remove simulation objects
