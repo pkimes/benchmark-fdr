@@ -1022,7 +1022,7 @@ dftab <- left_join(inftab, uninftab, by = "id") %>%
   complete(method, dataset)
 
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
-        geom_raster() + 
+        geom_tile() + 
         scale_fill_gradientn("% Increase\nin rejections",
                              labels = scales::percent, trans="log1p",
                              colours = c("darkblue","white","darkred"), 
