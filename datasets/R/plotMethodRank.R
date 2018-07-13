@@ -163,7 +163,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
       
       # heatmap : rows method, cols casestudy
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_prop)) + 
-        geom_raster() + 
+        geom_tile() + 
         scale_fill_distiller("% Rejected\n(relative to max)",
                              palette = "Blues", direction = 1, limits = c(0, 1),
                              labels = scales::percent) +
@@ -182,7 +182,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                                  levels=unique(ranks_avg$method[order(ranks_avg$meta_rank)]))
       
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_rank)) + 
-        geom_raster() + 
+        geom_tile() + 
         scale_fill_distiller("Mean Rank", palette = "Blues", direction = 1) +
         theme_bw() +
         xlab(xlab) +
@@ -198,7 +198,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                                  levels=unique(ranks_avg$method[order(ranks_avg$meta_nrej)]))
       
       Fig <- ggplot(ranks_avg, aes(x = studyname, y = method, fill = mean_nrej)) + 
-        geom_raster() + 
+        geom_tile() + 
         scale_fill_distiller(paste0("Mean ", fill), palette = "Blues", direction = 1) +
         theme_bw() +
         xlab(xlab) +
