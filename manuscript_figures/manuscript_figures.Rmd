@@ -1021,6 +1021,13 @@ dftab <- left_join(inftab, uninftab, by = "id") %>%
   group_by(casestudy, cov) %>%
   complete(method, dataset)
 
+maxVals <- dftab %>% 
+  group_by(dataset,cov) %>%
+  summarize(top = max(diff_inf_percent, na.rm=TRUE))
+
+dftab <- left_join(dftab, maxVals, by = c("dataset", "cov")) %>%
+  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA))
+  
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
         geom_tile() + 
         scale_fill_gradientn("% Increase\nin rejections",
@@ -1039,7 +1046,9 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
               legend.title = element_text(size = 9),
-              legend.margin = margin(6, 10, 6, 10))
+              legend.margin = margin(6, 10, 6, 10)) +
+        geom_text(aes(label = ifelse(is.na(top), "", scales::percent(top))),
+                  color = "black", size = 2)
 
 
 Fig_impactofinfcov
