@@ -443,3 +443,9 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
             "; skipping upset plot")
 }
 ```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
