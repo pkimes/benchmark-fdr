@@ -92,7 +92,7 @@ First, we consider the setting with Gaussian noise.
 ## Data Simulation
 
 ```{r gauss-parameters}
-tstat <- rnorm_generator(4)       # functional: dist of alternative test stats
+tstat <- rnorm_generator(3)       # functional: dist of alternative test stats
 tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 seed <- 608
@@ -273,7 +273,7 @@ Next, we consider a second setting with t-distributed noise.
 ## Data Simulation
 
 ```{r t11-parameters}
-tstat <- rnorm_generator(6)    # functional: dist of alternative test stats
+tstat <- rnorm_generator(3)     # functional: dist of alternative test stats
 tstat_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
 seed <- 9158
