@@ -285,6 +285,10 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
                                            nrejects / max(nrejects, na.rm = TRUE)),
                        propPossible = nrejects / nrow(x)) %>%
                 mutate(casestudy = colLabels[i])
+            if ( class(objects[[i]]) == "character") {
+             tmp <- tmp %>%
+               mutate(replicate = i)
+            }
             
             ranks <- rbind(ranks, tmp)
         }
