@@ -292,6 +292,8 @@ looped over many replications and results averaged over them.
 #'  instead of SB objects
 simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
+  if(uninformativeCovariate)
+    ind_covar <- rnorm(nrow(dds))
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -348,16 +350,15 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
                                pval=resTEST$pvalue, 
                                SE=resTEST$lfcSE,                 
-                               ind_covariate = resTEST$baseMean,
+                               ind_covariate = ifelse(uninformativeCovariate, 
+                                                      ind_covar,
+                                                      resTEST$baseMean),
                                effect_size = resTEST$log2FoldChange, 
                                test_statistic = resTEST$stat,
                                qvalue = truth,
                                pzero = rowSums(counts(dds_test)==0)/
                                        ncol(counts(dds_test)))) %>%
                 dplyr::filter(!is.na(pval)) 
-  
-  if(uninformativeCovariate)
-    geneExp$ind_covariate <- rnorm(nrow(geneExp))
   
    if(pvalHists){
     return(strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy =10))

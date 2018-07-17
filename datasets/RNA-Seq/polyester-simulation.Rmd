@@ -107,8 +107,14 @@ looped over many replications and results averaged over them.
 #' @param uninformativeCovariate logical indicating whether to replace overall mean 
 #'  independent covariate with a randomly generated (uninformative) covariate. 
 #'  Default is FALSE.
-simulateOneSplit <- function(X, counts, paramPolyester, 
+#' @param rseed random seed
+simulateOneSplit <- function(X, rseed, counts, paramPolyester, 
                              nDE, sampleSize, bd, uninformativeCovariate = FALSE){
+  if(uninformativeCovariate)
+    uninf_covar <- rnorm(nrow(counts))
+  
+  # set random seed
+  set.seed(as.numeric(X)*as.numeric(rseed))
   
   # things needed to simulate with Polyester
   groupPolyester = rep(c(-1,1),each=sampleSize)
@@ -140,8 +146,7 @@ simulateOneSplit <- function(X, counts, paramPolyester,
     
     # randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
     log2FC <- rep(0, nrow(counts))
-    # log2FC[DE] <- rtruncnorm(nDE, 1, sd=.5) * sample(c(1,-1), size=nDE, replace=TRUE)
-    log2FC[DE] <- c(rnorm(nDE, sd = 1), rep(0,nrow(counts)-nDE))
+    log2FC[DE] <- rnorm(nDE, sd = 1)
     dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
                                   paramPolyester$p0, m=dim(counts)[1], 
                                   n=sampleSize*2, beta=cbind(log2FC), 
@@ -158,7 +163,7 @@ simulateOneSplit <- function(X, counts, paramPolyester,
   geneExp <- tbl_df(data.frame(geneName=rownames(counts),
                                pval=res_alt$pvalue, SE=res_alt$lfcSE, 
                                ind_covariate = ifelse(uninformativeCovariate, 
-                                                      rnorm(nrow(res_alt)),
+                                                      uninf_covar,
                                                       res_alt$baseMean), 
                                effect_size=res_alt$log2FoldChange, 
                                test_statistic=res_alt$stat, qvalue=truth, 
@@ -247,9 +252,10 @@ This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
 nDE <- 0
+rseed <- 225
 
 if (!file.exists(resfile_n5)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  null5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(null5, file=resfile_n5)
 } else {
@@ -300,9 +306,10 @@ This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
 nDE <- 0
+rseed <- 837
 
 if (!file.exists(resfile_n10)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  null10 <- bplapply(X=1:B, rseed=837, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(null10, file=resfile_n10)
 } else {
@@ -348,9 +355,10 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
 nDE <- 1500
+rseed <- 198
 
 if (!file.exists(resfile_d5)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  de5 <- bplapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(de5, file=resfile_d5)
 } else {
@@ -398,9 +406,10 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
 nDE <- 1500
+rseed <- 961
 
 if (!file.exists(resfile_d10)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  de10 <- bplapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(de10, file=resfile_d10)
 } else {
@@ -462,9 +471,10 @@ This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
 nDE <- 0
+rseed <- 225
 
 if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  null5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, 
                    bd=bd, uninformativeCovariate = TRUE)
   saveRDS(null5, file=resfile_n5_uninfCov)
@@ -516,9 +526,10 @@ This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
 nDE <- 0
+rseed <- 837
 
 if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  null10 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, 
                    bd=bd, uninformativeCovariate = TRUE)
   saveRDS(null10, file=resfile_n10_uninfCov)
@@ -565,9 +576,10 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
 nDE <- 1500
+rseed <- 198
 
 if (!file.exists(resfile_d5_uninfCov)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  de5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, counts=counts,
                   paramPolyester=params, nDE=nDE, sampleSize=sampleSize, 
                   bd=bd, uninformativeCovariate = TRUE)
   saveRDS(de5, file=resfile_d5_uninfCov)
@@ -616,9 +628,10 @@ and 1500 DE genes are added. This will be done for 100 simulations.
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
 nDE <- 1500
-
+rseed <- 961
+  
 if (!file.exists(resfile_d10_uninfCov)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, counts=counts,
+  de10 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, counts=counts,
                    paramPolyester=params, nDE=nDE, sampleSize=sampleSize, 
                    bd=bd, uninformativeCovariate = TRUE)
   saveRDS(de10, file=resfile_d10_uninfCov)
