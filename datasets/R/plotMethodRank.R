@@ -38,7 +38,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                             xlab = "Case Study",
                             fill = c("propMaxRejections", "meanRank", 
                                      "meanRejections",
-                                     "FDR", "TPR"),
+                                     "FDR", "TPR", "TNR"),
                             linePlot = FALSE,
                             excludeMethods = c("scott-theoretical",
                                                "scott-empirical"),
@@ -75,7 +75,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
   ranks <- ranks %>% complete(method, casestudy)
   
   # average over datasets within case study
-  if (fill %in% c("FDR", "TPR")){
+  if (fill %in% c("FDR", "TPR", "TNR")){
     annot <- "nrejects"
   }else{
     annot <- annotate
@@ -257,11 +257,12 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
         
         if (sum(hasResults) > 0){
             tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE)
-            if (fill %in% c("TPR", "FDR") && !(fill %in% tmp$performanceMetric))
+            if (fill %in% c("TPR", "FDR", "TNR") && !(fill %in% tmp$performanceMetric))
                 stop(fill, " is not found in performanceMetrics")
             
             if (!is.null(annotate)){
-                if (annotate %in% c("TPR", "FDR") && !(annotate %in% tmp$performanceMetric))
+                if (annotate %in% c("TPR", "FDR", "TNR") &&
+                    !(annotate %in% tmp$performanceMetric))
                     stop(annotate, " is not found in performanceMetrics")
             }
             
