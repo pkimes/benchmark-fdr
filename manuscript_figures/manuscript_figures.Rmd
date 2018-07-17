@@ -1055,6 +1055,124 @@ Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
 ```
 
+# Informativeness of covariates in Yeast simulation 
+
+As an alternative to the line plot above (Figure S7), we make a heatmap plot that
+displays the mean difference within simulation replicate.
+
+```{r}
+
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("yeast", objects) ] 
+
+# methods that use a covariate
+cov.methods <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+
+# regexp to construct master data table separating case study datasets, methods
+# and covariates
+obj.names <- str_split(resfile, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
+inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
+type <-  ifelse(grepl("null", resfile), "null", "de")
+size <-  ifelse(grepl("10", resfile), "10", "5")
+
+tab <- data.frame()
+for (l in seq_along(resfile)){
+  x <- readRDS(resfile[l])
+
+  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                 fill =  "FDR", annotate = NULL, alpha = 0.10) %>%
+    mutate(fdr = nrejects) %>%
+    select(method, casestudy, replicate, fdr)
+  tmp3 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                  fill =  "TNR", annotate = NULL, alpha = 0.10) %>%
+    mutate(tnr = nrejects) %>%
+  select(method, casestudy, replicate, tnr)
+  
+  if (type[l] != "null"){
+    tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "TPR", annotate = NULL, alpha = 0.10) %>%
+      mutate(tpr = mean(nrejects)) %>%
+    select(method, casestudy, replicate, tpr)
+
+    tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate")) %>%
+      left_join(tmp3, by = c("method", "casestudy", "replicate")) %>%
+      mutate(inform = inform[l],
+             type = type[l],
+             size = size[l])
+  }else{
+    tmp <- left_join(tmp2, tmp3, by = c("method", "casestudy", "replicate")) %>%
+      mutate(inform = inform[l],
+             type = type[l],
+             size = size[l])
+  }
+                   
+  tab <- bind_rows(tab, tmp)
+}
+
+# take difference within replicate, then average differences across
+# type and size and method
+
+dftab <- tab %>%
+  filter(method %in% cov.methods) %>%
+  dplyr::mutate(id = paste(type, size, method, replicate, sep = "-"))
+
+uninftab <- dftab %>% 
+  filter(inform == "uninf") %>%
+  select(id, fdr, tpr, tnr) %>%
+  rename(fdr_uninf = fdr,
+         tnr_uninf = tnr,
+         tpr_uninf = tpr)
+
+inftab <- dftab %>%
+  filter(inform == "inf") %>%
+  select(-inform)
+
+rowOrder <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+
+dftab <- left_join(inftab, uninftab, by = "id") %>%
+  mutate(tpr_diff = tpr-tpr_uninf,
+         fdr_diff = fdr-fdr_uninf,
+         tnr_diff = tnr-tnr_uninf) %>%
+  group_by(type, size, method) %>%
+  summarize(tpr_diff = mean(tpr_diff),
+            fdr_diff = mean(fdr_diff),
+            tnr_diff = mean(tnr_diff)) %>%
+  mutate(method = factor(method, levels = rowOrder)) 
+
+plot_fun <- function(var){
+  
+  plot  <- ggplot(dftab %>% filter(!is.na(get(var))), 
+                  aes(x = interaction(type, size), 
+                                        y = method)) + 
+    geom_tile(aes(fill=get(var))) + 
+    scale_fill_distiller(paste0("Change\nin ", toupper(var)),
+                         palette = "Blues", direction = 1,
+                         labels = scales::percent) +
+    theme_bw() +
+    xlab("Experiment") +
+    ylab("Method") +
+    facet_grid( ~ type + size, scales = "free", space = "free") +
+    ggtitle(paste0("Impact of informative covariate on ", toupper(var))) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+        legend.justification = c(1, 1),
+        legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 9),
+        legend.margin = margin(6, 10, 6, 10)) +
+    geom_text(aes(label = scales::percent(get(var))),
+            color = "black", size = 3)
+  
+  return(plot)
+}
+
+plot_fun("tpr_diff")
+plot_fun("fdr_diff")
+plot_fun("tnr_diff")
+```
+
 # Session information
 
 ```{r}
