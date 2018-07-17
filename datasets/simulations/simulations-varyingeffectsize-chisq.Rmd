@@ -54,6 +54,16 @@ B <- 100
 bd <- initializeBenchDesign()
 ```
 
+For the chi-squared distributed noise setting, we must change the "mode" setting for ASH
+from the default of 0 to `"estimate"` since the mode of null and alternative test statistics
+are no longer centered at 0. While both approximate Normality and unimodality of effects are
+violated in this simulation setting, by allowing the mode to be estimated, rather than forced
+to 0, should return more comparable results.
+
+```{r}
+bd <- modifyBMethod(bd, "ashq", mode = "empirical")
+```
+
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}

@@ -376,6 +376,16 @@ null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
 seed <- 1023
 ```
 
+For the chi-squared distributed noise setting, we must change the "mode" setting for ASH
+from the default of 0 to `"estimate"` since the mode of null and alternative test statistics
+are no longer centered at 0. While both approximate Normality and unimodality of effects are
+violated in this simulation setting, by allowing the mode to be estimated, rather than forced
+to 0, should return more comparable results.
+
+```{r}
+bdchi <- modifyBMethod(bd, "ashq", mode = "empirical")
+```
+
 We next run the simulations. We do not include FDR Regression because the test statistics
 are not approximately normally distributed.
 
@@ -383,7 +393,7 @@ are not approximately normally distributed.
 if (file.exists(chisq_file)) {
     res <- readRDS(chisq_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdchi, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -397,7 +407,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r chisq4-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdchi, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
