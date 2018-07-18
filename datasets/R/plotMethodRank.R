@@ -277,7 +277,6 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
                 dplyr::rename( nrejects = value) %>%
                 mutate( method = gsub("-df03", "", method)) %>%
                 mutate( method = gsub("(-a)(.*)", "", method)) %>%
-                na.omit() %>%
                 mutate( rank = rank(nrejects) / n(),
                        propMaxRej = ifelse(nrejects == min(nrejects) & 
                                            nrejects == max(nrejects) &
@@ -285,7 +284,7 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
                                            nrejects / max(nrejects, na.rm = TRUE)),
                        propPossible = nrejects / nrow(x)) %>%
                 mutate(casestudy = colLabels[i])
-            if ( class(objects[[i]]) == "character") {
+            if ( is.list(objects)) {
              tmp <- tmp %>%
                mutate(replicate = i)
             }
