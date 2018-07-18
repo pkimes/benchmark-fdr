@@ -162,13 +162,14 @@ simulateOneSplit <- function(X, rseed, counts, paramPolyester,
   
   geneExp <- tbl_df(data.frame(geneName=rownames(counts),
                                pval=res_alt$pvalue, SE=res_alt$lfcSE, 
-                               ind_covariate = ifelse(uninformativeCovariate, 
-                                                      uninf_covar,
-                                                      res_alt$baseMean), 
+                               ind_covariate = res_alt$baseMean, 
                                effect_size=res_alt$log2FoldChange, 
                                test_statistic=res_alt$stat, qvalue=truth, 
                                pzero = rowSums(counts(dds_alt)==0)/
                                  ncol(counts(dds_alt))  ))
+  
+  if (uninformativeCovariate)
+    geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
   
   # filter NAs and those with less than 50% expressed 
   geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
@@ -348,13 +349,13 @@ if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 # Sim D5: DE Comparison 5v5
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 samples
-and 1500 DE genes are added. This will be done for 100 simulations.
+and 2000 DE genes are added. This will be done for 100 simulations.
 
 ## Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
-nDE <- 1500
+nDE <- 2000
 rseed <- 198
 
 if (!file.exists(resfile_d5)){
@@ -399,13 +400,13 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 # Sim D10: DE Comparison 10v10
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 samples
-and 1500 DE genes are added. This will be done for 100 simulations.
+and 2000 DE genes are added. This will be done for 100 simulations.
 
 ## Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
-nDE <- 1500
+nDE <- 2000
 rseed <- 961
 
 if (!file.exists(resfile_d10)){
@@ -569,13 +570,13 @@ if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 ## Sim D5: DE Comparison 5v5
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 samples
-and 1500 DE genes are added. This will be done for 100 simulations.
+and 2000 DE genes are added. This will be done for 100 simulations.
 
 ### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
-nDE <- 1500
+nDE <- 2000
 rseed <- 198
 
 if (!file.exists(resfile_d5_uninfCov)){
@@ -621,13 +622,13 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
 ## Sim D10: DE Comparison 10v10
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 samples
-and 1500 DE genes are added. This will be done for 100 simulations.
+and 2000 DE genes are added. This will be done for 100 simulations.
 
 ### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
-nDE <- 1500
+nDE <- 2000
 rseed <- 961
   
 if (!file.exists(resfile_d10_uninfCov)){
