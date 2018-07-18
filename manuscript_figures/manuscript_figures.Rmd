@@ -1055,15 +1055,17 @@ Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
 ```
 
-# Informativeness of covariates in Yeast simulation 
+# Informativeness of covariates in Yeast & Polyester simulation 
 
 As an alternative to the line plot above (Figure S7), we make a heatmap plot that
 displays the mean difference within simulation replicate.
 
 ```{r}
 
+for (org in c("yeast", "polyester")){
+  
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("yeast", objects) ] 
+resfile <- objects[grepl(org, objects) ] 
 
 # methods that use a covariate
 cov.methods <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
@@ -1094,7 +1096,7 @@ for (l in seq_along(resfile)){
   if (type[l] != "null"){
     tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                     fill =  "TPR", annotate = NULL, alpha = 0.10) %>%
-      mutate(tpr = mean(nrejects)) %>%
+      mutate(tpr = nrejects) %>%
     select(method, casestudy, replicate, tpr)
 
     tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate")) %>%
@@ -1122,9 +1124,9 @@ dftab <- tab %>%
 uninftab <- dftab %>% 
   filter(inform == "uninf") %>%
   select(id, fdr, tpr, tnr) %>%
-  rename(fdr_uninf = fdr,
-         tnr_uninf = tnr,
-         tpr_uninf = tpr)
+  rename(fdr = "fdr_uninf",
+         tnr = "tnr_uninf",
+         tpr = "tpr_uninf")
 
 inftab <- dftab %>%
   filter(inform == "inf") %>%
@@ -1137,10 +1139,17 @@ dftab <- left_join(inftab, uninftab, by = "id") %>%
          fdr_diff = fdr-fdr_uninf,
          tnr_diff = tnr-tnr_uninf) %>%
   group_by(type, size, method) %>%
-  summarize(tpr_diff = mean(tpr_diff),
+  summarize(tpr_se = sqrt(sd(tpr_diff)/n()),
+            fdr_se = sqrt(sd(fdr_diff)/n()),
+            tnr_se = sqrt(sd(tnr_diff)/n()),
+            tpr_diff = mean(tpr_diff),
             fdr_diff = mean(fdr_diff),
             tnr_diff = mean(tnr_diff)) %>%
-  mutate(method = factor(method, levels = rowOrder)) 
+  mutate(method = factor(method, levels = rowOrder)) %>%
+  mutate(fdr_diff = ifelse(type == "null", NA, fdr_diff),
+         tpr_diff = ifelse(type == "null", NA, tpr_diff),
+         fdr_se = ifelse(type == "null", NA, fdr_se),
+         tpr_se = ifelse(type == "null", NA, tpr_se))
 
 plot_fun <- function(var){
   
@@ -1148,29 +1157,33 @@ plot_fun <- function(var){
                   aes(x = interaction(type, size), 
                                         y = method)) + 
     geom_tile(aes(fill=get(var))) + 
-    scale_fill_distiller(paste0("Change\nin ", toupper(var)),
-                         palette = "Blues", direction = 1,
+    scale_fill_gradient2(paste0("Change\nin ", toupper(gsub("_diff", "", var))),
+                         low = "red", midpoint = 0, mid = "white", high = "blue",
                          labels = scales::percent) +
     theme_bw() +
     xlab("Experiment") +
     ylab("Method") +
     facet_grid( ~ type + size, scales = "free", space = "free") +
-    ggtitle(paste0("Impact of informative covariate on ", toupper(var))) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-        legend.justification = c(1, 1),
-        legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
-        legend.text = element_text(size = 7),
-        legend.title = element_text(size = 9),
-        legend.margin = margin(6, 10, 6, 10)) +
+    ggtitle(paste0("Impact of informative covariate on ", toupper(gsub("_diff", "", var)))) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
     geom_text(aes(label = scales::percent(get(var))),
             color = "black", size = 3)
   
   return(plot)
 }
 
+# arrange in multipanel figure?
 plot_fun("tpr_diff")
+ggsave(file.path(outdir, paste0("Figure_infCov_tpr_", org, ".pdf")), height = 5, width = 5)
+
 plot_fun("fdr_diff")
+ggsave(file.path(outdir, paste0("Figure_infCov_fpr_", org, ".pdf")), height = 5, width = 5)
+
 plot_fun("tnr_diff")
+ggsave(file.path(outdir, paste0("Figure_infCov_tnr_", org, ".pdf")), height = 5, width = 7)
+
+}
+
 ```
 
 # Session information
