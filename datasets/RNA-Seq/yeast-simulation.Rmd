@@ -244,7 +244,7 @@ bd <- addBMethod(bd, "scott-empirical",
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'empirical',
-                     control = list(lambda = 0.01))
+                     control = list(lambda = 0.01, nmids = 300, densknots = 20))
 ```
 
 Run benchmark methods. 
@@ -293,7 +293,7 @@ looped over many replications and results averaged over them.
 simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
   if(uninformativeCovariate)
-    ind_covar <- rnorm(nrow(dds))
+    uninf_covar <- rnorm(nrow(dds))
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -350,15 +350,17 @@ simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
                                pval=resTEST$pvalue, 
                                SE=resTEST$lfcSE,                 
-                               ind_covariate = ifelse(uninformativeCovariate, 
-                                                      ind_covar,
-                                                      resTEST$baseMean),
+                               ind_covariate = resTEST$baseMean,
                                effect_size = resTEST$log2FoldChange, 
                                test_statistic = resTEST$stat,
                                qvalue = truth,
                                pzero = rowSums(counts(dds_test)==0)/
-                                       ncol(counts(dds_test)))) %>%
-                dplyr::filter(!is.na(pval)) 
+                                       ncol(counts(dds_test))))
+  
+  if (uninformativeCovariate)
+    geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
+  
+  geneExp <-  geneExp %>% dplyr::filter(!is.na(pval)) %>% dplyr::filter(pzero < 0.5)
   
    if(pvalHists){
     return(strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy =10))
@@ -534,7 +536,7 @@ nDE <- 2000
 
 if (!file.exists(resfile_d5)){
   de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
+                  resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(de5, file = resfile_d5)
 }else{
   de5 <- readRDS(file = resfile_d5)
