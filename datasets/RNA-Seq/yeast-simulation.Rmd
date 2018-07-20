@@ -276,9 +276,6 @@ looped over many replications and results averaged over them.
 ```{r}
 #' @param X simnumber
 #' @param seed random seed
-#' @param dds is the full DESeq2 dataset
-#' @param resFULL is the results object from running DESeq2 on dds (used in
-#'   to obtain the fold change effect sizes when adding non-null genes)
 #' @param sampleSize is the number of samples in each condition
 #' @param nDE is the number of DE genes
 #' @param bd is the bench design object
@@ -290,7 +287,7 @@ looped over many replications and results averaged over them.
 #'  Default is FALSE.
 #' @param pvalHists logical whether to return histograms of pvalues by covariate
 #'  instead of SB objects
-simulateOneSplit <- function(X, rseed, dds, resFULL, nDE, sampleSize,
+simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
   if(uninformativeCovariate)
     uninf_covar <- rnorm(nrow(dds))
@@ -398,6 +395,9 @@ aggregated upset plot - if there aren't at least 2 methods it will throw an
 error, which is a problem for the null simulations).
 
 ```{r}
+# To be included in the upset agg plot, method needs to have found on average
+# at least one rejection per replicate. To create an upset plot, require that
+# at least two methods rejected at this threshold.
 #' @param res standardized metric data.table generated using
 #'        standardize_results.
 #' @param alpha alpha cutoff
@@ -411,7 +411,7 @@ numberMethodsReject <- function(res, alphacutoff, filterSet){
     select(blabel, performanceMetric, value) %>%
     group_by(blabel) %>%
     summarize(mean_value = mean(value)) %>%
-    filter(mean_value > 0)
+    filter(mean_value > 1)
   return(nrow(res))
 }
 
@@ -431,8 +431,8 @@ sampleSize <- 5
 nDE <- 0
 
 if (!file.exists(resfile_n5)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                    nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(null5, file = resfile_n5)
 }else{
   null5 <- readRDS(file = resfile_n5)
@@ -459,7 +459,7 @@ covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -481,8 +481,8 @@ sampleSize <- 10
 nDE <- 0
 
 if (!file.exists(resfile_n10)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                    nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(null10, file = resfile_n10)
 }else{
   null10 <- readRDS(file = resfile_n10)
@@ -510,7 +510,7 @@ covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -535,8 +535,8 @@ sampleSize <- 5
 nDE <- 2000
 
 if (!file.exists(resfile_d5)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                  resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(de5, file = resfile_d5)
 }else{
   de5 <- readRDS(file = resfile_d5)
@@ -545,8 +545,8 @@ if (!file.exists(resfile_d5)){
 # pvalue histograms
 plotfile <- file.path(datdir, "de5_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd, 
                    pvalHists = TRUE)
   pdf(plotfile, width=8, height=4)
   for(i in 1:length(hists)){
@@ -578,7 +578,7 @@ covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
   
 }else{
@@ -602,8 +602,8 @@ sampleSize <- 10
 nDE <- 2000
 
 if(!file.exists(resfile_d10)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd)
   saveRDS(de10, file = resfile_d10)
 }else{
   de10 <- readRDS(file = resfile_d10)
@@ -612,8 +612,8 @@ if(!file.exists(resfile_d10)){
 # pvalue histograms
 plotfile <- file.path(datdir, "de10_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd, 
+  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd, 
                    pvalHists = TRUE)
   pdf(plotfile, width=8, height=4)
   for(i in 1:length(hists)){
@@ -645,7 +645,7 @@ covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -684,8 +684,8 @@ sampleSize <- 5
 nDE <- 0
 
 if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed,
+                   nDE=nDE, sampleSize=sampleSize, bd=bd,
                    uninformativeCovariate = TRUE)
   saveRDS(null5, file = resfile_n5_uninfCov)
 }else{
@@ -713,7 +713,7 @@ covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -735,8 +735,8 @@ sampleSize <- 10
 nDE <- 0
 
 if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd,
                    uninformativeCovariate = TRUE)
   saveRDS(null10, file = resfile_n10_uninfCov)
 }else{
@@ -764,7 +764,7 @@ covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
@@ -789,9 +789,9 @@ sampleSize <- 5
 nDE <- 2000
 
 if (!file.exists(resfile_d5_uninfCov)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE)
+  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd,
+                  uninformativeCovariate = TRUE)
   saveRDS(de5, file = resfile_d5_uninfCov)
 }else{
   de5 <- readRDS(file = resfile_d5_uninfCov)
@@ -820,7 +820,7 @@ covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
   
 }else{
@@ -844,8 +844,8 @@ sampleSize <- 10
 nDE <- 2000
 
 if(!file.exists(resfile_d10_uninfCov)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, dds=dds, 
-                   resFULL=resFULL, nDE=nDE, sampleSize=sampleSize, bd=bd,
+  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd,
                    uninformativeCovariate = TRUE)
   saveRDS(de10, file = resfile_d10_uninfCov)
 }else{
@@ -875,7 +875,7 @@ covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25,
 covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 3){
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
   aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 }else{
   message("Not enough methods found rejections at alpha ", ualpha, 
