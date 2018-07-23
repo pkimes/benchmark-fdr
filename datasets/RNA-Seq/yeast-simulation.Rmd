@@ -120,6 +120,7 @@ Here we make use of the map and map2 functions in the `purrr` package, to swiftl
 apply the `read_tsv` function from `readr` to read in all of the 96 sample tables, 
 as well as add in the sample name (derived from the file name) to each subtable.
 Finally, the `reduce` function is used to join all the replicates together.
+We will remove samples that failed QC in the original study.
 
 ```{r, readin, results='hide', message=FALSE}
 files <- dir(path = datdir, pattern = "*.bam.gbgout", full.names = TRUE)
@@ -148,7 +149,9 @@ Snf2 knockout).
 
 ## Set up DESeq2 object 
 
-```{r, deseq}
+First we set up the DESeq2 object.
+
+```{r, deseqsetup}
 feats <- (counts %>% select(1))$feature
 counts <- as.matrix(counts %>% select(-1))
 rownames(counts) <- feats
@@ -163,7 +166,13 @@ counts <- counts[rowMeans(counts) > 1,]
 dds <- DESeqDataSetFromMatrix(countData = counts,
                               colData = coldat,
                               design= ~ condition)
+```
 
+## Run DESeq2
+
+Next we run DESeq2.
+
+```{r}
 # results on full set
 dds <- DESeq(dds)
 resultsNames(dds) # lists the coefficients
@@ -244,7 +253,7 @@ bd <- addBMethod(bd, "scott-empirical",
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'empirical',
-                     control = list(lambda = 0.01, nmids = 300, densknots = 20))
+                     control = list(lambda = 0.01))
 ```
 
 Run benchmark methods. 
@@ -289,8 +298,8 @@ looped over many replications and results averaged over them.
 #'  instead of SB objects
 simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
-  if(uninformativeCovariate)
-    uninf_covar <- rnorm(nrow(dds))
+  
+  uninf_covar <- rnorm(nrow(dds))
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -304,14 +313,46 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                                       rep("B", sampleSize))[sample(1:(sampleSize*2), 
                                                                    sampleSize*2)])
   design(dds_test) <- ~fake
+  
+  pzero = rowSums(counts(dds_test)==0)/ncol(counts(dds_test))
+  dds_test <- dds_test[pzero < 0.5,]
+  uninf_covar <- uninf_covar[pzero < 0.5]
+  
   truth <- rep(FALSE, nrow(dds_test))
+  
+  # make sure null comparison is truly null: if PC1 or PC2 sig different, 
+  # reshuffle sample labels
+  dds_test <- estimateSizeFactors(dds_test)
+  x <- t(counts(dds_test, normalize=TRUE))
+  pc <- prcomp(log(x + 0.5), scale.=TRUE)
+
+  a1 <- pc$x[colData(dds_test)$fake=="A",1]
+  b1 <- pc$x[colData(dds_test)$fake=="B",1] 
+  a2 <- pc$x[colData(dds_test)$fake=="A",2]
+  b2 <- pc$x[colData(dds_test)$fake=="B",2] 
+  p1 <- wilcox.test(a1, b1)$p.value
+  p2 <- wilcox.test(a2, b2)$p.value
+  tries <- 0
+  
+  while(p1 < 0.10 || p2 < 0.10 && tries < 5){
+    colData(dds_test)$fake <- sample(colData(dds_test)$fake, ncol(dds_test))
+    x <- t(counts(dds_test, normalize=TRUE))
+    pc <- prcomp(log(x + 0.5), scale.=TRUE)
+
+    a1 <- pc$x[colData(dds_test)$fake=="A",1]
+    b1 <- pc$x[colData(dds_test)$fake=="B",1] 
+    a2 <- pc$x[colData(dds_test)$fake=="A",2]
+    b2 <- pc$x[colData(dds_test)$fake=="B",2] 
+    p1 <- t.test(a1, b1)$p.value
+    p2 <- t.test(a2, b2)$p.value
+    
+    tries <- tries + 1
+  }
   
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
     DE <- sample(1:nrow(dds_test), nDE)
-    truth <- rep(FALSE, nrow(dds_test))
     truth[DE] <- TRUE
-    names(truth) <- rownames(dds_test)
  
     # randomly sample a log2FC from original FCs (without regard to DE)
     counts_new <- counts(dds_test)
@@ -350,16 +391,14 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                                ind_covariate = resTEST$baseMean,
                                effect_size = resTEST$log2FoldChange, 
                                test_statistic = resTEST$stat,
-                               qvalue = truth,
-                               pzero = rowSums(counts(dds_test)==0)/
-                                       ncol(counts(dds_test))))
+                               qvalue = truth))
   
   if (uninformativeCovariate)
     geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
   
-  geneExp <-  geneExp %>% dplyr::filter(!is.na(pval)) %>% dplyr::filter(pzero < 0.5)
+  geneExp <-  geneExp %>% dplyr::filter(!is.na(pval))
   
-   if(pvalHists){
+  if(pvalHists){
     return(strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy =10))
   }
 
