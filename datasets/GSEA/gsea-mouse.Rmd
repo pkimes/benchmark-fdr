@@ -83,6 +83,7 @@ if (!file.exists(deseq_file)) {
 
 genes <- as.numeric(res$padj < 0.1)
 names(genes) <- rownames(res)
+sum(genes, na.rm=TRUE)
 ```
 
 We next use biomaRt to get the relations between GO categories and genes.
@@ -125,6 +126,14 @@ goRes$rand_covar <- rnorm(nrow(goRes))
 
 ```
 
+We filter out really small gene sets and those gene sets which have no DE genes
+in them (many of these are set to 1).
+
+```{r}
+goRes <- goRes %>%
+  dplyr::filter(numDEInCat > 0, numInCat > 10 )
+```
+
 ## Covariate Diagnostics
 
 Here, we can see that the size of the gene set is actually informative.
@@ -146,11 +155,7 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
 And at the same time, it seems to be fair to assume that it is independent under the null hypothesis.
 
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
-## filter numInCat below only used for plotting
-## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
-#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
-dplyr::filter(goRes, numDEInCat > 0, numInCat > 10) %>%
-    strat_hist(pval = "over_represented_pvalue", covariate = "numInCat", maxy=35)
+strat_hist(goRes, pval = "over_represented_pvalue", covariate = "numInCat", maxy=7)
 ```
 
 ### Random
@@ -170,11 +175,7 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
 We can also explore if the covariate seems to be independent under the null. 
 
 ```{r assumptions-rand, message=FALSE, fig.width=10, fig.height=3.2}
-## filter numInCat below only used for plotting
-## filter numDEInCat for cases where there are no DE genes in the category (these are actually not tested)
-#dplyr::filter( goRes, over_represented_pvalue == 1, numDEInCat > 0)
-dplyr::filter( goRes, numDEInCat > 0, numInCat > 10 ) %>%
-    strat_hist( pval="over_represented_pvalue", covariate="rand_covar", maxy=10)
+strat_hist(goRes, pval="over_represented_pvalue", covariate="rand_covar", maxy=10)
 ```
 
 ## Multiple-Testing Correction
@@ -192,7 +193,7 @@ res <- dplyr::select(goRes, over_represented_pvalue, numInCat, rand_covar) %>%
 bd <- initializeBenchDesign()
 ```
 
-We exclude `ashr`, `scott-theoretical` and `scott-empirical` from the analysis because
+We don't include `ashq`, `fdrreg-e` and `fdrreg-t` from the analysis because
 the necessary assumptions are not met in the current case study. Namely, effect sizes
 and standard errors are not available for ASH, and the test statistics are not normally
 distributed under the null and alternative, as required by Scott's FDR regression methods.
