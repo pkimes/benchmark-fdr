@@ -29,7 +29,6 @@ and average over the replicates in plots.
 ```{r workspace-setup, results='hide', message=FALSE, warning=FALSE}
 # Load packages needed to simulate RNA-seq counts with polyester
 library(SummarizedBenchmark)
-library(zebrafishRNASeq) 
 library(genefilter)
 library(limma)
 library(polyester)
@@ -55,15 +54,15 @@ dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 # results files that will be generated below
-resfile_n5 <- file.path(resdir, "polyesterY-results-null5.rds")
-resfile_n10 <- file.path(resdir, "polyesterY-results-null10.rds")
-resfile_d5 <- file.path(resdir, "polyesterY-results-de5.rds")
-resfile_d10 <- file.path(resdir, "polyesterY-results-de10.rds")
+resfile_n5 <- file.path(resdir, "polyester-results-null5.rds")
+resfile_n10 <- file.path(resdir, "polyester-results-null10.rds")
+resfile_d5 <- file.path(resdir, "polyester-results-de5.rds")
+resfile_d10 <- file.path(resdir, "polyester-results-de10.rds")
 
-resfile_n5_uninfCov <- file.path(resdir, "polyesterY-results-null5-uninfCov.rds")
-resfile_n10_uninfCov <- file.path(resdir, "polyesterY-results-null10-uninfCov.rds")
-resfile_d5_uninfCov <- file.path(resdir, "polyesterY-results-de5-uninfCov.rds")
-resfile_d10_uninfCov <- file.path(resdir, "polyesterY-results-de10-uninfCov.rds")
+resfile_n5_uninfCov <- file.path(resdir, "polyester-results-null5-uninfCov.rds")
+resfile_n10_uninfCov <- file.path(resdir, "polyester-results-null10-uninfCov.rds")
+resfile_d5_uninfCov <- file.path(resdir, "polyester-results-de5-uninfCov.rds")
+resfile_d10_uninfCov <- file.path(resdir, "polyester-results-de10-uninfCov.rds")
 
 # # set up parallel backend:
 library(BiocParallel)
@@ -74,24 +73,11 @@ register(MulticoreParam(workers = nCores))
 
 ## Set up Polyester
 
-We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. The package requires a count matrix as input which estimates the mean variance relationship. Here we start with the [zebrafish](https://bioconductor.org/packages/release/data/experiment/html/zebrafishRNASeq.html) Bioconductor data package. 
-
-Estimate mean and variance relationship
-
-```{r estimate-parameters-NB}
-data(zfGenes)
-dim(zfGenes)
-
-filter <- apply(zfGenes, 1, function(x) length(x[x>5])>=2)
-counts <- as.matrix(zfGenes[filter,])
-
-## Estimate the zero inflated negative binomial parameters
-paramPolyester = get_params(counts)
-```
-
-Try using the yeast data instead - want all samples of the same condition, and the
-zebrafish dataset only has 3v3.
-
+We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. The package requires a count matrix as input which estimates the mean variance relationship. Here we start with the yeast data with 48 biological replicates in each of 
+two conditions (analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/)). 
+We'll use the samples passing QC in the original study that belong to the WT group to 
+estimate mean and variance relationship. We assume the data has already been downloaded
+(this is carried out in the `yeast-simulation.Rmd` vignette).
 
 ```{r, readin, results='hide', message=FALSE}
 files <- dir(path = datdir, pattern = "*.bam.gbgout", full.names = TRUE)
@@ -135,8 +121,9 @@ looped over many replications and results averaged over them.
 #' @param rseed random seed
 simulateOneSplit <- function(X, rseed, 
                              nDE, sampleSize, bd, uninformativeCovariate = FALSE){
-  if(uninformativeCovariate)
-    uninf_covar <- rnorm(nrow(counts))
+  ngenes <- 10000
+  
+  uninf_covar <- rnorm(ngenes)
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
@@ -148,35 +135,40 @@ simulateOneSplit <- function(X, rseed,
   # things needed for differential testing using DESeq2
   groupDESeq = factor(rep(c(0,1), each=sampleSize))
   
-  # NULL simulation
-  if(nDE == 0) {
-    truth <- rep(FALSE, nrow(counts)) 
-    names(truth) <- rownames(counts)
+  gs <- sample(1:nrow(counts), ngenes, replace = TRUE)
+  mu <- paramPolyester$mu[gs]
+  p0 <- paramPolyester$p0[gs]
+
+  # Null genes
+  log2FC = rep(0, ngenes)
+  dat_alt = create_read_numbers(mu,
+                                paramPolyester$fit,
+                                p0,
+                                n=sampleSize*2, beta=cbind(log2FC), 
+                                mod=modPolyester)
+
+  # filter genes with mostly zeroes
+  pzero = rowSums(dat_alt==0)/ncol(dat_alt)
+  dat_alt <- dat_alt[pzero < 0.5,]
+  truth <- rep(FALSE, nrow(dat_alt))
+  log2FC <- log2FC[pzero < 0.5]
+  mu <- mu[pzero < 0.5]
+  p0 <- p0[pzero < 0.5]
+  uninf_covar <- uninf_covar[pzero < 0.5]
     
-    # log2FC are all 0 in null simulation
-    log2FC = rep(0,nrow(counts))
-    dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
-                                  paramPolyester$p0, m=dim(counts)[1], 
-                                  n=sampleSize*2, beta=cbind(log2FC), 
-                                  mod=modPolyester)
-  }
-  
   # DE simulation
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
-    DE <- sample(1:nrow(counts), nDE)
-    truth <- rep(FALSE, nrow(counts))
+    DE <- sample(1:nrow(dat_alt), nDE)
     truth[DE] <- TRUE
-    names(truth) <- rownames(counts)
     
-    # randomly sample a log2FC from truncated N(0,0.5) (greater than 0.5) 
-    log2FC <- rep(0, nrow(counts))
+    # randomly sample a log2FC from N(0,1) 
     log2FC[DE] <- rnorm(nDE, sd = 1)
-    dat_alt = create_read_numbers(paramPolyester$mu, paramPolyester$fit,
-                                  paramPolyester$p0, m=dim(counts)[1], 
-                                  n=sampleSize*2, beta=cbind(log2FC), 
+    dat_alt[DE,] = create_read_numbers(mu[DE], paramPolyester$fit, p0[DE], 
+                                  n=sampleSize*2, beta=cbind(log2FC[DE]), 
                                   mod=modPolyester)
   }
+  
   
   # run DESeq2
   dds_alt <- DESeqDataSetFromMatrix(countData=dat_alt, 
@@ -188,20 +180,19 @@ simulateOneSplit <- function(X, rseed,
   geneExp <- tbl_df(data.frame(pval=res_alt$pvalue, SE=res_alt$lfcSE, 
                                ind_covariate = res_alt$baseMean, 
                                effect_size=res_alt$log2FoldChange, 
-                               test_statistic=res_alt$stat, qvalue=truth, 
-                               pzero = rowSums(counts(dds_alt)==0)/
-                                 ncol(counts(dds_alt))  ))
+                               test_statistic=res_alt$stat, qvalue=truth))
   
   if (uninformativeCovariate)
     geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
   
-  # filter NAs and those with less than 50% expressed 
-  geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+  # filter NAs 
+  geneExp <- geneExp %>% na.omit() 
   
   # built Benchmark data
   sb <- bd %>% buildBench(data=geneExp, parallel = FALSE, 
                           truthCols = "qvalue", 
                           ftCols = "ind_covariate")
+  sb <- addDefaultMetrics(sb)
   rowData(sb)$log2FC <- geneExp$effect_size
   
   return(sb)
