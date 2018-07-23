@@ -28,13 +28,7 @@ summarize_one_item <- function(object, alpha){
   df <- df %>%
     dplyr::select(truth, covname, bonf, bh,
                   qvalue, contains("ihw"), starts_with("ash"), "bl-df03", lfdr,
-                  matches("scott"))
-  if ("scott-theoretical" %in% names(df)) {
-    df <- dplyr::rename(df, "scott-t" = "scott-theoretical")
-  }
-  if ("scott-empirical" %in% names(df)) {
-    df <- dplyr::rename(df, "scott-e" = "scott-empirical")
-  }
+                  matches("fdrreg"))
   df <- df %>%
     tidyr::gather(method, significant, -truth, -covname) %>%
     dplyr::group_by(method, truth, significant) %>%
@@ -124,8 +118,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       dplyr::select(truth, covname, bonf, bh,
                     qvalue, contains("ihw"), contains("ash"),
                     "bl-df03", lfdr, 
-                    contains("scott-theoretical"), 
-                    contains("scott-empirical")) %>%
+                    contains("fdrreg")) %>%
       dplyr::mutate(bin = ntile(abs(get(covname)), nbins)) %>%
       tidyr::gather(method, significant, -covname, -bin) %>%
       dplyr::group_by(method, bin) %>%

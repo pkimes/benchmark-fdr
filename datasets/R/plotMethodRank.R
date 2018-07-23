@@ -14,7 +14,7 @@
 #' @param linePlot logical indicating whether to plot a line plot in lieu of 
 #'  a heatmap  
 #' @param excludeMethods character vector containing the names of methods to
-#'  exclude from the heatmap. Default is to exclude Scott methods which are 
+#'  exclude from the heatmap. Default is to exclude fdrreg methods which are 
 #'  only present in GWAS.
 #' @param fill character indicating the outcome variable of interest. Default
 #'  is 'propMaxRejections'. For 'FDR' and 'TPR' sb objects need to contain 
@@ -40,8 +40,8 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                                      "meanRejections",
                                      "FDR", "TPR", "TNR"),
                             linePlot = FALSE,
-                            excludeMethods = c("scott-theoretical",
-                                               "scott-empirical"),
+                            excludeMethods = c("fdrreg-t",
+                                               "fdrreg-e"),
                             rowOrder = NULL,
                             tableOnly = FALSE,
                             Nlabel = TRUE,

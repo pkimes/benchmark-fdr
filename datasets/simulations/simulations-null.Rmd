@@ -60,14 +60,14 @@ reflective of all real data sets.
 
 ```{r}
 bdplus <- bd
-bdplus <- addBMethod(bdplus, "scott-theoretical",
+bdplus <- addBMethod(bdplus, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
-bdplus <- addBMethod(bdplus, "scott-empirical",
+bdplus <- addBMethod(bdplus, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,

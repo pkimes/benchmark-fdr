@@ -140,13 +140,6 @@ sb2hits <- function(x, a, s) {
             dplyr::select(-`bl-df02`,  -`bl-df04`,  -`bl-df05`) %>%
             dplyr::rename(bl = `bl-df03`)
     }
-    ## rename scott methods for easier parsing later, drop unadjusted p-vals from comparison
-    if ("scott-theoretical" %in% names(ht)) {
-        ht <- dplyr::rename(ht, "scott-t" = "scott-theoretical")
-    }
-    if ("scott-empirical" %in% names(ht)) {
-        ht <- dplyr::rename(ht, "scott-e" = "scott-empirical")
-    }
     ht <- dplyr::select(ht, -unadjusted)
     as.data.frame(ht)
 }

@@ -18,8 +18,8 @@
 #' @param clean_names logical whether to clean-up method names in 'blabel'
 #'        column. The tsb table must only contain one column with each of the
 #'        following labels, else method labels will not be changed: 'ashq',
-#'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'scott-empirical',
-#'        'scott-theoretical'. (default = FALSE)
+#'        'bh', 'bl', 'ihw', 'lfdr', 'qvalue', 'fdrreg-e',
+#'        'fdrreg-t'. (default = FALSE)
 #' @param errorBars logical indicating whether to include error bars 
 #' @param palette data.frame containing the color palette - should contain 
 #'        three columns: 'Method', 'col', and 'lty'
@@ -64,8 +64,8 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         ulabs <- unique(tsba$blabel)
         vlabs <- c('ashq', 'bh', 'bl', 'ihw', 'lfdr', 'qvalue')
         clabs <- c("ASH q-value", "Benjamini-Hochberg", "Boca-Leek", "IHW", "local FDR", "Storey's q-value")
-        if (any(grepl("scott", ulabs))) {
-            vlabs <- c(vlabs, 'scott-empirical', 'scott-theoretical')
+        if (any(grepl("fdrreg", ulabs))) {
+            vlabs <- c(vlabs, 'fdrreg-e', 'fdrreg-t')
             clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")
         }
         lcnts <- sapply(vlabs, function(x) { grep(paste0("^", x), ulabs, value=TRUE) })

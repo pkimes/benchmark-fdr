@@ -38,7 +38,7 @@ outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
 methodset <- c("bonf", "bh", "ihw", "qvalue", "bl-df03", "lfdr",
-               "scott-empirical", "scott-theoretical", "ashq")
+               "fdrreg-e", "fdrreg-t", "ashq")
 ```
 
 # Data Preparation
@@ -158,13 +158,13 @@ different noise distributions.
 For null simulations, rather than the false discovery rate, we take a look at the true negative
 rate (equivalently, the proportion of false positives) since the FDR will be 1 if any rejections
 are made. Additionally, we take a look at the FWER (the proportion of simulation replicates out
-of 100 with at least one rejection). In these plots, `ashq`, `scott-theoretical` and `scott-theoretical`
+of 100 with at least one rejection). In these plots, `ashq`, `fdrreg-e` and `fdrreg-t`
 are excluded for the Chi-Squared simulation settings.
 
 ```{r, fig.width = 18, fig.height = 8}
 res_nullset <- dplyr::filter(res, setting == "null",
                              !(Method == "ashq" & grepl("chi\\^2", dist)),
-                             !(grepl("scott", Method) & grepl("chi\\^2", dist)))
+                             !(grepl("fdrreg", Method) & grepl("chi\\^2", dist)))
 res_nullset <- tidyr::complete(res_nullset, setting, Method, dist, key)
 
 null_tnr <- dplyr::filter(res_nullset, key == "TNR") %>%

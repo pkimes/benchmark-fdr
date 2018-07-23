@@ -240,14 +240,14 @@ since our test statistics are approximately t-distributed.
 
 ```{r}
 bd <- initializeBenchDesign()
-bd <- addBMethod(bd, "scott-theoretical",
+bd <- addBMethod(bd, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
-bd <- addBMethod(bd, "scott-empirical",
+bd <- addBMethod(bd, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,

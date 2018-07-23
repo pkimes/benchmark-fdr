@@ -156,7 +156,7 @@ if (file.exists(bench_file)) {
 } else {
     bd <- initializeBenchDesign()
     
-    bd <- addBMethod(bd, "scott-theoretical",
+    bd <- addBMethod(bd, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -164,7 +164,7 @@ if (file.exists(bench_file)) {
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
     
-   bd <- addBMethod(bd, "scott-empirical",
+   bd <- addBMethod(bd, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -177,7 +177,7 @@ if (file.exists(bench_file)) {
 }
 ```
 
-There are some warnings from both `BH` and `scott-empirical`. However, they do return results.
+There are some warnings from both `BH` and `fdrreg-empirical`. However, they do return results.
 I tried to increase the `nmids` parameter for Scott's FDR Regression but this does not appear to make a difference.
 
 ```{r}
@@ -186,7 +186,7 @@ head(assays(sb)[["bench"]])
 
 ## Benchmark Metrics - mean
 
-`scott-empirical` rejects many more hypothesis than the rest of the methods, followed by `lfdr` and `ihw`.
+`fdrreg-empirical` rejects many more hypothesis than the rest of the methods, followed by `lfdr` and `ihw`.
 
 ```{r}
 assayNames(sb) <- "qvalue"
@@ -229,7 +229,7 @@ if (file.exists(bench_file_uninf)) {
 } else {
     bd <- initializeBenchDesign()
     
-    bd <- addBMethod(bd, "scott-theoretical",
+    bd <- addBMethod(bd, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -237,7 +237,7 @@ if (file.exists(bench_file_uninf)) {
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
     
-   bd <- addBMethod(bd, "scott-empirical",
+   bd <- addBMethod(bd, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,

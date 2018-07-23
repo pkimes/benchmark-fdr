@@ -16,7 +16,7 @@
 
 candycols <- data.frame(Method = c("bonf", "bh", "qvalue", "ashs", "ashq", 
                                    "ihw", "bl", "lfdr", 
-                                   "scott-empirical", "scott-theoretical"),
+                                   "fdrreg-t", "fdrreg-e"),
                         col = c("black", "black", "gray45", "hotpink", "red3",
                                   "green3", "darkorange1", "dodgerblue3", 
                                   "purple4", "mediumpurple3"),

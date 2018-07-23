@@ -151,7 +151,7 @@ if (file.exists(bench_file)) {
 } else {
     bd <- initializeBenchDesign()
     
-    bd <- addBMethod(bd, "scott-theoretical",
+    bd <- addBMethod(bd, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -159,7 +159,7 @@ if (file.exists(bench_file)) {
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
     
-   bd <- addBMethod(bd, "scott-empirical",
+   bd <- addBMethod(bd, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -186,7 +186,7 @@ estimatePerformanceMetrics(sb, alpha = 0.05, tidy = TRUE) %>%
     print(n = 40)
 ```
 
-ash was the method that rejected the largest number of hypotheses, followed by lfdr and scott-theoretical. 
+ash was the method that rejected the largest number of hypotheses, followed by lfdr and fdrreg-theoretical. 
 
 ```{r, rnaseq-scatter}
 rejections_scatter(sb, supplementary = FALSE)
@@ -218,7 +218,7 @@ if (file.exists(bench_file_uninf)) {
 } else {
     bd <- initializeBenchDesign()
     
-    bd <- addBMethod(bd, "scott-theoretical",
+    bd <- addBMethod(bd, "fdrreg-t",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,
@@ -226,7 +226,7 @@ if (file.exists(bench_file_uninf)) {
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
     
-   bd <- addBMethod(bd, "scott-empirical",
+   bd <- addBMethod(bd, "fdrreg-e",
                      FDRreg::FDRreg,
                      function(x) { x$FDR },
                      z = test_statistic,

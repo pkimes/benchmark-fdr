@@ -175,7 +175,7 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 # not excluding any methods
 Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
-                  "scott-empirical", "scott-theoretical", "ashq")
+                  "fdrreg-e", "fdrreg-t", "ashq")
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
@@ -894,7 +894,7 @@ objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow
 
 ## specify method order
 method_order <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
-                  "scott-empirical", "scott-theoretical", "ashq")
+                  "fdrreg-e", "fdrreg-t", "ashq")
 objdat_joint <- dplyr::mutate(objdat_joint, method = factor(method, levels = c(method_order, "Total Tests")))
 ```
 
@@ -966,7 +966,7 @@ if (length(promot) > 0){
 }
 
 # methods that use a covariate
-cov.methods <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+cov.methods <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
 
 # regexp to construct master data table separating case study datasets, methods
 # and covariates
@@ -1012,7 +1012,7 @@ inftab <- dftab %>%
   filter(inform == "inf") %>%
   select(-inform)
 
-rowOrder <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+rowOrder <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
 
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   mutate(diff_inf = nrejects - uninf) %>%
@@ -1068,7 +1068,7 @@ objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl(org, objects) ] 
 
 # methods that use a covariate
-cov.methods <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+cov.methods <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
 
 # regexp to construct master data table separating case study datasets, methods
 # and covariates
@@ -1132,7 +1132,7 @@ inftab <- dftab %>%
   filter(inform == "inf") %>%
   select(-inform)
 
-rowOrder <- c("ihw", "bl", "lfdr", "scott-empirical", "scott-theoretical")
+rowOrder <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
 
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   mutate(tpr_diff = tpr-tpr_uninf,
