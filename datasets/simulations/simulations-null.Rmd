@@ -284,14 +284,14 @@ We next run the simulations (including Scott's FDR Regression and ASH with degre
 freedom specified).
 
 ```{r t11-run-simulation}
-if (file.exists(tdist_file)) {
-    res <- readRDS(tdist_file)
+if (file.exists(tdist11_file)) {
+    res <- readRDS(tdist11_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
                     pi0 = pi0, tstat = tstat, icovariate = icovariate,
                     tstat_dist = tstat_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = tdist_file)
+    saveRDS(res, file = tdist11_file)
 }
 ```
 
