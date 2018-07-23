@@ -314,9 +314,6 @@ ggplot(rank.tab ,
        aes(y = prop_casestudy, x = method, group = method, color = Method)) +
   geom_boxplot(aes(x = prop_yeastsim, group = as.factor(prop_yeastsim), y = prop_casestudy),
                    alpha = 0.3, width = 0.04, outlier.shape = NA) +
-  geom_quasirandom(aes(x = prop_yeastsim, y = prop_casestudy, color = Method, shape = casestudy),
-                   alpha = 0.6, cex=3, width = 0.002,  groupOnX = TRUE,
-                   varwidth = TRUE) +
   scale_color_manual(values=col) +
   theme_bw() +
   xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
