@@ -988,34 +988,37 @@ df <- data.frame(filename, casestudy, dataset, inform, cov, stringsAsFactors = F
   mutate(cov = ifelse(casestudy == "GWAS" & inform != "uninf", extD,  cov)) %>%
   mutate(cov = ifelse(casestudy == "microbiome" & inform != "uninf", 
                       ifelse(grepl("abun", filename), "abundance", "ubiquity"),  cov))%>%
-  mutate(cov = ifelse(casestudy == "RNAseq" & inform != "uninf", "mean",  cov))
-  
+  mutate(cov = ifelse(casestudy == "RNAseq" & inform != "uninf", "mean",  cov)) %>%  
+  mutate(cov = ifelse(cov == "det", "detection-rate", cov))
+
 tab <- tidy_df(objects=objects, colLabels=filename, 
               fill="meanRank", annotate=NULL, alpha =0.10) %>%
-  rename(casestudy = "filename") %>%
+  rename(filename = "casestudy") %>%
+  #rename(casestudy = "filename") %>%
   mutate(filename = gsub(".rds", "", filename))
 
 dftab <- left_join(tab, df, by="filename") %>%
-  filter(method %in% cov.methods) %>%
-  select(filename, casestudy, dataset, method, cov, inform, nrejects) %>%
-  mutate(id = paste(casestudy, dataset, method, sep = "-"))
+  dplyr::filter(method %in% cov.methods) %>%
+  dplyr::select(filename, casestudy, dataset, method, cov, inform, nrejects) %>%
+  dplyr::mutate(id = paste(casestudy, dataset, method, sep = "-"))
 
 uninftab <- dftab %>% 
-  filter(inform == "uninf") %>%
-  select(id, nrejects) %>%
-  rename(nrejects = "uninf")
+  dplyr::filter(inform == "uninf") %>%
+  dplyr::select(id, nrejects) %>%
+  dplyr::rename("uninf" = "nrejects")
+  #dplyr::rename(nrejects = "uninf")
 
 inftab <- dftab %>%
-  filter(inform == "inf") %>%
-  select(-inform)
+  dplyr::filter(inform == "inf") %>%
+  dplyr::select(-inform)
 
 rowOrder <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
 
 dftab <- left_join(inftab, uninftab, by = "id") %>%
-  mutate(diff_inf = nrejects - uninf) %>%
-  mutate(diff_inf_percent = diff_inf / nrejects) %>%
-  mutate(method = factor(method, levels = rowOrder)) %>%
-  group_by(casestudy, cov) %>%
+  dplyr::mutate(diff_inf = nrejects - uninf) %>%
+  dplyr::mutate(diff_inf_percent = diff_inf / nrejects) %>%
+  dplyr::mutate(method = factor(method, levels = rowOrder)) %>%
+  dplyr::group_by(casestudy, cov) %>%
   complete(method, dataset)
 
 maxVals <- dftab %>% 
@@ -1023,7 +1026,7 @@ maxVals <- dftab %>%
   summarize(top = max(diff_inf_percent, na.rm=TRUE))
 
 dftab <- left_join(dftab, maxVals, by = c("dataset", "cov")) %>%
-  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA))
+  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) 
   
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
         geom_tile() + 
@@ -1051,6 +1054,40 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
 ```
+
+Make the Figure above, but average over all datasets within a case study.
+
+```{r}
+dftab <- dftab %>%
+  group_by(casestudy, method) %>%
+  summarize(diff_inf_percent = mean(diff_inf_percent, na.rm = TRUE))
+
+maxVals <- dftab %>% 
+  group_by(casestudy) %>%
+  summarize(top = max(diff_inf_percent, na.rm=TRUE))
+
+dftab <- left_join(dftab, maxVals, by = c("casestudy")) %>%
+  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) 
+  
+Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_percent)) + 
+        geom_tile() + 
+        scale_fill_gradientn("% Increase\nin rejections",
+                             labels = scales::percent, trans="log1p",
+                             colours = c("darkblue","white","darkred"), 
+                             values = scales::rescale(c(-.05,0,1)),
+                             guide = "colorbar", limits=c(-.05,1)) +
+        theme_bw() +
+        xlab("Case Study") +
+        ylab("Method") +
+        ggtitle("Impact of informative covariate on number of rejections") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
+        geom_text(aes(label = ifelse(is.na(top), "", scales::percent(top))),
+                  color = "black", size = 2)
+
+Fig_impactofinfcov
+ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5.75, height = 4)
+```
+
 
 # Informativeness of covariates in Yeast & Polyester simulation 
 
