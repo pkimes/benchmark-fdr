@@ -74,9 +74,8 @@ resfile_d5_uninfCov <- file.path(resdir, "yeast-results-de5-uninfCov.rds")
 resfile_d10_uninfCov <- file.path(resdir, "yeast-results-de10-uninfCov.rds")
 
 # set up parallel backend
-library(BiocParallel)
+library(parallel)
 nCores <- 20
-register(MulticoreParam(workers = nCores))
 ```
 
 # Data download
@@ -305,8 +304,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   set.seed(as.numeric(X)*as.numeric(rseed))
   
   # select a random subset of 20 WT samples
-  dds_test <- dds[,colData(dds)$condition == "Snf2"]
-  dds_test <- dds_test[,sample(1:ncol(dds_test), sampleSize*2)]
+  dds_test <- dds[,sample(1:ncol(dds), sampleSize*2)]
 
   # add a fake condition column to coldat
   colData(dds_test)$fake <-  factor(c(rep("A", sampleSize), 
@@ -351,13 +349,16 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
-    DE <- sample(1:nrow(dds_test), nDE)
+    wts <- rep(1, nrow(dds_test))
+    if(!uninformativeCovariate)
+      wts <- log10(rowMeans(counts(dds_test, normalize = TRUE))+1)
+    DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
  
     # randomly sample a log2FC from original FCs (without regard to DE)
     counts_new <- counts(dds_test)
     log2FC <- rep(0, nrow(dds_test))
-    log2FC[DE] <- resFULL$log2FoldChange[DE]
+    log2FC[DE] <- resFULL$log2FoldChange[pzero < 0.5][DE]
 
     # randomize which condition is shifted up or down
     ran <- runif(nrow(dds_test)) 
@@ -382,7 +383,6 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   dds_test <- estimateSizeFactors(dds_test)
   
   dds_test <- DESeq(dds_test, parallel = FALSE)
-  resultsNames(dds_test) # lists the coefficients
   resTEST <- results(dds_test, name="fake_B_vs_A", independentFiltering = FALSE)
   
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
@@ -426,6 +426,9 @@ be used when plotting the aggregated Upset results.
 B <- 100
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
+
+# only keep one condition for subsetting in simulations that follow 
+dds <- dds[,colData(dds)$condition == "Snf2"]
 ```
 
 Here's a helper function to return the number of methods with rejections at
@@ -470,8 +473,8 @@ sampleSize <- 5
 nDE <- 0
 
 if (!file.exists(resfile_n5)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                    nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                    nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(null5, file = resfile_n5)
 }else{
   null5 <- readRDS(file = resfile_n5)
@@ -520,8 +523,8 @@ sampleSize <- 10
 nDE <- 0
 
 if (!file.exists(resfile_n10)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                    nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                    nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(null10, file = resfile_n10)
 }else{
   null10 <- readRDS(file = resfile_n10)
@@ -574,8 +577,8 @@ sampleSize <- 5
 nDE <- 2000
 
 if (!file.exists(resfile_d5)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                  nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(de5, file = resfile_d5)
 }else{
   de5 <- readRDS(file = resfile_d5)
@@ -584,9 +587,9 @@ if (!file.exists(resfile_d5)){
 # pvalue histograms
 plotfile <- file.path(datdir, "de5_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+  hists <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   pvalHists = TRUE)
+                   pvalHists = TRUE, mc.cores = nCores)
   pdf(plotfile, width=8, height=4)
   for(i in 1:length(hists)){
     print(hists[[i]])
@@ -641,8 +644,8 @@ sampleSize <- 10
 nDE <- 2000
 
 if(!file.exists(resfile_d10)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                  nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(de10, file = resfile_d10)
 }else{
   de10 <- readRDS(file = resfile_d10)
@@ -651,9 +654,9 @@ if(!file.exists(resfile_d10)){
 # pvalue histograms
 plotfile <- file.path(datdir, "de10_pvalhists.pdf")
 if (!file.exists(plotfile)){
-  hists <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+  hists <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd, 
-                   pvalHists = TRUE)
+                   pvalHists = TRUE, mc.cores = nCores)
   pdf(plotfile, width=8, height=4)
   for(i in 1:length(hists)){
     print(hists[[i]])
@@ -723,9 +726,9 @@ sampleSize <- 5
 nDE <- 0
 
 if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed,
+  null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed,
                    nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE)
+                   uninformativeCovariate = TRUE, mc.cores = nCores)
   saveRDS(null5, file = resfile_n5_uninfCov)
 }else{
   null5 <- readRDS(file = resfile_n5_uninfCov)
@@ -774,9 +777,9 @@ sampleSize <- 10
 nDE <- 0
 
 if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+  null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE)
+                   uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(null10, file = resfile_n10_uninfCov)
 }else{
   null10 <- readRDS(file = resfile_n10_uninfCov)
@@ -828,9 +831,9 @@ sampleSize <- 5
 nDE <- 2000
 
 if (!file.exists(resfile_d5_uninfCov)){
-  de5 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+  de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                   nDE=nDE, sampleSize=sampleSize, bd=bd,
-                  uninformativeCovariate = TRUE)
+                  uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(de5, file = resfile_d5_uninfCov)
 }else{
   de5 <- readRDS(file = resfile_d5_uninfCov)
@@ -883,9 +886,9 @@ sampleSize <- 10
 nDE <- 2000
 
 if(!file.exists(resfile_d10_uninfCov)){
-  de10 <- bplapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+  de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE)
+                   uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(de10, file = resfile_d10_uninfCov)
 }else{
   de10 <- readRDS(file = resfile_d10_uninfCov)

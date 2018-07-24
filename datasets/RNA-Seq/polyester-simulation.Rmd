@@ -65,9 +65,8 @@ resfile_d5_uninfCov <- file.path(resdir, "polyester-results-de5-uninfCov.rds")
 resfile_d10_uninfCov <- file.path(resdir, "polyester-results-de10-uninfCov.rds")
 
 # # set up parallel backend:
-library(BiocParallel)
+library(parallel)
 nCores <- 20
-register(MulticoreParam(workers = nCores))
 ```
 
 
@@ -119,10 +118,13 @@ looped over many replications and results averaged over them.
 #'  independent covariate with a randomly generated (uninformative) covariate. 
 #'  Default is FALSE.
 #' @param rseed random seed
+#' @param ngenes the number of genes to simulate. If this number is greater than 
+#'  the number of genes in the count matrix, then the polyester parameters will be
+#'  drawn with replacement from the available pool in order to obtain the requested
+#'  number of genes.
 simulateOneSplit <- function(X, rseed, 
-                             nDE, sampleSize, bd, uninformativeCovariate = FALSE){
-  ngenes <- 10000
-  
+                             nDE, sampleSize, bd, uninformativeCovariate = FALSE,
+                             ngenes = nrow(counts)){
   uninf_covar <- rnorm(ngenes)
   
   # set random seed
@@ -135,7 +137,7 @@ simulateOneSplit <- function(X, rseed,
   # things needed for differential testing using DESeq2
   groupDESeq = factor(rep(c(0,1), each=sampleSize))
   
-  gs <- sample(1:nrow(counts), ngenes, replace = TRUE)
+  gs <- sample(1:nrow(counts), ngenes, replace = as.logical(ngenes > nrow(counts)))
   mu <- paramPolyester$mu[gs]
   p0 <- paramPolyester$p0[gs]
 
@@ -158,8 +160,11 @@ simulateOneSplit <- function(X, rseed,
     
   # DE simulation
   if(nDE > 0){
-    # pick random set of nDE genes to add signal to
-    DE <- sample(1:nrow(dat_alt), nDE)
+    wts <- rep(1, nrow(dds_test))
+    if(!uninformativeCovariate)
+      wts <- log10(rowMeans(counts)+1)
+    
+    DE <- sample(1:nrow(dat_alt), nDE, prob = wts)
     truth[DE] <- TRUE
     
     # randomly sample a log2FC from N(0,1) 
@@ -274,8 +279,8 @@ nDE <- 0
 rseed <- 225
 
 if (!file.exists(resfile_n5)){
-  null5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit,  
-                    nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null5 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit,  
+                    nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores = nCores)
   saveRDS(null5, file=resfile_n5)
 } else {
   null5 <- readRDS(file=resfile_n5)
@@ -328,8 +333,8 @@ nDE <- 0
 rseed <- 837
 
 if (!file.exists(resfile_n10)){
-  null10 <- bplapply(X=1:B, rseed=837, FUN=simulateOneSplit,
-                     nDE=nDE, sampleSize=sampleSize, bd=bd)
+  null10 <- mclapply(X=1:B, rseed=837, FUN=simulateOneSplit,
+                     nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(null10, file=resfile_n10)
 } else {
   null10 <- readRDS(file=resfile_n10)
@@ -377,8 +382,8 @@ nDE <- 2000
 rseed <- 198
 
 if (!file.exists(resfile_d5)){
-  de5 <- bplapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
-                  nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de5 <- mclapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
   saveRDS(de5, file=resfile_d5)
 } else {
   de5 <- readRDS(file=resfile_d5)
@@ -428,8 +433,8 @@ nDE <- 2000
 rseed <- 961
 
 if (!file.exists(resfile_d10)){
-  de10 <- bplapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
-                   nDE=nDE, sampleSize=sampleSize, bd=bd)
+  de10 <- mclapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores = nCores)
   saveRDS(de10, file=resfile_d10)
 } else {
   de10 <- readRDS(file=resfile_d10)
@@ -493,9 +498,9 @@ nDE <- 0
 rseed <- 225
 
 if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
+  null5 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
                     nDE=nDE, sampleSize=sampleSize, 
-                   bd=bd, uninformativeCovariate = TRUE)
+                   bd=bd, uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(null5, file=resfile_n5_uninfCov)
 } else {
   null5 <- readRDS(file=resfile_n5_uninfCov)
@@ -548,9 +553,9 @@ nDE <- 0
 rseed <- 837
 
 if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
+  null10 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
                      nDE=nDE, sampleSize=sampleSize, 
-                   bd=bd, uninformativeCovariate = TRUE)
+                   bd=bd, uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(null10, file=resfile_n10_uninfCov)
 } else {
   null10 <- readRDS(file=resfile_n10_uninfCov)
@@ -598,9 +603,9 @@ nDE <- 2000
 rseed <- 198
 
 if (!file.exists(resfile_d5_uninfCov)){
-  de5 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
+  de5 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
                   nDE=nDE, sampleSize=sampleSize, 
-                  bd=bd, uninformativeCovariate = TRUE)
+                  bd=bd, uninformativeCovariate = TRUE, mc.cores=nCores)
   saveRDS(de5, file=resfile_d5_uninfCov)
 } else {
   de5 <- readRDS(file=resfile_d5_uninfCov)
@@ -650,9 +655,9 @@ nDE <- 2000
 rseed <- 961
   
 if (!file.exists(resfile_d10_uninfCov)){
-  de10 <- bplapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
+  de10 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
                    nDE=nDE, sampleSize=sampleSize, 
-                   bd=bd, uninformativeCovariate = TRUE)
+                   bd=bd, uninformativeCovariate = TRUE, mc.cores = nCores)
   saveRDS(de10, file=resfile_d10_uninfCov)
 } else {
   de10 <- readRDS(file=resfile_d10_uninfCov)
