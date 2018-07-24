@@ -112,6 +112,8 @@ if (file.exists(gauss_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = gauss_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -137,7 +139,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r gauss-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -156,9 +158,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r gauss-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -166,7 +168,7 @@ the overlap of rejections between methods.
 
 ```{r gauss-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
@@ -207,6 +209,8 @@ if (file.exists(tdist_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = tdist_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -232,7 +236,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r t5-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -251,9 +255,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r t5-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -261,7 +265,7 @@ the overlap of rejections between methods.
 
 ```{r t5-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
@@ -302,6 +306,8 @@ if (file.exists(tdist11_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = tdist11_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -327,7 +333,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r t11-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -346,9 +352,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r t11-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -356,7 +362,7 @@ the overlap of rejections between methods.
 
 ```{r t11-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
@@ -399,6 +405,8 @@ if (file.exists(chisq_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = chisq_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -424,7 +432,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r chisq4-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met = "rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -460,10 +468,10 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate. Again, we plot these without `ashq`.
 
 ```{r chisq4-metrics-covlineplot, results = "hide"}
-covariateLinePlot(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
                   alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
                   alpha = ualpha, covname = "ind_covariate")
 ```
 
@@ -472,7 +480,7 @@ the overlap of rejections between methods. Again, without `ashq`.
 
 ```{r chisq4-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = c(excludeSet, "ashq")) >= 3) {
-    aggupset(lapply(res, function(x) { x[, -which(colnames(x) == "ashq")] }),
+    aggupset(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
              alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 

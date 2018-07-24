@@ -105,8 +105,18 @@ simIteration <- function(X, bench, m, pi0, tstat, tstat_dist, null_dist,
         return(as_tibble(dat))
     }
 
-    buildBench(bench, dat, truthCol = "qvalue", ptabular = TRUE,
-               ftCols = c("ind_covariate", "effect_size"))
+    ## run methods w/ specified independent covariate
+    res_i <- buildBench(bench, dat, truthCol = "qvalue", ptabular = TRUE,
+                        ftCols = c("ind_covariate", "effect_size"))
+
+
+    ## create data.frame w/ explicitly uninformative covariate
+    dat_u <- data.frame(qvalue = H, effect_size = es, test_statistic = ts, 
+                        pval = pv, ind_covariate = runif(m), SE = SE)
+    res_u <- buildBench(bench, dat_u, truthCol = "qvalue", ptabular = TRUE,
+                        ftCols = c("ind_covariate", "effect_size"))
+    
+    list(informative = res_i, uninformative = res_u)
 }
 
 

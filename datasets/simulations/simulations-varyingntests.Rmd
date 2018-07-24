@@ -1,0 +1,616 @@
+---
+title: "Simulation Study: Varying Number of Tests"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+# Summary
+
+In this set of simulations, we consider settings with varying number of hypothesis
+tests. Since many newer FDR controlling approaches require fitting some model to
+the independent covariates, they may be sensitive to lower number of tests. An
+informative covariate is included in the setting as described in
+`simulations-informative-sine.Rmd`.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(parallel)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+n100_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n100.rds")
+n500_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n500.rds")
+n1000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n1000.rds")
+n5000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n5000.rds")
+n10000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n10000.rds")
+n50000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n50000.rds")
+
+## number of cores for parallelization
+cores <- 20
+B <- 100
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+for simulations with Gaussian noise. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
+series of simulations use test statistics simulated with Gaussian noise, we include
+Scott's FDR Regression in all of the comparisons.
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "scott-theoretical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "scott-empirical",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+tstat <- rnorm_generator(2)       # functional: dist of alternative test stats
+tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+icovariate <- runif               # functional: independent covariate
+pi0 <- pi0_sine(0.90)             # numeric: proportion of null hypotheses
+```
+
+Simulation results will be presented excluding a subset of methods, and
+for certain plots (upset plots), a single alpha cutoff will be used.
+
+```{r}
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+# 100 Tests
+
+First, we consider the setting where 100 hypotheses are tested.
+
+## Data Simulation
+
+```{r n100-parameters}
+m <- 100                        # integer: number of hypothesis tests
+seed <- 1010
+```
+
+We next run the simulations.
+
+```{r n100-run-simulation}
+if (file.exists(n100_file)) {
+    res <- readRDS(n100_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n100_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n100-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n100-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n100-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n100-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n100-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n100-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 500 Tests
+
+Next, we consider the setting where 500 hypotheses are tested.
+
+## Data Simulation
+
+```{r n500-parameters}
+m <- 500                        # integer: number of hypothesis tests
+seed <- 5050
+```
+
+We next run the simulations.
+
+```{r n500-run-simulation}
+if (file.exists(n500_file)) {
+    res <- readRDS(n500_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n500_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n500-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n500-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n500-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n500-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n500-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n500-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 1000 Tests
+
+Next, we consider the setting where 1000 hypotheses are tested.
+
+## Data Simulation
+
+```{r n1000-parameters}
+m <- 1000                        # integer: number of hypothesis tests
+seed <- 10001
+```
+
+We next run the simulations.
+
+```{r n1000-run-simulation}
+if (file.exists(n1000_file)) {
+    res <- readRDS(n1000_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n1000_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n1000-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n1000-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n1000-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n1000-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n1000-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n1000-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 5000 Tests
+
+Next, we consider the setting where 5000 hypotheses are tested.
+
+## Data Simulation
+
+```{r n5000-parameters}
+m <- 5000                        # integer: number of hypothesis tests
+seed <- 50005
+```
+
+We next run the simulations.
+
+```{r n5000-run-simulation}
+if (file.exists(n5000_file)) {
+    res <- readRDS(n5000_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n5000_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n5000-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n5000-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n5000-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n5000-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n5000-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n5000-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 10000 Tests
+
+Next, we consider the setting where 10000 hypotheses are tested.
+
+## Data Simulation
+
+```{r n10000-parameters}
+m <- 10000                        # integer: number of hypothesis tests
+seed <- 1515
+```
+
+We next run the simulations.
+
+```{r n10000-run-simulation}
+if (file.exists(n10000_file)) {
+    res <- readRDS(n10000_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n10000_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n10000-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n10000-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n10000-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n10000-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n10000-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n10000-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# 50000 Tests
+
+Next, we consider the setting where 50000 hypotheses are tested.
+
+## Data Simulation
+
+```{r n50000-parameters}
+m <- 50000                        # integer: number of hypothesis tests
+seed <- 5555
+```
+
+We next run the simulations.
+
+```{r n50000-run-simulation}
+if (file.exists(n50000_file)) {
+    res <- readRDS(n50000_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
+                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = n50000_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r n50000-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, n50000-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, n50000-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r n50000-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r n50000-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r n50000-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
