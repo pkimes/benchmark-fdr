@@ -68,6 +68,10 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
             vlabs <- c(vlabs, 'fdrreg-e', 'fdrreg-t')
             clabs <- c(clabs, "FDRreg (emp)", "FDRreg (theor)")
         }
+        if (any(grepl("adapt", ulabs))) {
+            vlabs <- c(vlabs, 'adapt-glm', 'adapt-gam')
+            clabs <- c(clabs, 'AdaPT (GLM)', 'AdaPT (GAM)')
+        }
         lcnts <- sapply(vlabs, function(x) { grep(paste0("^", x), ulabs, value=TRUE) })
         if (!is(lcnts, "list")) {
             names(lcnts) <- clabs
@@ -75,6 +79,7 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         }
     }
 
+        
     # add color palette
     tsba <- dplyr::left_join(tsba, palette, by="Method") 
   
