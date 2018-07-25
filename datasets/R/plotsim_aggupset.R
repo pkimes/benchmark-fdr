@@ -135,12 +135,16 @@ sb2hits <- function(x, a, s) {
     }
     ht <- dplyr::select(ht, -dplyr::contains("ihw-"))
     ## if not plotting for supplementary materials, remove BL w/ multiple DoF 
-    if (!s) { 
-        ht <- ht %>%
-            dplyr::select(-`bl-df02`,  -`bl-df04`,  -`bl-df05`) %>%
-            dplyr::rename(bl = `bl-df03`)
+    if (!s) {
+        suppressWarnings({
+            ht <- ht %>%
+                dplyr::select(-one_of("bl-df02", "bl-df04", "bl-df05")) %>%
+                dplyr::rename(bl = `bl-df03`)
+        })
     }
-    ht <- dplyr::select(ht, -unadjusted)
+    suppressWarnings({
+        ht <- dplyr::select(ht, -one_of("unadjusted"))
+    })
     as.data.frame(ht)
 }
 
