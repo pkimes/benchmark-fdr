@@ -179,7 +179,7 @@ Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.96, 0.93), legend.justification = c(1, 1),
+              legend.position = c(0.98, 0.93), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
@@ -203,7 +203,7 @@ tabS3 <- tabS3 %>%
   select(casestudy, method, mean_prop) %>%
   spread(casestudy, mean_prop)
 
-xtable(tabS3)
+print(xtable(tabS3), include.rownames=FALSE)
 
 # generate detailed case study table for creating sim vs cs ranks boxplots
 casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha,
@@ -238,7 +238,7 @@ pfdr <- plotMethodRanks(objs,
                 annotate = "FDR", excludeMethods = NULL) +
           scale_fill_gradient2(high = "darkred", 
                          mid = "white", 
-                         low = "darkblue", 
+                         low = "#2171B5", 
                          midpoint = alpha) +
           labs(fill = "Mean FDR") +
           theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
@@ -265,12 +265,12 @@ ptpr <- plotMethodRanks(objs,
 
 
 ggdraw() +
-  draw_plot(pfdr, 0.51, 0, 0.24, 1) +
-  draw_plot(ptpr, 0.75, 0, 0.24, 1) +
-  draw_plot(Fig4All, 0, 0, 0.5, 1) +
-  draw_plot_label(c("A", "B"), c(0, 0.51), c(1, 1), size = 15) +
-  draw_plot_label("Simulation", 0.72, 0.06, size =11, fontface = "plain")
-ggsave(file.path(outdir, "Figure4.pdf"), width=11, height=5)
+  draw_plot(pfdr, 0.53, 0, 0.23, 1) +
+  draw_plot(ptpr, 0.76, 0, 0.23, 1) +
+  draw_plot(Fig4All, 0, 0, 0.52, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
+  draw_plot_label("Simulation", 0.69, 0.06, size =11, fontface = "plain")
+ggsave(file.path(outdir, "Figure4.pdf"), width=9, height=5)
 
 # generate detailed yeast sim table for creating sim vs cs ranks boxplots
 yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
@@ -281,8 +281,6 @@ Create boxplot of ranking in sims versus rankings in case studies using the
 `casestudy.tab` and `yeastsim.tab` objects created above.
 
 ```{r, fig.width = 6, fig.height = 4}
-library(ggbeeswarm)
-
 casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
   select(casestudy, method, prop_casestudy)
 yeastsim.tab <- yeastsim.tab %>% 
@@ -301,25 +299,17 @@ rank.tab$method <- factor(rank.tab$method,
 x <- match(rank.tab$casestudy.x, dataset)
 rank.tab$casestudy <- casestudy[x]
 
-ggplot(rank.tab , 
-       aes(y = prop_casestudy, x = method, group = method, fill = Method)) +
-  geom_boxplot(alpha=0.7) +
-  scale_fill_manual(values=col) +
-  theme_bw() +
-  xlab("Method (ordered by rejections in yeast simulation (n=5))") +  
-  ylab("Proportion of maximum rejections in casestudies")
-ggsave(file.path(outdir, "Figure_simVcasestudyRanks.pdf"), width=6, height=4)
-
-ggplot(rank.tab , 
-       aes(y = prop_casestudy, x = method, group = method, color = Method)) +
-  geom_boxplot(aes(x = prop_yeastsim, group = as.factor(prop_yeastsim), y = prop_casestudy),
-                   alpha = 0.3, width = 0.04, outlier.shape = NA) +
+ggplot(rank.tab %>% filter(method != "bonf"), 
+       aes(y = prop_casestudy, x = prop_yeastsim, group = prop_yeastsim, color=Method)) +
+  geom_boxplot(aes(x = prop_yeastsim, y = prop_casestudy),
+                   alpha = 0.3, position = position_dodge(width = 0),
+                   width = 0.02) +
   scale_color_manual(values=col) +
   theme_bw() +
-  xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
+  xlab("Proportion of maximum rejections in yeast simulation (n=5s)") +  
   ylab("Proportion of maximum rejections in casestudies") +
   labs(shape = "Case Study") 
-ggsave(file.path(outdir, "Figure_simVcasestudyRanks_points.pdf"), width=6, height=4)
+ggsave(file.path(outdir, "Figure_simVcasestudyRanks_scaled.pdf"), width=6, height=4)
 
 ```
 
@@ -462,376 +452,145 @@ ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=7)
 
 # Supplementary Figures
 
-## Case-study specific plot analagous to Figure 2 
-
-Figure 2 panels C-E for a case study. For now picking GWAS.
-
-```{r Figure2.5,  fig.width = 10, fig.height = 4}
-objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
-res <- readRDS(file=resfile)
-assayNames(res) <- "qvalue"
-res <- addDefaultMetrics(res)
-
-# Figure 2C: Total number of discoveries varied across method
-p3 <- rejections_scatter(res, supplementary = FALSE) +
-      theme(legend.position="none")+ 
-  ggtitle("Number of rejections by alpha cutoff") + 
-  xlab("alpha cutoff") +
-  theme(axis.title = element_text(face="bold", size = 10),
-        plot.title = element_text(face="bold", size = 14)) 
-
-# Figure 2D: Some methods are tailored to detecting smaller effect sizes
-p4 <- covariateLinePlot(res, alpha=alpha, covname="effect_size", trans="log1p",
-                        transx = "exp", nbins=25)
-leg <- get_legend(p4)
-p4 <- p4 + theme(legend.position="none") + 
-  ggtitle("Mean % significant by effect size %ile") + 
-  theme(axis.title = element_text(face="bold", size = 10),
-        plot.title = element_text(face="bold", size = 14)) +
-  xlab("Effect size percentile")
-  
-# Figure 2E - upsetr plot - save separately
-pdf(file.path(outdir, "FigureS0C.pdf"), width = 10, height = 4, onefile=FALSE)
-plotFDRMethodsOverlap(res, 
-                      alpha=alpha, nsets=ncol(res),
-                      order.by="freq", decreasing=TRUE,
-                      supplementary=FALSE, nintersects = 18) 
-grid.text("Overlap for GWAS Case study, MAF covariate", x = 0.6, y = 0.97, 
-          gp = gpar(fontsize = 16, fontface = "bold"))
-grid.text("C", x = 0.02, y = 0.97, 
-          gp = gpar(fontsize = 24, fontface = "bold")) 
-dev.off()
-
-# Figure 2 (ALL)
-Fig2 <- plot_grid(p3, p4, ncol = 2, 
-          labels = LETTERS[1:2], label_size = 20)
-Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
-Fig2
-ggsave(file.path(outdir, "FigureS0A-B.pdf"), width=10, height=4)
-
-```
-
 ## Uninformative covariate impact on simulations
 
 Here we'll contrast the results of informative and uninformative covariates 
-on the yeast simulation (null and DE sample size 5).
+on the yeast and polyester simulation (DE sample size 5). We'll plot
+differences in TPR and FDR due to informative covariate by alpha level.
+
+```{r, fig.width = 10, fig.height = 4}
+for (org in c("yeast", "polyester")){
+  
+  objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+  resfile <- objects[grepl(org, objects) ] 
+  resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
+  
+  # regexp to construct master data table separating case study datasets, methods
+  # and covariates
+  obj.names <- str_split(resfile, pattern = "/")
+  casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+  filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+  dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
+  inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
+  type <-  ifelse(grepl("null", resfile), "null", "de")
+  size <-  ifelse(grepl("10", resfile), "10", "5")
+  aseq <- seq(0.01, 0.10, by = 0.01)
+  
+  tab <- data.frame()
+  for (l in seq_along(resfile)){
+    x <- readRDS(resfile[l])
+    
+    tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "FDR", annotate = NULL, 
+                    alpha = aseq) %>%
+      mutate(fdr = nrejects) %>%
+      select(method, casestudy, replicate, fdr, alpha)
+    tmp3 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "TNR", annotate = NULL, 
+                    alpha = aseq) %>%
+      mutate(tnr = nrejects) %>%
+      select(method, casestudy, replicate, tnr, alpha)
+    
+    if (type[l] != "null"){
+      tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                      fill =  "TPR", annotate = NULL, 
+                      alpha = aseq) %>%
+        mutate(tpr = nrejects) %>%
+        select(method, casestudy, replicate, tpr, alpha)
+      
+      tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
+        left_join(tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
+        mutate(inform = inform[l],
+               type = type[l],
+               size = size[l])
+    }else{
+      tmp <- left_join(tmp2, tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
+        mutate(inform = inform[l],
+               type = type[l],
+               size = size[l])
+    }
+    
+    tab <- bind_rows(tab, tmp)
+  }
+
+myspread <- function(df, key, value) {
+    # quote key
+    keyq <- rlang::enquo(key)
+    # break value vector into quotes
+    valueq <- rlang::enquo(value)
+    s <- rlang::quos(!!valueq)
+    df %>% gather(variable, value, !!!s) %>%
+        unite(temp, !!keyq, variable) %>%
+        spread(temp, value)
+}
 
 
-```{r FigureS7,  fig.width = 10, fig.height = 7}
-objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("yeast", objects) & 
-                   grepl("de5|null5", objects)] 
-de5 <- readRDS(file=resfile[grepl("de5", resfile) & !grepl("uninf", resfile)])
-de5_uninf <- readRDS(file=resfile[grepl("de5", resfile) & grepl("uninf", resfile)])
-null5 <- readRDS(file=resfile[grepl("null5", resfile) & !grepl("uninf", resfile)])
-null5_uninf <- readRDS(file=resfile[grepl("null5", resfile) & grepl("uninf", resfile)])
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+dftab <- tab %>%
+  select(-casestudy) %>%
+  myspread(inform, c(tpr, fdr, tnr))
 
-res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
-res5d_u <- plotsim_standardize(de5_uninf, alpha = seq(0.01, 0.10, 0.01))
-res5n <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
-res5n_u <- plotsim_standardize(null5_uninf, alpha = seq(0.01, 0.10, 0.01))
+dftab <- dftab %>%
+  mutate(tpr_diff = inf_tpr - uninf_tpr,
+         fdr_diff = inf_fdr - uninf_fdr,
+         tnr_diff = inf_tnr - uninf_tnr) %>%
+  group_by(type, size, method, alpha) %>%
+  summarize(tpr_se = sd(tpr_diff)/n(),
+            fdr_se = sd(fdr_diff)/n(),
+            tnr_se = sd(tnr_diff)/n(),
+            tpr_diff = mean(tpr_diff),
+            fdr_diff = mean(fdr_diff),
+            tnr_diff = mean(tnr_diff))
 
-pa <- plotsim_average(res5n_u, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        expand_limits(y=0.93) +
-        xlab("") +
-        ggtitle("")
-
-pb <- plotsim_average(res5n, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        theme(legend.position="none", plot.title = element_text(hjust = 0.5))+
-        expand_limits(y=.93) +
-        xlab("") +
-        ggtitle("")
-
-pc <- plotsim_average(res5d_u, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        theme(legend.position="none") +
-        expand_limits(y=0.18) +
-        xlab("") +
-        ggtitle("")
-
-pd <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        theme(legend.position="none") +
-        expand_limits(y=0.18) +
-        xlab("") +
-        ggtitle("")
-
-pe <- plotsim_average(res5d_u, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        theme(legend.position="none") +
-        expand_limits(y=c(0.10,0.55)) +
-        ggtitle("")
-
-pf <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-        theme(legend.position="none") +
-        expand_limits(y=c(0.10,0.55)) +
-        ggtitle("")
-
-
-leg <- get_legend(pa)
-pa <- pa + theme(legend.position="none", plot.title = element_text(hjust = 0.5)) 
-
-FigT  <- plot_grid(pa, pb, ncol = 2, 
-          #labels = LETTERS[1:2], 
-          label_size = 20)
-
-FigB  <- plot_grid(pc, pd, pe, pf, ncol = 2, 
-          #labels = LETTERS[3:6], 
-          label_size = 20)
-
-Fig <- ggdraw() +
-  draw_plot(FigT + ylab("") + xlab(""), 0, 0.64, 1, 0.3) +
-  draw_plot(FigB + ylab("") + xlab(""), 0.005, 0, 1, 0.6) +
-  draw_plot_label(c("Uninformative Covariate", "Informative Covariate"), 
-                  c(0.14, 0.64), c(1,1), c(0,0), size = 15) +
-  draw_plot_label(c("Null Simulation", "DE Simulation"), 
-                  c(0.36, 0.37), c(0.96,0.62), size = 13) 
-
-Fig <- plot_grid(Fig, leg, ncol = 2, rel_widths = c(1, 0.2))
-Fig
-ggsave(file.path(outdir, "FigureS7.pdf"), width=10, height=11)
-
+col <- as.character(candycols$col)
+names(col) <- as.character(candycols$Method)
+lty <- as.character(candycols$lty)
+names(lty) <- as.character(candycols$Method)
+  
+lineplot_fdr <- ggplot(dftab,
+                       aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_line(alpha = 0.85) +
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
+                                ymax = fdr_diff + fdr_se)) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")), 
+                       breaks = seq(-1, 1, .005), labels = scales::percent) + 
+    ggtitle("FDR difference with informative covariate") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11, hjust = 0.8))
+  
+lineplot_tpr <- ggplot(dftab, aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
+                                ymax = tpr_diff + tpr_se)) +
+    geom_line(alpha = 0.85) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")), 
+                       labels = scales::percent) + 
+    ggtitle("TPR difference with informative covariate") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11))
+  
+  gp <- plot_grid(lineplot_fdr + guides(color = FALSE, linetype = FALSE),
+                  lineplot_tpr + guides(color = FALSE, linetype = FALSE),
+                  labels = LETTERS[1:2], nrow = 1)
+  gp <- plot_grid(gp, get_legend(lineplot_fdr), rel_widths = c(1, 1/8))
+  gp
+  ggsave(file.path(outdir, paste0("Figure_infCov_", org, ".pdf")), height = 3.5, width = 8)
+}
 ```
 
-## Within case-study heatmaps of method rankings 
 
-Here we generate heatmaps for each case study, where each column represents a different
-dataset. Here we pick one representative covariate and method (if applicable) 
-for each case study. See the individual Rmds for more detailed plots comparing, e.g.
-different covariates on the same dataset.
+## Case study rankings
 
-```{r}
-objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-
-# grab casestudy names
-obj.names <- str_split(objects, pattern = "/")
-casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-dataset <- unlist(lapply(obj.names, function(x) x[4] ))
-```
-
-### GWAS
-
-```{r, fig.width = 5, fig.height = 4.5}
-# by covariate
-wcs <- which(grepl("GWAS", casestudy))
-objs <- objects[wcs]
-labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-"), 
-                      function(x) x[2]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Covariate",
-                excludeMethods = NULL, Nlabel = FALSE, annotate = "propPossible") + 
-  ggtitle("GWAS") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-ggsave(file.path(outdir, "FigureS1.pdf"), width=5, height=4.5)
-```
-
-### GSEA
-
-```{r,  fig.width = 6, fig.height = 4.5}
-#by dataset
-wcs <- which(grepl("GSEA", casestudy))
-objs <- objects[wcs]
-labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
-                      function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
-                Nlabel = FALSE, annotate = "propPossible") + 
-  ggtitle("GSEA") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-ggsave(file.path(outdir, "FigureS2.pdf"), width=6, height=4.5)
-```
-
-### ChIP-seq
-
-```{r, fig.width = 5, fig.height = 5}
-wcs <- which(grepl("ChIPseq", casestudy))
-objs <- objects[wcs]
-labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
-                      function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
-                Nlabel = FALSE, annotate = "propPossible") + 
-  ggtitle("ChIP-Seq") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-ggsave(file.path(outdir, "FigureS3.pdf"), width=5, height=5)
-```
-
-### RNA-seq
-```{r, fig.width = 6, fig.height = 5}
-# by dataset
-wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("polyester|yeast"), objects) &
-            !grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
-                      function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
-                excludeMethods = NULL, Nlabel = FALSE, annotate = "propPossible") + 
-  ggtitle("RNA-seq") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-ggsave(file.path(outdir, "FigureS4.pdf"), width=6, height=5)
-```
-
-### scRNA-seq
-
-```{r, fig.width = 15, fig.height = 6}
-wcs <- which(grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-ds <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark-"), 
-                      function(x) x[1]))
-m0 <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark-"), 
-                      function(x) x[2]))
-meth <- unlist(lapply(str_split(m0, pattern = "-"), 
-                      function(x) x[1]))
-cv <- gsub(".rds", "", unlist(lapply(str_split(m0, pattern = "-"), 
-                      function(x) x[2])))
-
-uninf <- which(grepl("uninf", objs))
-
-# by dataset
-pa <- plotMethodRanks(objs[-uninf], colLabels = ds[-uninf], alpha = alpha, 
-                      xlab = "Dataset", annotate = "propPossible") + 
-  ggtitle("scRNA-seq")+ 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-
-# by method
-pb <- plotMethodRanks(objs[-uninf], colLabels = meth[-uninf], alpha = alpha,
-                      xlab = "Method", annotate = "propPossible") + 
-  ggtitle("scRNA-seq")+ 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-
-# by covariate
-pc <- plotMethodRanks(objs, colLabels = cv, alpha = alpha,
-                      xlab = "Covariate", annotate = "propPossible") + 
-  ggtitle("scRNA-seq")+ 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-
-plot_grid(pa, pb, pc, ncol=3)
-ggsave(file.path(outdir, "FigureS5.pdf"), width=15, height=6)
-```
-
-### Microbiome
-
-```{r, fig.width = 14, fig.height = 6.5}
-# by dataset, excluding otu when genus is available
-# excluding log-ubiquity
-# excluding enigma-so4 (no discoveries)
-wcs <- which(grepl("microbiome", casestudy) & 
-              !(grepl(c("goodrich|papa"), dataset) & 
-              grepl(c("otu"), dataset)) &
-              !grepl("log-ubiquity", dataset) &
-              !grepl("so4", dataset) &
-              !grepl("baxter", dataset) )
-objs <- objects[wcs]
-labs <- unlist(lapply(str_split(dataset[wcs], pattern = "-benchmark.rds"), 
-                      function(x) x[1]))
-plotMethodRanks(objs, colLabels = labs, alpha = alpha, xlab = "Dataset", 
-                Nlabel = FALSE, annotate = "propPossible") + 
-  ggtitle("Microbiome")+ 
-  theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1))
-ggsave(file.path(outdir, "FigureS6.pdf"), width=14, height=6.5)
-```
-
-### Yeast Simulation
-
-```{r}
-# non-null
-wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|null"), objects) &
-            !grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-labs <- gsub(".rds", "", 
-             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
-                      function(x) x[2])))
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL,
-                annotate = "propPossible") 
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL, 
-                fill = "FDR",
-                annotate = "propPossible") 
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL, 
-                fill = "TPR",
-                annotate = "propPossible") 
-
-# null
-wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|polyester|de"), objects) &
-            !grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-labs <- gsub(".rds", "", 
-             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
-                      function(x) x[2])))
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL,
-                annotate = "propPossible") 
-
-```
-
-### Polyester Simulation
-
-```{r}
-wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|yeast|null"), objects) &
-            !grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-labs <- gsub(".rds", "", 
-             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
-                      function(x) x[2])))
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL)
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL, 
-                fill = "FDR") 
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL, 
-                fill = "TPR") 
-
-# null
-wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|yeast|de"), objects) &
-            !grepl("scRNAseq", casestudy))
-objs <- objects[wcs]
-labs <- gsub(".rds", "", 
-             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
-                      function(x) x[2])))
-
-plotMethodRanks(objs, 
-                colLabels = labs, 
-                alpha = alpha, xlab = "Comparison",
-                excludeMethods = NULL) 
-```
-
-# Alternative Supplementary Figures
-
-## All Case Studies
-
-This plot is an alternative to Supplementary Figures S1-S6.
-We include all case studies in a single plot.
+This is a figure similar to Figure 4, except that we 
+include all case studies in a single plot.
 
 ```{r}
 ## read list of case study results
@@ -921,7 +680,7 @@ SFigAlt
 ggsave(file.path(outdir, "FigureSAlt.pdf"), SFigAlt, width = 12, height = 5)
 ```
 
-# Informativeness of covariates in case studies
+## Informativeness of covariates in case studies
 
 Here we create a heatmap similar to figure 4, but instead of containing the mean
 proportion of maximum rejections, it plots the mean difference in the number of 
@@ -1088,137 +847,6 @@ Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5.75, height = 4)
 ```
 
-
-# Informativeness of covariates in Yeast & Polyester simulation 
-
-As an alternative to the line plot above (Figure S7), we make a heatmap plot that
-displays the mean difference within simulation replicate.
-
-```{r}
-
-for (org in c("yeast", "polyester")){
-  
-objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl(org, objects) ] 
-
-# methods that use a covariate
-cov.methods <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
-
-# regexp to construct master data table separating case study datasets, methods
-# and covariates
-obj.names <- str_split(resfile, pattern = "/")
-casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
-dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
-inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
-type <-  ifelse(grepl("null", resfile), "null", "de")
-size <-  ifelse(grepl("10", resfile), "10", "5")
-
-tab <- data.frame()
-for (l in seq_along(resfile)){
-  x <- readRDS(resfile[l])
-
-  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                 fill =  "FDR", annotate = NULL, alpha = 0.10) %>%
-    mutate(fdr = nrejects) %>%
-    select(method, casestudy, replicate, fdr)
-  tmp3 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                  fill =  "TNR", annotate = NULL, alpha = 0.10) %>%
-    mutate(tnr = nrejects) %>%
-  select(method, casestudy, replicate, tnr)
-  
-  if (type[l] != "null"){
-    tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                    fill =  "TPR", annotate = NULL, alpha = 0.10) %>%
-      mutate(tpr = nrejects) %>%
-    select(method, casestudy, replicate, tpr)
-
-    tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate")) %>%
-      left_join(tmp3, by = c("method", "casestudy", "replicate")) %>%
-      mutate(inform = inform[l],
-             type = type[l],
-             size = size[l])
-  }else{
-    tmp <- left_join(tmp2, tmp3, by = c("method", "casestudy", "replicate")) %>%
-      mutate(inform = inform[l],
-             type = type[l],
-             size = size[l])
-  }
-                   
-  tab <- bind_rows(tab, tmp)
-}
-
-# take difference within replicate, then average differences across
-# type and size and method
-
-dftab <- tab %>%
-  filter(method %in% cov.methods) %>%
-  dplyr::mutate(id = paste(type, size, method, replicate, sep = "-"))
-
-uninftab <- dftab %>% 
-  filter(inform == "uninf") %>%
-  select(id, fdr, tpr, tnr) %>%
-  rename(fdr = "fdr_uninf",
-         tnr = "tnr_uninf",
-         tpr = "tpr_uninf")
-
-inftab <- dftab %>%
-  filter(inform == "inf") %>%
-  select(-inform)
-
-rowOrder <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
-
-dftab <- left_join(inftab, uninftab, by = "id") %>%
-  mutate(tpr_diff = tpr-tpr_uninf,
-         fdr_diff = fdr-fdr_uninf,
-         tnr_diff = tnr-tnr_uninf) %>%
-  group_by(type, size, method) %>%
-  summarize(tpr_se = sqrt(sd(tpr_diff)/n()),
-            fdr_se = sqrt(sd(fdr_diff)/n()),
-            tnr_se = sqrt(sd(tnr_diff)/n()),
-            tpr_diff = mean(tpr_diff),
-            fdr_diff = mean(fdr_diff),
-            tnr_diff = mean(tnr_diff)) %>%
-  mutate(method = factor(method, levels = rowOrder)) %>%
-  mutate(fdr_diff = ifelse(type == "null", NA, fdr_diff),
-         tpr_diff = ifelse(type == "null", NA, tpr_diff),
-         fdr_se = ifelse(type == "null", NA, fdr_se),
-         tpr_se = ifelse(type == "null", NA, tpr_se))
-
-plot_fun <- function(var){
-  
-  plot  <- ggplot(dftab %>% filter(!is.na(get(var))), 
-                  aes(x = interaction(type, size), 
-                                        y = method)) + 
-    geom_tile(aes(fill=get(var))) + 
-    scale_fill_gradient2(paste0("Change\nin ", toupper(gsub("_diff", "", var))),
-                         low = "red", midpoint = 0, mid = "white", high = "blue",
-                         labels = scales::percent) +
-    theme_bw() +
-    xlab("Experiment") +
-    ylab("Method") +
-    facet_grid( ~ type + size, scales = "free", space = "free") +
-    ggtitle(paste0("Impact of informative covariate on ", toupper(gsub("_diff", "", var)))) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-    geom_text(aes(label = scales::percent(get(var))),
-            color = "black", size = 3)
-  
-  return(plot)
-}
-
-# arrange in multipanel figure?
-plot_fun("tpr_diff")
-ggsave(file.path(outdir, paste0("Figure_infCov_tpr_", org, ".pdf")), height = 5, width = 5)
-
-plot_fun("fdr_diff")
-ggsave(file.path(outdir, paste0("Figure_infCov_fpr_", org, ".pdf")), height = 5, width = 5)
-
-plot_fun("tnr_diff")
-ggsave(file.path(outdir, paste0("Figure_infCov_tnr_", org, ".pdf")), height = 5, width = 7)
-
-}
-
-```
 
 # Session information
 
