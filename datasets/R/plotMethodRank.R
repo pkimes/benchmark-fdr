@@ -9,8 +9,8 @@
 #'  SummarizedBenchmark results objects.
 #' @param colLabels a character vector containing the labels to use for the 
 #'  heatmap columns (same length and order as `objects`). 
-#' @param alpha numeric value indicating which alpha value to use for IHW 
-#'  (needs to be one of the values specified in the bench object). Default 0.10.
+#' @param alpha numeric value  or vector indicating which alpha value(s) to use for IHW 
+#'  (need to be among of the values specified in the bench object). Default 0.10.
 #' @param linePlot logical indicating whether to plot a line plot in lieu of 
 #'  a heatmap  
 #' @param excludeMethods character vector containing the names of methods to
@@ -256,7 +256,11 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
         }
         
         if (sum(hasResults) > 0){
-            tmp <- estimatePerformanceMetrics(x, alpha, tidy=TRUE)
+            tmp <- data.frame()
+            for (lev in alpha){
+              tmp <- bind_rows(tmp, estimatePerformanceMetrics(x, alpha=lev, tidy=TRUE))  
+            }
+            
             if (fill %in% c("TPR", "FDR", "TNR") && !(fill %in% tmp$performanceMetric))
                 stop(fill, " is not found in performanceMetrics")
             
@@ -273,7 +277,7 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
                 dplyr::filter( is.na(param.smooth.df) | (param.smooth.df == "3L")) %>%
                 dplyr::filter( !method == "unadjusted") %>%
                 dplyr::filter( !(method %in% NAmethods)) %>%
-                dplyr::select( method, value ) %>%
+                dplyr::select( method, value, alpha ) %>%
                 dplyr::rename( nrejects = value) %>%
                 mutate( method = gsub("-df03", "", method)) %>%
                 mutate( method = gsub("(-a)(.*)", "", method)) %>%
