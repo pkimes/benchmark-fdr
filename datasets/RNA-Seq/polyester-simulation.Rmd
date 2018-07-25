@@ -160,10 +160,7 @@ simulateOneSplit <- function(X, rseed,
     
   # DE simulation
   if(nDE > 0){
-    wts <- rep(1, nrow(dat_alt))
-    if(!uninformativeCovariate)
-      wts <- log10(rowMeans(dat_alt)+1)
-    
+    wts <- log10(rowMeans(dat_alt)+1)
     DE <- sample(1:nrow(dat_alt), nDE, prob = wts)
     truth[DE] <- TRUE
     

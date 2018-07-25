@@ -349,9 +349,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
-    wts <- rep(1, nrow(dds_test))
-    if(!uninformativeCovariate)
-      wts <- log10(rowMeans(counts(dds_test, normalize = TRUE))+1)
+    wts <- log10(rowMeans(counts(dds_test, normalize = TRUE))+1)
     DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
  
