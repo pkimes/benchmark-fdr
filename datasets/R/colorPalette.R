@@ -13,12 +13,16 @@
 # locfdr - dodgerblue3
 # scott empirical - purple4
 # scott theoretical - mediumpurple3
+# AdaPT GLM - darkgoldenrod
+# AdaPT GAM - darkgoldenrod3
 
 candycols <- data.frame(Method = c("bonf", "bh", "qvalue", "ashs", "ashq", 
                                    "ihw", "bl", "lfdr", 
-                                   "fdrreg-t", "fdrreg-e"),
+                                   "fdrreg-t", "fdrreg-e",
+                                   "adapt-glm", "adapt-gam"),
                         col = c("black", "black", "gray45", "hotpink", "red3",
-                                  "green3", "darkorange1", "dodgerblue3", 
-                                  "purple4", "mediumpurple3"),
-                        lty = c("dashed", rep("solid", 9)),
+                                "green3", "darkorange1", "dodgerblue3", 
+                                "purple4", "mediumpurple3",
+                                "darkgoldenrod", "darkgoldenrod3"),
+                        lty = c("dashed", rep("solid", 11)),
                         stringsAsFactors = FALSE)
