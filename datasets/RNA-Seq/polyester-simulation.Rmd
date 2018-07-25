@@ -97,6 +97,13 @@ counts <- files %>%
 # filter low count genes
 counts <- counts[rowMeans(counts) > 1,]
 
+# normalize
+dds <- DESeqDataSetFromMatrix(countData = counts, 
+                              colData = tibble(sample=colnames(counts)),
+                              design = ~1)
+dds <- estimateSizeFactors(dds)
+counts <- counts(dds, normalize=TRUE)
+
 ## Estimate the zero inflated negative binomial parameters
 paramPolyester = get_params(counts)
 ```
@@ -160,14 +167,14 @@ simulateOneSplit <- function(X, rseed,
     
   # DE simulation
   if(nDE > 0){
-    wts <- log10(rowMeans(dat_alt)+1)
+    wts <- rowMeans(dat_alt)
     DE <- sample(1:nrow(dat_alt), nDE, prob = wts)
     truth[DE] <- TRUE
     
     # randomly sample a log2FC from N(0,1) 
     log2FC[DE] <- rnorm(nDE, sd = 1)
     dat_alt[DE,] = create_read_numbers(mu[DE], paramPolyester$fit, p0[DE], 
-                                  n=sampleSize*2, beta=cbind(log2FC[DE]), 
+                                  n=sampleSize*2, beta=cbind(log2FC[DE]/2), 
                                   mod=modPolyester)
   }
   
