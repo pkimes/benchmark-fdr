@@ -752,8 +752,7 @@ df <- data.frame(filename, casestudy, dataset, inform, cov, stringsAsFactors = F
 
 tab <- tidy_df(objects=objects, colLabels=filename, 
               fill="meanRank", annotate=NULL, alpha =0.10) %>%
-  rename(filename = "casestudy") %>%
-  #rename(casestudy = "filename") %>%
+  rename(casestudy = "filename") %>%
   mutate(filename = gsub(".rds", "", filename))
 
 dftab <- left_join(tab, df, by="filename") %>%
