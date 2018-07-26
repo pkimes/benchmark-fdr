@@ -26,6 +26,8 @@
 #' @param facetMethodType logical indicating whether to facet the plot into 
 #'        two panels - methods that use only one piece of information, and 
 #'        those that use more than just the p-value (default = FALSE)
+#' @param diffplot logical indicating whether 'value' in tsb is a difference
+#'        between informative and uninformative covariates. (default = FALSE)
 #'
 #' @return
 #' a ggplot object.
@@ -33,7 +35,8 @@
 #' @author Patrick Kimes & Keegan Korthauer
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                             clean_names = FALSE, errorBars=FALSE,
-                            palette = candycols, facetMethodType = FALSE) {
+                            palette = candycols, facetMethodType = FALSE,
+                            diffplot = FALSE) {
 
     ## cacluate mean per replication
     tsba <- tsb %>%
@@ -103,7 +106,9 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         expand_limits(x = 0) +
         scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.01)) +
         ylab(met) +
-        ggtitle(paste0("Mean ", met, " Over ", max(tsba$n), " Replications")) +
+        ggtitle(ifelse(diffplot,
+                       paste0("Mean Difference ", met, " Over ", max(tsba$n), " Replications"),
+                       paste0("Mean ", met, " Over ", max(tsba$n), " Replications"))) +
         scale_color_manual(values = col) +
         scale_linetype_manual(values = lty) 
     
@@ -120,22 +125,31 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     ## use percentage on y-axis labels when appropriate
     if (met %in% c("FDR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) {
         gp <- gp +
-            scale_y_continuous(met, labels=scales::percent)
+            scale_y_continuous(ifelse(diffplot, paste(met, "(informative - uninformative)"), met),
+                               labels=scales::percent)
+    } else if (diffplot) {
+        gp <- gp + ylab(paste(met, "(informative - uninformative)")) 
     }
 
-    ## include 0% or 100% in plotting range depending on metric
-    if (met %in% c("FDR", "FNR", "FWER", "rejectprop")) {
+    
+    if (diffplot) {
         gp <- gp + expand_limits(y = 0)
-    }
-    if (met %in% c("TNR")) {
-        gp <- gp + expand_limits(y = 1)
-    }
+        gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2)
+    } else {
+        ## include 0% or 100% in plotting range depending on metric
+        if (met %in% c("FDR", "FNR", "FWER", "rejectprop")) {
+            gp <- gp + expand_limits(y = 0)
+        }
+        if (met %in% c("TNR")) {
+            gp <- gp + expand_limits(y = 1)
+        }
 
-    ## add identity line for FPR/FDR plotting
-    if (met == "FDR") {
-        gp <- gp +
-            geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2)
+        ## add identity line for FPR/FDR plotting
+        if (met == "FDR") {
+            gp <- gp +
+                geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2)
+        }
     }
-
+    
     gp
 }
