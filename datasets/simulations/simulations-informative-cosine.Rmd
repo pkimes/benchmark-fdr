@@ -175,6 +175,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+We also compare the simulation results with and without an informative covariate. 
+
+```{r gauss-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
 # Student's t Setting (df = 5)
 
 Next, we consider the setting with t-distributed noise.
@@ -272,6 +296,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+We also compare the simulation results with and without an informative covariate. 
+
+```{r t5-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
 # Student's t Setting (df = 11)
 
 Next, we consider a second setting with t-distributed noise.
@@ -367,6 +415,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r t11-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Chi-Squared Setting
@@ -486,6 +558,30 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = c(excludeSet, "
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r chisq4-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Session Info
