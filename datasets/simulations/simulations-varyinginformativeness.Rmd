@@ -123,6 +123,8 @@ if (file.exists(info00_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = info00_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
