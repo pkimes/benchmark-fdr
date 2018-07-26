@@ -180,9 +180,12 @@ We also compare the simulation results with and without an informative covariate
 ```{r gauss-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
                             suffix = c(".info", ".uninfo"))
 resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
 
@@ -301,9 +304,12 @@ We also compare the simulation results with and without an informative covariate
 ```{r t5-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
                             suffix = c(".info", ".uninfo"))
 resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
 
@@ -422,9 +428,12 @@ We also compare the simulation results with and without an informative covariate
 ```{r t11-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
                             suffix = c(".info", ".uninfo"))
 resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
 
@@ -565,9 +574,12 @@ We also compare the simulation results with and without an informative covariate
 ```{r chisq4-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key, performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
                             suffix = c(".info", ".uninfo"))
 resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
 

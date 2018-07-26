@@ -78,7 +78,7 @@ bdplus <- addBMethod(bdplus, "fdrreg-e",
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
-tstat <- rnorm_generator(2)       # functional: dist of alternative test stats
+tstat <- rnorm_generator(3)       # functional: dist of alternative test stats
 tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 icovariate <- runif               # functional: independent covariate
@@ -179,6 +179,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n100-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
 # 500 Tests
 
 Next, we consider the setting where 500 hypotheses are tested.
@@ -263,6 +290,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n500-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # 1000 Tests
@@ -351,6 +405,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n1000-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
 # 5000 Tests
 
 Next, we consider the setting where 5000 hypotheses are tested.
@@ -435,6 +516,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n5000-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # 10000 Tests
@@ -523,6 +631,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 }
 ```
 
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n10000-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
 # 50000 Tests
 
 Next, we consider the setting where 50000 hypotheses are tested.
@@ -607,6 +742,33 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r n50000-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Session Info

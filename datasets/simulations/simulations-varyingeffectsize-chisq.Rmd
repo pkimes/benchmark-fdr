@@ -107,6 +107,8 @@ if (file.exists(spiky_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = spiky_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -132,7 +134,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r spiky-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -151,9 +153,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r spiky-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -161,11 +163,38 @@ the overlap of rejections between methods.
 
 ```{r spiky-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r spiky-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Flat-Top Setting
@@ -193,6 +222,8 @@ if (file.exists(flattop_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = flattop_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -218,7 +249,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r flattop-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -237,9 +268,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r flattop-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -247,11 +278,38 @@ the overlap of rejections between methods.
 
 ```{r flattop-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r flattop-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Skewed Setting
@@ -279,6 +337,8 @@ if (file.exists(skew_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = skew_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -304,7 +364,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r skew-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -323,9 +383,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r skew-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -333,11 +393,38 @@ the overlap of rejections between methods.
 
 ```{r skew-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r skew-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Bimodal Setting
@@ -365,6 +452,8 @@ if (file.exists(bimodal_file)) {
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = bimodal_file)
 }
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
 ```
 
 ## Covariate Diagnostics
@@ -390,7 +479,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ 
 We plot the averaged results across `r B` replications.
 
 ```{r bimodal-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res, alpha = seq(0.01, 0.10, 0.01))
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE) 
@@ -409,9 +498,9 @@ We also take a look at the distribution of rejects for each method as a function
 the effect size and independent covariate.
 
 ```{r bimodal-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res, alpha = ualpha, covname = "effect_size")
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
-covariateLinePlot(res, alpha = ualpha, covname = "ind_covariate")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -419,11 +508,38 @@ the overlap of rejections between methods.
 
 ```{r bimodal-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
     message("Not enough methods found rejections at alpha ", ualpha, 
             "; skipping upset plot")
 }
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r bimodal-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
 # Session Info
