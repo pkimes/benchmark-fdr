@@ -38,7 +38,7 @@ outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
 methodset <- c("bonf", "bh", "ihw", "qvalue", "bl-df03", "lfdr",
-               "fdrreg-e", "fdrreg-t", "ashq")
+               "fdrreg-e", "fdrreg-t", "ashq", "adapt-glm")
 ```
 
 # Data Preparation
@@ -56,17 +56,15 @@ for (ia in c(1:10, 20, 30, 40, 50)) {
         res_files <- list.files(path, "\\.rds$", full.names = TRUE)
         res <- lapply(res_files, function(x) {
             zz <- readRDS(x)
-            zz <- plotsim_standardize(zz, alpha = ia / 100L)
-            zz <- dplyr::select(zz, rep, blabel, key, alpha, value)
-            zz <- dplyr::group_by(zz, blabel, key, alpha)
-            zz <- dplyr::summarize(zz,
-                                   se = sd(value, na.rm = TRUE) / sqrt(sum(!is.na(value))),
-                                   q10 = quantile(value, .1, na.rm = TRUE),
-                                   q90 = quantile(value, .9, na.rm = TRUE),
-                                   med_value = median(value, na.rm = TRUE),
-                                   mean_value = mean(value, na.rm = TRUE),
-                                   nNA = sum(is.na(value)))
-            dplyr::ungroup(zz)
+            zz_i <- lapply(zz, `[[`, "informative")
+            zz_u <- lapply(zz, `[[`, "uninformative")
+            zz_i <- plotsim_standardize(zz_i, alpha = ia / 100L)
+            zz_i <- dplyr::select(zz_i, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+            zz_u <- plotsim_standardize(zz_u, alpha = ia / 100L)
+            zz_u <- dplyr::select(zz_u, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+            dplyr::full_join(zz_i, zz_u,
+                             by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                             suffix = c(".info", ".uninfo"))
         })
         names(res) <- gsub("\\.rds$", "", basename(res_files))
         saveRDS(res, summary_file)
@@ -93,37 +91,52 @@ for (ia in seq_len(length(alphas))) {
     res[[ia]] <- ires
 }
 res <- bind_rows(res)
+res <- dplyr::select(res, -param.alpha)
 res <- dplyr::rename(res, Method = blabel)
 res <- dplyr::mutate(res, Method = gsub("-df03", "", Method))
 res <- dplyr::mutate(res, Method = factor(Method, levels = gsub("-df03", "", methodset)))
 ```
 
+We compute summary metrics for each method, setting, and cutoff.
+
+```{r}
+resmet <- dplyr::group_by(res, setting, dist, Method, key, performanceMetric, alpha)
+resmet <- dplyr::summarize(resmet,
+                           mean.info = mean(value.info, na.rm = TRUE),
+                           se.info = sd(value.info, na.rm = TRUE) / sqrt(sum(!is.na(value.info))),
+                           nNA.info = sum(is.na(value.info)),
+                           mean.diff = mean(value.info - value.uninfo, na.rm = TRUE),
+                           se.diff = sd(value.info - value.uninfo, na.rm = TRUE) /
+                               sqrt(sum(!is.na(value.info - value.uninfo))))
+resmet <- dplyr::ungroup(resmet)
+```
+
 We clean up the annotations in the table for some of the more complex simulation settings.
 
 ```{r}
-res <- dplyr::mutate(res, inform = ifelse(grepl("varyinginfo", setting), dist, NA))
-res <- dplyr::mutate(res, inform = as.numeric(gsub("level", "", inform)))
-res <- dplyr::mutate(res, dist = ifelse(grepl("varyinginfo", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, inform = ifelse(grepl("varyinginfo", setting), dist, NA))
+resmet <- dplyr::mutate(resmet, inform = as.numeric(gsub("level", "", inform)))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyinginfo", setting), "gaussian", dist))
 
-res <- dplyr::mutate(res, pi0 = ifelse(grepl("varyingpi0", setting), dist, 90))
-res <- dplyr::mutate(res, pi0 = as.numeric(gsub("nullprop", "", pi0)))
-res <- dplyr::mutate(res, dist = ifelse(grepl("varyingpi0", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, pi0 = ifelse(grepl("varyingpi0", setting), dist, 90))
+resmet <- dplyr::mutate(resmet, pi0 = as.numeric(gsub("nullprop", "", pi0)))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyingpi0", setting), "gaussian", dist))
 
-res <- dplyr::mutate(res, signal = ifelse(grepl("varyinges", setting), dist, NA))
-res <- dplyr::mutate(res, dist = ifelse(grepl("^varyinges$", setting), "gaussian", dist))
-res <- dplyr::mutate(res, dist = ifelse(grepl("^varyinges-t$", setting), "t11", dist))
-res <- dplyr::mutate(res, dist = ifelse(grepl("^varyinges-chisq$", setting), "chisq4", dist))
-res <- dplyr::mutate(res, setting = ifelse(grepl("varyinges", setting), "varyinges", setting))
+resmet <- dplyr::mutate(resmet, signal = ifelse(grepl("varyinges", setting), dist, NA))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges$", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-t$", setting), "t11", dist))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-chisq$", setting), "chisq4", dist))
+resmet <- dplyr::mutate(resmet, setting = ifelse(grepl("varyinges", setting), "varyinges", setting))
 ```
 
 We also replace the sampling noise labels with more plotting-friendly labels.
 
 ```{r}
-res <- dplyr::mutate(res, dist = factor(dist, levels = c("gaussian", "t11", "t5", "chisq4"),
-                                        labels = c(expression("Noise: " * N(0, 1)),
-                                                   expression("Noise: " * t[11]),
-                                                   expression("Noise: " * t[5]),
-                                                   expression("Noise: " * {chi^2}[4]))))
+resmet <- dplyr::mutate(resmet, dist = factor(dist, levels = c("gaussian", "t11", "t5", "chisq4"),
+                                              labels = c(expression("Noise: " * N(0, 1)),
+                                                         expression("Noise: " * t[11]),
+                                                         expression("Noise: " * t[5]),
+                                                         expression("Noise: " * {chi^2}[4]))))
 ```
 
 We use the standardize candy color scheme and line types for the plots.
@@ -138,7 +151,7 @@ names(lty) <- as.character(candycols$Method)
 There are several different simulation settings that can be investigated.
 
 ```{r}
-dplyr::distinct(res, setting)
+dplyr::distinct(resmet, setting)
 ```
 
 Namely, simulation settings were run with to investigate the impact of different
@@ -162,15 +175,15 @@ of 100 with at least one rejection). In these plots, `ashq`, `fdrreg-e` and `fdr
 are excluded for the Chi-Squared simulation settings.
 
 ```{r, fig.width = 18, fig.height = 8}
-res_nullset <- dplyr::filter(res, setting == "null",
+res_nullset <- dplyr::filter(resmet, setting == "null",
                              !(Method == "ashq" & grepl("chi\\^2", dist)),
                              !(grepl("fdrreg", Method) & grepl("chi\\^2", dist)))
 res_nullset <- tidyr::complete(res_nullset, setting, Method, dist, key)
 
 null_tnr <- dplyr::filter(res_nullset, key == "TNR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
@@ -182,9 +195,9 @@ null_tnr <- dplyr::filter(res_nullset, key == "TNR") %>%
           plot.title = element_text(face="bold", size = 14))
 
 null_fwer <- dplyr::filter(res_nullset, key == "FWER") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
@@ -202,19 +215,59 @@ gp <- plot_grid(gp, get_legend(null_tnr), rel_widths = c(1, 1/16))
 gp
 ```
 
+We also look at the difference between informative and uninformative covariates.
+
+```{r, fig.width = 18, fig.height = 8}
+null_tnr_diff <- dplyr::filter(res_nullset, key == "TNR") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("TNR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean TNR Difference Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
+null_fwer_diff <- dplyr::filter(res_nullset, key == "FWER") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("FWER\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("FWER Difference Over 100 Replications") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
+gp <- plot_grid(null_tnr_diff + guides(color = FALSE, linetype = FALSE),
+                null_fwer_diff + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:2], ncol = 1)
+gp <- plot_grid(gp, get_legend(null_tnr_diff), rel_widths = c(1, 1/16))
+gp
+```
+
 
 # Sampling Distributions
 
 We just take a look at different noise distributions for a single informative covariate.
 
 ```{r, fig.width = 18, fig.height = 8}
-res_noise <- dplyr::filter(res, setting == "informative-cubic")
+res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
 res_noise <- tidyr::complete(res_noise, setting, Method, dist, key)
 
 noise_fdr <- dplyr::filter(res_noise, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
@@ -228,9 +281,9 @@ noise_fdr <- dplyr::filter(res_noise, key == "FDR") %>%
           plot.title = element_text(face="bold", size = 14))
 
 noise_tpr <- dplyr::filter(res_noise, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
@@ -255,19 +308,61 @@ gp <- plot_grid(gp, get_legend(noise_tpr), rel_widths = c(1, 1/16))
 gp
 ```
 
+We also look at the difference between informative and uninformative covariates.
+
+```{r, fig.width = 18, fig.height = 8}
+noise_fdr_diff <- dplyr::filter(res_noise, key == "FDR") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("FDR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean FDR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
+noise_tpr_diff <- dplyr::filter(res_noise, key == "TPR") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("TPR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean TPR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
+gp <- plot_grid(noise_fdr_diff + guides(color = FALSE, linetype = FALSE),
+                noise_tpr_diff + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:2], ncol = 1)
+gp <- plot_grid(gp, get_legend(noise_tpr_diff), rel_widths = c(1, 1/16))
+gp
+```
+
 
 # Informative Covariates
 
 We also take a look across different informative covariates.
 
-```{r, fig.width = 14, fig.height = 8}
-res_icov <- dplyr::filter(res, grepl("^informative", setting), grepl("N\\(0, 1\\)", dist))
+```{r, fig.width = 18, fig.height = 8}
+res_icov <- dplyr::filter(resmet, grepl("^informative", setting), grepl("N\\(0, 1\\)", dist))
 res_icov <- tidyr::complete(res_icov, setting, Method, dist, key)
 
 icov_fdr <- dplyr::filter(res_icov, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
     facet_grid(. ~ setting, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
@@ -281,9 +376,9 @@ icov_fdr <- dplyr::filter(res_icov, key == "FDR") %>%
           plot.title = element_text(face="bold", size = 14))
     
 icov_tpr <- dplyr::filter(res_icov, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.0025, alpha=0.5) +
     facet_grid(. ~ setting, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
@@ -302,8 +397,47 @@ gp <- plot_grid(gp, get_legend(icov_tpr), rel_widths = c(1, 1/12))
 gp
 ```
 
-The general trends are identical across informative covariates considered (cubic: a monotonic relationship,
-sine: a non-monotone relationship, and step: a discrete relationship).
+We also look at the difference between informative and uninformative covariates.
+
+```{r, fig.width = 18, fig.height = 8}
+icov_fdr_diff <- dplyr::filter(res_icov, key == "FDR") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ setting, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("FDR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean FDR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+    
+icov_tpr_diff <- dplyr::filter(res_icov, key == "TPR") %>%
+    ggplot(aes(x = alpha, y = mean.diff, color = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.0025, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    facet_grid(. ~ setting, scales = "free_x", labeller = label_parsed) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_y_continuous("TPR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean TPR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 14))
+
+gp <- plot_grid(icov_fdr_diff + guides(color = FALSE, linetype = FALSE),
+                icov_tpr_diff + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:2], ncol = 1)
+gp <- plot_grid(gp, get_legend(icov_tpr_diff), rel_widths = c(1, 1/12))
+gp
+```
 
 
 # Noninformative Covariates
@@ -311,13 +445,18 @@ sine: a non-monotone relationship, and step: a discrete relationship).
 We take a look at noninformative covariates on their own.
 
 ```{r, fig.width = 18, fig.height = 8}
-res_noni <- dplyr::filter(res, grepl("noninformative", setting))
-res_noni <- tidyr::complete(res_noni, setting, Method, dist, key)
+res_noni <- dplyr::filter(res, grepl("informative-cubic", setting))
+res_noni <- dplyr::group_by(res_noni, setting, dist, Method, key, performanceMetric, alpha)
+res_noni <- dplyr::summarize(res_noni,
+                             mean.uninfo = mean(value.uninfo, na.rm = TRUE),
+                             se.uninfo = sd(value.uninfo, na.rm = TRUE) /
+                                 sqrt(sum(!is.na(value.uninfo))))
+res_noni <- dplyr::ungroup(res_noni)
 
 noni_fdr <- dplyr::filter(res_noni, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.uninfo, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.uninfo - se.uninfo, ymax = mean.uninfo + se.uninfo), width = 0.0025, alpha=0.5) +
     geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
@@ -331,9 +470,9 @@ noni_fdr <- dplyr::filter(res_noni, key == "FDR") %>%
           plot.title = element_text(face="bold", size = 14))
     
 noni_tpr <- dplyr::filter(res_noni, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+    ggplot(aes(x = alpha, y = mean.uninfo, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.uninfo - se.uninfo, ymax = mean.uninfo + se.uninfo), width = 0.0025, alpha=0.5) +
     facet_grid(. ~ dist, scales = "free_x", labeller = label_parsed) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
@@ -358,149 +497,49 @@ gp <- plot_grid(gp, get_legend(noni_tpr), rel_widths = c(1, 1/16))
 gp
 ```
 
-We next take a look at noninformative covariates against informative covariates.
-
-
-# Noninformative vs. Informative
-
-```{r, fig.width = 10, fig.height = 4}
-res_compc <- dplyr::filter(res, grepl("informative-cubic", setting) |
-                                grepl("noninformative", setting),
-                           grepl("N\\(0, 1\\)", dist))
-res_compc <- tidyr::complete(res_compc, setting, Method, dist, key)
-res_compc <- dplyr::mutate(res_compc, lab = round(100*alpha))
-res_compc <- dplyr::mutate(res_compc, lab = ifelse(lab %in% c(1, 10), lab, NA))
-
-compc_fdr <- dplyr::filter(res_compc, key == "FDR") %>%
-    dplyr::select(setting, Method, dist, alpha, lab, mean_value) %>%
-    tidyr::spread(setting, mean_value) %>%
-    ggplot(aes(x = noninformative, y = `informative-cubic`, label = lab,
-               color = Method, linetype = Method)) +
-    geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_hline(yintercept = c(.01, .1), lty = 2, color = "blue", alpha = 1/2) + 
-    geom_vline(xintercept = c(.01, .1), lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    geom_text(size = 3) + 
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("noninformative (FDR)", breaks = seq(0, 1, .02), labels = scales::percent) + 
-    scale_y_continuous("informative (FDR)", breaks = seq(0, 1, .02), labels = scales::percent) + 
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(x = 0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-compc_tpr <- dplyr::filter(res_compc, key == "TPR") %>%
-    dplyr::select(setting, Method, dist, alpha, lab, mean_value) %>%
-    tidyr::spread(setting, mean_value) %>%
-    ggplot(aes(x = noninformative, y = `informative-cubic`, label = lab,
-               color = Method, linetype = Method)) +
-    geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    geom_text(size = 3) + 
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("noninformative (TPR)", labels = scales::percent) + 
-    scale_y_continuous("informative (TPR)", labels = scales::percent) + 
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(x = 0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-gp <- plot_grid(compc_fdr + guides(color = FALSE, linetype = FALSE),
-                compc_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], nrow = 1)
-gp <- plot_grid(gp, get_legend(compc_tpr), rel_widths = c(1, 1/8))
-gp
-```
-
-We can also plot the differences.
-
-```{r, fig.width = 10, fig.height = 4}
-compc2_fdr <- dplyr::filter(res_compc, key == "FDR") %>%
-    dplyr::select(setting, Method, dist, alpha, lab, mean_value) %>%
-    tidyr::spread(setting, mean_value) %>%
-    dplyr::mutate(gain = `informative-cubic` - noninformative) %>%
-    ggplot(aes(x = alpha, y = gain, color = Method, linetype = Method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous("change in FDR", breaks = seq(-1, 1, .001), labels = scales::percent) + 
-    ggtitle("Mean Change in FDR Over 100 Replications") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-compc2_tpr <- dplyr::filter(res_compc, key == "TPR") %>%
-    dplyr::select(setting, Method, dist, alpha, lab, mean_value) %>%
-    tidyr::spread(setting, mean_value) %>%
-    dplyr::mutate(gain = `informative-cubic` - noninformative) %>%
-    ggplot(aes(x = alpha, y = gain, color = Method, linetype = Method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous("change in TPR", labels = scales::percent) + 
-    ggtitle("Mean Change in TPR Over 100 Replications") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-gp <- plot_grid(compc2_fdr + guides(color = FALSE, linetype = FALSE),
-                compc2_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], nrow = 1)
-gp <- plot_grid(gp, get_legend(compc2_tpr), rel_widths = c(1, 1/8))
-gp
-```
-
 
 # Null Proportions
 
 We take a look at the impact of the proportion of null hypotheses.
 
-```{r, fig.width = 10, fig.height = 8}
-res_pi0 <- dplyr::filter(res, setting == "varyingpi0-lowsignal", alpha %in% c(0.05, 0.10))
-res_pi0 <- tidyr::complete(res_pi0, setting, Method, alpha, pi0, key)
-
+```{r, fig.width = 10, fig.height = 4}
+res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0-lowsignal",
+                         alpha == 0.05)
+res_pi0 <- dplyr::mutate(res_pi0,
+                         mean.info = ifelse(is.nan(mean.info) & key == "FDR", 0, mean.info))
+                      
 pi0_fdr <- dplyr::filter(res_pi0, key == "FDR") %>%
-    ggplot(aes(x = pi0, y = mean_value, color = Method)) +
+    ggplot(aes(x = pi0, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 2.5, alpha=0.5) +
     geom_hline(aes(yintercept = alpha), lty = 2, color = "blue", alpha = 1/2) + 
-    facet_grid(. ~ alpha, scales = "free_x", labeller = label_both) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
     scale_x_continuous("pi0", breaks = seq(0, 100, 10)) +
     scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
+    ggtitle("Mean FDR at alpha = 0.05 Over 100 Replications") +
     expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
           plot.title = element_text(face="bold", size = 14))
 
 pi0_tpr <- dplyr::filter(res_pi0, key == "TPR") %>%
-    ggplot(aes(x = pi0, y = mean_value, color = Method)) +
+    ggplot(aes(x = pi0, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    facet_grid(. ~ alpha, scales = "free_x", labeller = label_both) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 2.5, alpha=0.5) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
     scale_x_continuous("pi0", breaks = seq(0, 100, 10)) +
     scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
+    ggtitle("Mean TPR at alpha = 0.05 Over 100 Replications") +
     expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
           plot.title = element_text(face="bold", size = 14))
 
-gp <- plot_grid(pi0_fdr + guides(color = FALSE, linetype = FALSE) + coord_cartesian(ylim = c(0, .2)),
+gp <- plot_grid(pi0_fdr + guides(color = FALSE, linetype = FALSE),
                 pi0_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[1:2], ncol = 2)
 gp <- plot_grid(gp, get_legend(pi0_tpr), rel_widths = c(1, 1/8))
 gp
 ```
@@ -510,36 +549,33 @@ gp
 
 We take a look at the impact of the informativeness of a covariate.
 
-```{r, fig.width = 10, fig.height = 8}
-res_info <- dplyr::filter(res, setting == "varyinginfo-lowsignal", alpha %in% c(0.05, 0.10))
-res_info <- tidyr::complete(res_info, setting, Method, alpha, inform, key)
+```{r, fig.width = 10, fig.height = 4}
+res_info <- dplyr::filter(resmet, setting == "varyinginfo-lowsignal", alpha == 0.05)
 
 info_fdr <- dplyr::filter(res_info, key == "FDR") %>%
-    ggplot(aes(x = inform, y = mean_value, color = Method)) +
+    ggplot(aes(x = inform, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 2.5, alpha=0.5) +
     geom_hline(aes(yintercept = alpha), lty = 2, color = "blue", alpha = 1/2) + 
-    facet_grid(. ~ alpha, scales = "free_x", labeller = label_both) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
     scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
     scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
+    ggtitle("Mean FDR at alpha = 0.05 Over 100 Replications") +
     expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
           plot.title = element_text(face="bold", size = 14))
 
 info_tpr <- dplyr::filter(res_info, key == "TPR") %>%
-    ggplot(aes(x = inform, y = mean_value, color = Method)) +
+    ggplot(aes(x = inform, y = mean.info, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    facet_grid(. ~ alpha, scales = "free_x", labeller = label_both) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 2.5, alpha=0.5) +
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
     scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
     scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
+    ggtitle("Mean TPR at alpha = 0.05 Over 100 Replications") +
     expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
@@ -547,187 +583,48 @@ info_tpr <- dplyr::filter(res_info, key == "TPR") %>%
 
 gp <- plot_grid(info_fdr + guides(color = FALSE, linetype = FALSE),
                 info_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[1:2], ncol = 2)
 gp <- plot_grid(gp, get_legend(info_tpr), rel_widths = c(1, 1/8))
 gp
 ```
 
+We also look at the difference between informative and uninformative covariates.
 
-# Unimodal Effects
-
-```{r, fig.width = 18, fig.height = 12}
-res_uni <- dplyr::filter(res, setting == "varyinges")
-res_uni <- dplyr::mutate(res_uni, dist = droplevels(dist))
-res_uni <- tidyr::complete(res_uni, Method, signal, dist, key)
-
-dplyr::filter(res_uni, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+```{r, fig.width = 10, fig.height = 4}
+info_fdr_diff <- dplyr::filter(res_info, key == "FDR") %>%
+    ggplot(aes(x = inform, y = mean.diff, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
-    geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
-    facet_grid(dist ~ signal, scales = "free_x", labeller = label_parsed) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 2.5, alpha=0.5) +
+    geom_hline(aes(yintercept = 0), lty = 2, color = "blue", alpha = 1/2) + 
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
     scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(y = 0) +
+    ggtitle("Mean FDR Difference at alpha = 0.05 Over 100 Replications") +
+    expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
           plot.title = element_text(face="bold", size = 14))
 
-dplyr::filter(res_uni, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
+info_tpr_diff <- dplyr::filter(res_info, key == "TPR") %>%
+    ggplot(aes(x = inform, y = mean.diff, color = Method)) +
     geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
-    facet_grid(dist ~ signal, scales = "free", labeller = label_parsed) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 2.5, alpha=0.5) +
+    geom_hline(aes(yintercept = 0), lty = 2, color = "blue", alpha = 1/2) + 
     scale_linetype_manual(values = lty) + 
     scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
+    scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
     scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-```
-
-We replot this only looking at Normal sampling noise.
-
-```{r, fig.width = 18, fig.height = 8}
-res_uni <- dplyr::filter(res_uni, grepl("N\\(0, 1\\)", dist))
-
-uni_fdr <- dplyr::filter(res_uni, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
-    geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
-    facet_wrap(~ signal, scales = "free_x", label = label_both, nrow = 1) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
-    scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(y = 0) +
+    ggtitle("Mean TPR Difference at alpha = 0.05 Over 100 Replications") +
+    expand_limits(x =0, y = 0) +
     theme_classic() +
     theme(axis.title = element_text(face="bold", size = 10),
           plot.title = element_text(face="bold", size = 14))
 
-uni_tpr <- dplyr::filter(res_uni, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.0025, alpha=0.5) +
-    facet_wrap(~ signal, scales = "free", label = label_both, nrow = 1) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) +
-    scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-gp <- plot_grid(uni_fdr + guides(color = FALSE, linetype = FALSE) + coord_cartesian(ylim = c(0, .2)),
-                uni_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
-gp <- plot_grid(gp, get_legend(uni_tpr), rel_widths = c(1, 1/16))
-gp
-```
-
-
-# ASH unimodality
-
-```{r}
-alphas50 <- c(5, 10, 20, 30, 40, 50)
-res_fdr50 <- vector("list", length(alphas50))
-for (ia in seq_len(length(alphas50))) {
-    imethodset <- methodset
-    imethodset[which(imethodset == "ihw")] <- "ihw-a10"
-    ires <- readRDS(paste0("allres_alpha", alphas50[ia], ".rds"))
-    ires <- bind_rows(ires, .id = "setting")
-    ires <- dplyr::mutate(ires, dist = gsub(".*?-benchmark-(.*)", "\\1", setting),
-                         setting = gsub("(.*?)-benchmark-.*", "\\1", setting))
-    ires <- dplyr::filter(ires, blabel %in% imethodset)
-    ires <- dplyr::mutate(ires, blabel = gsub("(-a)(.*)", "", blabel))
-    res_fdr50[[ia]] <- ires
-}
-res_fdr50 <- bind_rows(res_fdr50)
-res_fdr50 <- dplyr::rename(res_fdr50, Method = blabel)
-res_fdr50 <- dplyr::mutate(res_fdr50, Method = gsub("-df03", "", Method))
-res_fdr50 <- dplyr::mutate(res_fdr50, Method = factor(Method, levels = gsub("-df03", "", methodset)))
-```
-
-We clean up the annotations in the table for some of the more complex simulation settings.
-
-```{r}
-res_fdr50 <- dplyr::mutate(res_fdr50, inform = ifelse(grepl("varyinginfo", setting), dist, NA))
-res_fdr50 <- dplyr::mutate(res_fdr50, inform = as.numeric(gsub("level", "", inform)))
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = ifelse(grepl("varyinginfo", setting), "gaussian", dist))
-
-res_fdr50 <- dplyr::mutate(res_fdr50, pi0 = ifelse(grepl("varyingpi0", setting), dist, 90))
-res_fdr50 <- dplyr::mutate(res_fdr50, pi0 = as.numeric(gsub("nullprop", "", pi0)))
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = ifelse(grepl("varyingpi0", setting), "gaussian", dist))
-
-res_fdr50 <- dplyr::mutate(res_fdr50, signal = ifelse(grepl("varyinges", setting), dist, NA))
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = ifelse(grepl("^varyinges$", setting), "gaussian", dist))
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = ifelse(grepl("^varyinges-t$", setting), "t11", dist))
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = ifelse(grepl("^varyinges-chisq$", setting), "chisq4", dist))
-res_fdr50 <- dplyr::mutate(res_fdr50, setting = ifelse(grepl("varyinges", setting), "varyinges", setting))
-```
-
-We also replace the sampling noise labels with more plotting-friendly labels.
-
-```{r}
-res_fdr50 <- dplyr::mutate(res_fdr50, dist = factor(dist, levels = c("gaussian", "t11", "t5", "chisq4"),
-                                                    labels = c(expression("Noise: " * N(0, 1)),
-                                                               expression("Noise: " * t[11]),
-                                                               expression("Noise: " * t[5]),
-                                                               expression("Noise: " * {chi^2}[4]))))
-```
-
-We take a look at the unimodal set of simulations with Normal sampling noise.
-
-```{r, fig.width = 18, fig.height = 8}
-res50_uni <- dplyr::filter(res_fdr50, setting == "varyinges", grepl("N\\(0, 1\\)", dist))
-res50_uni <- dplyr::mutate(res50_uni, dist = droplevels(dist))
-res50_uni <- tidyr::complete(res50_uni, Method, signal, dist, key)
-
-uni50_fdr <- dplyr::filter(res50_uni, key == "FDR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.025, alpha=0.5) +
-    geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2) + 
-    facet_wrap(~ signal, scales = "free_x", label = label_both, nrow = 1) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .1)) +
-    scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-uni50_tpr <- dplyr::filter(res50_uni, key == "TPR") %>%
-    ggplot(aes(x = alpha, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 0.025, alpha=0.5) +
-    facet_wrap(~ signal, scales = "free", label = label_both, nrow = 1) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .1)) +
-    scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-gp <- plot_grid(uni50_fdr + guides(color = FALSE, linetype = FALSE),
-                uni50_tpr + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
-gp <- plot_grid(gp, get_legend(uni50_tpr), rel_widths = c(1, 1/16))
+gp <- plot_grid(info_fdr_diff + guides(color = FALSE, linetype = FALSE),
+                info_tpr_diff + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:2], ncol = 2)
+gp <- plot_grid(gp, get_legend(info_tpr_diff), rel_widths = c(1, 1/8))
 gp
 ```
 
@@ -737,77 +634,4 @@ gp
 We combine some of the results from above into a single figure.
 
 ```{r, fig.width = 10, fig.height = 11}
-## Figure Sim1, PanelA: FDR under different sampling distributions
-
-## Figure Sim1, PanelB: informativeness, FDR at alpha = 0.10
-fs1b <- dplyr::filter(res_info, key == "FDR", alpha == 0.10) %>%
-    ggplot(aes(x = inform, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    geom_hline(aes(yintercept = alpha), lty = 2, color = "blue", alpha = 1/2) + 
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
-    scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(x =0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-## Figure Sim1, PanelC: informativeness, TPR at alpha = 0.10
-fs1c <- dplyr::filter(res_info, key == "TPR", alpha == 0.10) %>%
-    ggplot(aes(x = inform, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("informativeness", breaks = seq(0, 100, 10)) +
-    scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(x =0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-## Figure Sim1, PanelD: varying null proportions, FDR at alpha = 0.10
-fs1d <- dplyr::filter(res_pi0, key == "FDR", alpha == 0.10) %>%
-    ggplot(aes(x = pi0, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    geom_hline(aes(yintercept = alpha), lty = 2, color = "blue", alpha = 1/2) + 
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("pi0", breaks = seq(0, 100, 10)) +
-    scale_y_continuous("FDR", labels = scales::percent) +
-    ggtitle("Mean FDR Over 100 Replications") +
-    expand_limits(x =0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-## Figure Sim1, PanelE: varying null proportions, TPR at alpha = 0.10
-fs1e <- dplyr::filter(res_pi0, key == "TPR", alpha == 0.10) %>%
-    ggplot(aes(x = pi0, y = mean_value, color = Method)) +
-    geom_line(aes(linetype = Method), alpha = 0.85) +
-    geom_errorbar(aes(ymin = mean_value - se, ymax = mean_value + se), width = 2.5, alpha=0.5) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("pi0", breaks = seq(0, 100, 10)) +
-    scale_y_continuous("TPR", labels = scales::percent) +
-    ggtitle("Mean TPR Over 100 Replications") +
-    expand_limits(x =0, y = 0) +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 14))
-
-gp <- plot_grid(fs1b + guides(color = FALSE, linetype = FALSE),
-                fs1c + guides(color = FALSE, linetype = FALSE),
-                fs1d + guides(color = FALSE, linetype = FALSE),
-                fs1e + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[2:5], ncol = 2)
-gp <- plot_grid(gp, get_legend(fs1b), rel_widths = c(1, 1/8))
-plot_grid(noise_fdr + guides(color = FALSE, linetype = FALSE) + coord_cartesian(ylim = c(0, .2)),
-          gp, ncol = 1, rel_heights = c(5/12, 1),
-          labels = c(LETTERS[1], NA))
 ```
