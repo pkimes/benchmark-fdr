@@ -138,7 +138,7 @@ simulateOneSplit <- function(X, rseed,
   set.seed(as.numeric(X)*as.numeric(rseed))
   
   # things needed to simulate with Polyester
-  groupPolyester = rep(c(-1,1),each=sampleSize)
+  groupPolyester = rep(c(0,1),each=sampleSize)
   modPolyester = model.matrix(~-1 + groupPolyester)
   
   # things needed for differential testing using DESeq2
@@ -173,12 +173,12 @@ simulateOneSplit <- function(X, rseed,
     
     # randomly sample a log2FC from N(0,1) 
     log2FC[DE] <- rnorm(nDE, sd = 1)
+    # polyester assumes FC is on the log scale
     dat_alt[DE,] = create_read_numbers(mu[DE], paramPolyester$fit, p0[DE], 
-                                  n=sampleSize*2, beta=cbind(log2FC[DE]/2), 
+                                  n=sampleSize*2, beta=cbind(log(2^log2FC[DE])), 
                                   mod=modPolyester)
   }
-  
-  
+
   # run DESeq2
   dds_alt <- DESeqDataSetFromMatrix(countData=dat_alt, 
                                     colData = DataFrame(groupDESeq), 
