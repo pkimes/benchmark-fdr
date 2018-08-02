@@ -118,7 +118,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       dplyr::select(truth, covname, bonf, bh,
                     qvalue, contains("ihw"), contains("ash"),
                     "bl-df03", lfdr, 
-                    contains("fdrreg")) %>%
+                    contains("fdrreg"), contains("adapt")) %>%
       dplyr::mutate(bin = ntile(abs(get(covname)), nbins)) %>%
       tidyr::gather(method, significant, -covname, -bin) %>%
       dplyr::group_by(method, bin) %>%
