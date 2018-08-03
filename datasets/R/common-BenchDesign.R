@@ -21,12 +21,11 @@
 #' benchmarking methods to compare FDR control. These are currently: unadjusted,
 #' Bonferroni, Benjamini-Hochberg, Storey's q-value, IHW (with 10 different 
 #' alpha values from 0.01 to 0.10), Stephens' ash, Boca-Leek (with 4 different
-#' smoothing df values from 2 to 5), Cai's local FDR, and Scott's FDR regression
-#' (with two null settings, empirical and theoretical).
+#' smoothing df values from 2 to 5), Cai's local FDR, and Lei and Fithian's
+#' AdaPT (with spline GLM).
 #' 
-#' @import IHW ashr qvalue swfdr fdrtool FDRreg magrittr SummarizedBenchmark
+#' @import IHW ashr qvalue swfdr fdrtool adaptMT magrittr SummarizedBenchmark
 #' 
-#' @author Patrick Kimes
 initializeBenchDesign <- function() {
   ## ###########################################################################
   ## check for necessary packages and load them if they aren't present
@@ -39,6 +38,8 @@ initializeBenchDesign <- function() {
   library(swfdr)
   library(fdrtool)
   library(FDRreg) 
+  library(adaptMT)
+  library(splines)
   
   ## ###########################################################################
   ## define bechmarking design
@@ -89,6 +90,15 @@ initializeBenchDesign <- function() {
   bd %<>% addBMethod("lfdr",
                      clfdr_hickswrapper,
                      unadj_p = pval, groups = IHW::groups_by_filter(ind_covariate, 20))
+  ## AdaPT (GLM)
+  bd %<>% addBMethod("adapt-glm",
+                     adaptMT::adapt_glm,
+                     function(x) { x$qvals },
+                     pvals = pval,
+                     x = data.frame(icov = ind_covariate),
+                     pi_formulas = paste0("splines::ns(icov, df = ", seq(2, 10, 2), ")"),
+                     mu_formulas = paste0("splines::ns(icov, df = ", seq(2, 10, 2), ")"),
+                     alphas = 0)
   return(bd)
 }
 
