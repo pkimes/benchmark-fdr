@@ -1,12 +1,17 @@
 #' Simulate Collection of Test Statistics
 #'
 #' Function for simulating a large set of (independent) test results.
-#' Test statistics and p-values are directly simulated from a specified
-#' test-statistic distribution (`tstat`) and perturbed according to a specified
-#' noise distribution (`tstat_dist`). This simulator resembles the simulations carried
-#' out in the manuscripts of the Boca-Leek, ASH, and IHW methods.
-#' (For IHW, in particular, the simulations illustrating the "size investing strategy"
-#' fall under this class of simulations.)
+#' For Normal and t-distributed test statistics, effect sizes are directly simulated
+#' from a specified true effect size distribution (`es_dist`) and perturbed according to a
+#' specified noise distribution with correspond standard errors to obtain the observed set of
+#' test statistics (`ts_dist`). For Chi-squared distributed test statistics, the notions of
+#' effect size and standard error are not well defined, and we therefore just set the standard
+#' error to 1 and effect size equal to the test statistic. This does not matter for our simulations,
+#' where the effect size and standard error are only used by a single method (ASH) which is
+#' not included in the comparisons under the Chi-squared distribution. This simulator resembles
+#' the simulations carried out in the manuscripts of the Boca-Leek, ASH, and IHW methods.
+#' (For IHW, in particular, the simulations illustrating the "size investing strategy" fall under
+#' this class of simulations.)
 #'
 #' @param X simulation index
 #' @param bench BenchDesign object of methods to run on simulated data set.
@@ -18,12 +23,13 @@
 #' @param icovariate specification for the independent covariate, must be a function
 #'        which takes an integer value and returns a vector of the specified length to
 #'        be used as the independent covariate.
-#' @param tstat expected test statistic under the alternative, can either be a single
+#' @param es_dist expected effect size under the alternative, can either be a single
 #'        numeric value or a function which takes an integer as input and returns a
-#'        numeric vector of test statistics of the specified length.
-#' @param tstat_dist sampling distribution of test statistic, must be a function
-#'        which takes a vector of test statistics, and returns a list of perturbed
-#'        test statistics of the same length.
+#'        numeric vector of effect sizes of the specified length.
+#' @param ts_dist sampling distribution of effect size, must be a function taking two
+#'        inputs, a vector of true effect sizes and a logical value whether to return
+#'        the perturbed effect sizes or the corresponding standard error. The perturbed
+#'        effect sizes and standard errors are used to compute the test statistics.
 #' @param null_dist distribution under the null used to calculate p-values from the
 #'        test statistic, must be a function which takes the full vector of null and
 #'        alternative test statistics and return the corresponding p-values.
@@ -42,19 +48,19 @@
 #' Within the function, the specified BenchDesign object is run against a simulated
 #' data.frame with the following  columns.
 #' * `qvalue`: 0/1 indicator whether data simulated under null (0) or alternative (1)
-#' * `effect_size`: simulated effect size - effect size + sampling noise
-#' * `test_statistic`: same as `effect_size` (NOT scaled by SE estimate)
+#' * `effect_size`: simulated effect size - true effect size + sampling noise
+#' * `test_statistic`: `effect_size` divided by `SE`
 #' * `pval`: test p-value calculated from test-statistic using `null_dist`
 #' * `ind_covariate`: the independent covariate
-#' * `SE`: true standard deviations for sampling distributions (for ASH)
+#' * `SE`: standard errors for the `test_statistic`
 #' 
 #' @md
 #' @author Patrick Kimes
-simIteration <- function(X, bench, m, pi0, tstat, tstat_dist, null_dist,
+simIteration <- function(X, bench, m, pi0, es_dist, ts_dist, null_dist,
                          icovariate, execute = TRUE, seed = NULL) {
     if (!is.null(seed)) { set.seed(seed * X) }
-    stopifnot(is.function(tstat))
-    stopifnot(is.function(tstat_dist))
+    stopifnot(is.function(es_dist))
+    stopifnot(is.function(ts_dist))
     stopifnot(is.function(icovariate))
     
     ## simulate indep covariate from icovariate function
@@ -73,28 +79,28 @@ simIteration <- function(X, bench, m, pi0, tstat, tstat_dist, null_dist,
     stopifnot(min(pi0s) >= 0 && max(pi0s) <= 1)
     alts <- which(rbinom(m, 1, 1 - pi0s) == 1)
     
-    ## generate set of null (0) and alternative test statistics
-    ts <- rep(0, m)
+    ## generate set of null (0) and alternative true effect sizes
+    es <- rep(0, m)
     if (length(alts) > 0) {
-        ts[alts] <- tstat(length(alts))
+        es[alts] <- es_dist(length(alts))
     }
-    
-    ## determine (true) SD of sampling dist used to perturb each stat
-    SE <- tstat_dist(ts, se = TRUE)
 
-    ## perturb each stat
-    ts <- tstat_dist(ts)
-    stopifnot(length(ts) == m)
+    ## determine SE of test statistics
+    SE <- ts_dist(es, se = TRUE)
+
+    ## perturb effect sizes to get observed effect sizes
+    es <- ts_dist(es)
+    stopifnot(length(es) == m)
     
     ## null/alt indicator
     H <- rep(0, m)
     H[alts] <- 1
 
+    ## test stat for normal and t-dist is just (effect size) / SE 
+    ts <- es / SE
+
     ## calculate p-values 
     pv <- null_dist(ts)
-
-    ## 'effect size' is same as test statistic
-    es <- ts
 
     ## organize in data.frame
     dat <- data.frame(qvalue = H, effect_size = es, test_statistic = ts, 
@@ -218,42 +224,18 @@ sampler_near_normal <- rnormmix_generator(params$near_normal)
 ## END CODE DERIVED FROM EXTERNAL SOURCE
 ## ##############################################################################
 
-## function factory: normal distribution
+## function factory: normal sampler
 rnorm_generator <- function(m, s = 1) {
     function(n) {
         rnorm(n, m, s)
     }
 }
 
-## function factory: non-central t distribution
-rt_generator <- function(df, m = 0) {
-    if (m == 0) {
-        return(function(n) { rt(n, df) })
-    } else if (df > 1) {
-        ncp <- m / gamma((df-1)/2) * gamma(df/2) / sqrt(df/2)
-        return(function(n) { rt(n, df, ncp) })
-    } else {
-        stop("eep! my author didn't write me to accept ",
-             "(df <= 1) & (m != 0). sorry!")
-    }
-}
-
-## function factory: non-central chi-sq distribution
-rchisq_generator <- function(df, ncp = 0) {
-    return(function(n) { rchisq(n, df, ncp) })
-}
-
-
-
-
 
 ## ##############################################################################
 ## ##############################################################################
 
-## function factory: normal perturbation
-## - returns functions which takes input vector and simulates normal
-##   random variables with specified vector as means.
-## - returned function can also return (true) SD of sampling dist
+## function factory: observed effect size and SE generators
 
 #' normal distribution samplers
 rnorm_perturber <- function(s = 1) {
@@ -268,11 +250,9 @@ rt_perturber <- function(df) {
     if (df <= 2) {
         stop("var not defined for non-central t with df <= 2.")
     }
-    function(m, se = FALSE) {
-        ncp <- m / gamma((df-1)/2) * gamma(df/2) / sqrt(df/2)
-        if (se) { return(sqrt(df*(1+ncp^2) / (df-2) - m^2)) }
-        ## rt(..) w/ length(ncp) > 1 throws warning - just call underlying code
-        rnorm(length(m), ncp) / sqrt(rchisq(length(m), df) / df)
+    function(ncp, se = FALSE) {
+        if (se) { return( sqrt(rchisq(length(ncp), df = df) / df) ) }
+        rnorm(length(ncp), ncp, 1)
     }
 }
 
@@ -280,7 +260,7 @@ rt_perturber <- function(df) {
 rchisq_perturber <- function(df) {
     function(ncp, se = FALSE) {
         stopifnot(ncp >= 0)
-        if (se) { return(sqrt(2 * df + 4 * ncp)) }
+        if (se) { return(rep(1, length(ncp))) }
         rchisq(length(ncp), df, ncp)
     }
 }
