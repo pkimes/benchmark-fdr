@@ -87,7 +87,7 @@ All simulation settings will share the following parameters.
 ```{r parameters-shared}
 m <- 20000                          # integer: number of hypothesis tests
 pi0 <- pi0_cubic(0.90)              # numeric: proportion of null hypotheses
-tstat_dist <- rt_perturber(11)      # functional: sampling dist/noise for test stats
+ts_dist <- rt_perturber(11)      # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(11)        # functional: dist to calc p-values
 icovariate <- runif                 # functional: independent covariate
 ```
@@ -109,7 +109,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r spiky-parameters}
-tstat <- sampler_spiky       # functional: dist of alternative test stats
+es_dist <- sampler_spiky       # functional: dist of alternative test stats
 seed <- 778
 ```
 
@@ -120,8 +120,8 @@ if (file.exists(spiky_file)) {
     res <- readRDS(spiky_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = spiky_file)
 }
@@ -135,7 +135,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r spiky-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -144,7 +144,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, spiky-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -224,7 +224,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r flattop-parameters}
-tstat <- sampler_flat_top       # functional: dist of alternative test stats
+es_dist <- sampler_flat_top       # functional: dist of alternative test stats
 seed <- 980
 ```
 
@@ -235,8 +235,8 @@ if (file.exists(flattop_file)) {
     res <- readRDS(flattop_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = flattop_file)
 }
@@ -250,7 +250,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r flattop-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -259,7 +259,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, flattop-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -339,7 +339,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r skew-parameters}
-tstat <- sampler_skew       # functional: dist of alternative test stats
+es_dist <- sampler_skew       # functional: dist of alternative test stats
 seed <- 206
 ```
 
@@ -350,8 +350,8 @@ if (file.exists(skew_file)) {
     res <- readRDS(skew_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = skew_file)
 }
@@ -365,7 +365,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r skew-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -374,7 +374,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, skew-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -454,7 +454,7 @@ centered at -2, 2, with variance 1), again, as defined in the ASH simulations.
 ## Data Simulation
 
 ```{r bimodal-parameters}
-tstat <- sampler_bimodal       # functional: dist of alternative test stats
+es_dist <- sampler_bimodal       # functional: dist of alternative test stats
 seed <- 913
 ```
 
@@ -465,8 +465,8 @@ if (file.exists(bimodal_file)) {
     res <- readRDS(bimodal_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = bimodal_file)
 }
@@ -480,7 +480,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r bimodal-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -489,7 +489,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, bimodal-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
