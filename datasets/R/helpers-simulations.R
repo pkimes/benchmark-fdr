@@ -240,7 +240,7 @@ rnorm_generator <- function(m, s = 1) {
 #' normal distribution samplers
 rnorm_perturber <- function(s = 1) {
     function(m, se = FALSE) {
-        if (se) { return(rep(s, length(m))) }
+        if (se) { return(rep(1, length(m))) }
         rnorm(length(m), m, s)
     }
 }
