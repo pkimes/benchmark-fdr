@@ -87,8 +87,8 @@ All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                        # integer: number of hypothesis tests
-tstat <- rnorm_generator(2)       # functional: dist of alternative test stats
-tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(2)       # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 icovariate <- runif               # functional: independent covariate
 ```
@@ -119,8 +119,8 @@ if (file.exists(null05_file)) {
     res <- readRDS(null05_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null05_file)
 }
@@ -134,7 +134,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null05-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -143,7 +143,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null05-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -232,8 +232,8 @@ if (file.exists(null10_file)) {
     res <- readRDS(null10_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null10_file)
 }
@@ -247,7 +247,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null10-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -256,7 +256,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null10-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -345,8 +345,8 @@ if (file.exists(null20_file)) {
     res <- readRDS(null20_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null20_file)
 }
@@ -360,7 +360,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null20-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -369,7 +369,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null20-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -458,8 +458,8 @@ if (file.exists(null30_file)) {
     res <- readRDS(null30_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null30_file)
 }
@@ -473,7 +473,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null30-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -482,7 +482,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null30-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -571,8 +571,8 @@ if (file.exists(null40_file)) {
     res <- readRDS(null40_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null40_file)
 }
@@ -586,7 +586,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null40-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -595,7 +595,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null40-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -684,8 +684,8 @@ if (file.exists(null50_file)) {
     res <- readRDS(null50_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null50_file)
 }
@@ -699,7 +699,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null50-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -708,7 +708,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null50-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -797,8 +797,8 @@ if (file.exists(null60_file)) {
     res <- readRDS(null60_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null60_file)
 }
@@ -812,7 +812,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null60-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -821,7 +821,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null60-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -910,8 +910,8 @@ if (file.exists(null70_file)) {
     res <- readRDS(null70_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null70_file)
 }
@@ -925,7 +925,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null70-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -934,7 +934,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null70-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -1023,8 +1023,8 @@ if (file.exists(null80_file)) {
     res <- readRDS(null80_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null80_file)
 }
@@ -1038,7 +1038,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null80-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -1047,7 +1047,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null80-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -1136,8 +1136,8 @@ if (file.exists(null90_file)) {
     res <- readRDS(null90_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null90_file)
 }
@@ -1151,7 +1151,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null90-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -1160,7 +1160,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null90-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -1249,8 +1249,8 @@ if (file.exists(null95_file)) {
     res <- readRDS(null95_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null95_file)
 }
@@ -1264,7 +1264,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null95-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -1273,7 +1273,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null95-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -1362,8 +1362,8 @@ if (file.exists(null99_file)) {
     res <- readRDS(null99_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = null99_file)
 }
@@ -1377,7 +1377,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r null99-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -1386,7 +1386,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, null99-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics

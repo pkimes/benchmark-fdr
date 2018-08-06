@@ -94,8 +94,8 @@ First, we consider the setting with Gaussian noise.
 ## Data Simulation
 
 ```{r gauss-parameters}
-tstat <- rnorm_generator(3)       # functional: dist of alternative test stats
-tstat_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(3)       # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 seed <- 608
 ```
@@ -107,8 +107,8 @@ if (file.exists(gauss_file)) {
     res <- readRDS(gauss_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = gauss_file)
 }
@@ -122,7 +122,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r gauss-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -131,7 +131,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, gauss-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -209,8 +209,8 @@ Next, we consider the setting with t-distributed noise.
 ## Data Simulation
 
 ```{r t5-parameters}
-tstat <- rnorm_generator(6)    # functional: dist of alternative test stats
-tstat_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(6)    # functional: dist of alternative test stats
+ts_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
 ```
@@ -231,8 +231,8 @@ if (file.exists(tdist_file)) {
     res <- readRDS(tdist_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = tdist_file)
 }
@@ -246,7 +246,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r t5-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -255,7 +255,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, t5-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -333,8 +333,8 @@ Next, we consider a second setting with t-distributed noise.
 ## Data Simulation
 
 ```{r t11-parameters}
-tstat <- rnorm_generator(3)     # functional: dist of alternative test stats
-tstat_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
+ts_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
 seed <- 9158
 ```
@@ -355,8 +355,8 @@ if (file.exists(tdist11_file)) {
     res <- readRDS(tdist11_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = tdist11_file)
 }
@@ -370,7 +370,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r t11-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -379,7 +379,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, t11-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
@@ -457,8 +457,8 @@ Finally, we consider the setting with chi-squared distributed noise.
 ## Data Simulation
 
 ```{r chisq4-parameters}
-tstat <- rnorm_generator(15)       # functional: dist of alternative test stats
-tstat_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(15)       # functional: dist of alternative test stats
+ts_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
 null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
 seed <- 1023
 ```
@@ -481,8 +481,8 @@ if (file.exists(chisq_file)) {
     res <- readRDS(chisq_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdchi, m = m,
-                    pi0 = pi0, tstat = tstat, icovariate = icovariate,
-                    tstat_dist = tstat_dist, null_dist = null_dist,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
     saveRDS(res, file = chisq_file)
 }
@@ -496,7 +496,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r chisq4-one-simulation}
-onerun <- simIteration(bdchi, m = m, pi0 = pi0, tstat = tstat, tstat_dist = tstat_dist,
+onerun <- simIteration(bdchi, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -505,7 +505,7 @@ rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
 ```{r, chisq4-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 5, numQ = 3)
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
 ## Benchmark Metrics
