@@ -174,12 +174,12 @@ casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
 dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 # not excluding any methods
-Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
-                  "fdrreg-e", "fdrreg-t", "ashq")
+Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
+                     "fdrreg-e", "fdrreg-t", "ashq")
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.98, 0.93), legend.justification = c(1, 1),
+              legend.position = c(0.98, 0.91), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
@@ -649,7 +649,7 @@ objdat_tab <- tidyr::gather(objdat_tab, method, cnt, -casestudy, -assay)
 objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow")
 
 ## specify method order
-method_order <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
+method_order <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
                   "fdrreg-e", "fdrreg-t", "ashq")
 objdat_joint <- dplyr::mutate(objdat_joint, method = factor(method, levels = c(method_order, "Total Tests")))
 ```
@@ -722,7 +722,7 @@ if (length(promot) > 0){
 }
 
 # methods that use a covariate
-cov.methods <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
+cov.methods <- c("ihw", "bl", "adapt-glm", "lfdr", "fdrreg-e", "fdrreg-t")
 
 # regexp to construct master data table separating case study datasets, methods
 # and covariates
@@ -770,7 +770,7 @@ inftab <- dftab %>%
   dplyr::filter(inform == "inf") %>%
   dplyr::select(-inform)
 
-rowOrder <- c("ihw", "bl", "lfdr", "fdrreg-e", "fdrreg-t")
+rowOrder <- c("ihw", "bl", "adapt-glm", "lfdr", "fdrreg-e", "fdrreg-t")
 
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   dplyr::mutate(diff_inf = nrejects - uninf) %>%
