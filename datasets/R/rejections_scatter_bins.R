@@ -42,7 +42,7 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
   dataPerBin <- do.call(rbind, dataPerBin)
   levels(dataPerBin$bin) <- tapply( rowData(sb)[[covariate]], 
                                     rowData(sb)$bin, 
-                                    function(x){paste( round( range(x), 2 ), collapse=" - ")} )
+                                    function(x){paste( signif( range(x), 2 ), collapse=" - ")} )
   plotDF <- dataPerBin %>% dplyr:::filter( !(grepl("ihw", blabel) & param.alpha != alpha ) ) %>%
     dplyr:::mutate( blabel=gsub("(ihw)-a\\d+", "\\1", blabel ) ) %>%
 #    dplyr:::select( blabel, key, value, assay, performanceMetric, alpha, bin ) %>%
