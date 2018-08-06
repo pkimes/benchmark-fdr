@@ -179,7 +179,7 @@ Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
 Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
                         excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.98, 0.91), legend.justification = c(1, 1),
+              legend.position = c(0.97, 0.92), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
@@ -265,12 +265,12 @@ ptpr <- plotMethodRanks(objs,
 
 
 ggdraw() +
-  draw_plot(pfdr, 0.53, 0, 0.23, 1) +
-  draw_plot(ptpr, 0.76, 0, 0.23, 1) +
+  draw_plot(pfdr, 0.53, 0, 0.24, 1) +
+  draw_plot(ptpr, 0.77, 0, 0.24, 1) +
   draw_plot(Fig4All, 0, 0, 0.52, 1) +
   draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
   draw_plot_label("Simulation", 0.69, 0.06, size =11, fontface = "plain")
-ggsave(file.path(outdir, "Figure4.pdf"), width=9, height=5)
+ggsave(file.path(outdir, "Figure4.pdf"), width=9.5, height=5)
 
 # generate detailed yeast sim table for creating sim vs cs ranks boxplots
 yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
