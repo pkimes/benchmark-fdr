@@ -109,18 +109,7 @@ ggsave(file.path(outdir, "Figure2A-D.pdf"), width=10, height=8)
 
 # Figure 3
 
-This is a side-by-side figure displaying the TPR by alpha cutoff, faceted by 
-whether the method uses multiple pieces of information or just one (the p-value).
-This figure uses the same data as Figure 1.
-  
-```{r, Figure3, fig.width = 8, fig.height = 4}
-# Figure 3: TPR of methods using by pieces of information used 
-Fig3 <- plotsim_average(res5d, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE, facetMethodType = TRUE) 
-
-Fig3
-ggsave(file.path(outdir, "Figure3.pdf"), width=8, height=4)
-```
+Replaced with a pure simulation figure - see `manuscript_figures_sims.Rmd`.
 
 # Figure 4 
 
@@ -306,7 +295,7 @@ ggplot(rank.tab %>% filter(method != "bonf"),
                    width = 0.02) +
   scale_color_manual(values=col) +
   theme_bw() +
-  xlab("Proportion of maximum rejections in yeast simulation (n=5s)") +  
+  xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
   ylab("Proportion of maximum rejections in casestudies") +
   labs(shape = "Case Study") 
 ggsave(file.path(outdir, "Figure_simVcasestudyRanks_scaled.pdf"), width=6, height=4)
@@ -764,7 +753,6 @@ uninftab <- dftab %>%
   dplyr::filter(inform == "uninf") %>%
   dplyr::select(id, nrejects) %>%
   dplyr::rename("uninf" = "nrejects")
-  #dplyr::rename(nrejects = "uninf")
 
 inftab <- dftab %>%
   dplyr::filter(inform == "inf") %>%
@@ -799,7 +787,7 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
         facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
         ggtitle("Impact of informative covariate on number of rejections") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.985, 0.91), legend.justification = c(1, 1),
+              legend.position = c(0.985, 0.93), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
