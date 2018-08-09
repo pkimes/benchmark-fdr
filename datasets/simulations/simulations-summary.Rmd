@@ -257,7 +257,7 @@ null_fwer_diff <- dplyr::filter(res_nullset, key == "FWER") %>%
 
 gp <- plot_grid(null_tnr_diff + guides(color = FALSE, linetype = FALSE),
                 null_fwer_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[3:4], ncol = 1)
 gp <- plot_grid(gp, get_legend(null_tnr_diff), rel_widths = c(1, 1/16))
 gp
 ```
@@ -354,7 +354,7 @@ noise_tpr_diff <- dplyr::filter(res_noise, key == "TPR") %>%
 
 gp <- plot_grid(noise_fdr_diff + guides(color = FALSE, linetype = FALSE),
                 noise_tpr_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[3:4], ncol = 1)
 gp <- plot_grid(gp, get_legend(noise_tpr_diff), rel_widths = c(1, 1/16))
 gp
 ```
@@ -445,7 +445,7 @@ icov_tpr_diff <- dplyr::filter(res_icov, key == "TPR") %>%
 
 gp <- plot_grid(icov_fdr_diff + guides(color = FALSE, linetype = FALSE),
                 icov_tpr_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[3:4], ncol = 1)
 gp <- plot_grid(gp, get_legend(icov_tpr_diff), rel_widths = c(1, 1/12))
 gp
 ```
@@ -583,7 +583,7 @@ info_tpr_diff <- dplyr::filter(res_info, key == "TPR") %>%
 
 gp <- plot_grid(info_fdr_diff + guides(color = FALSE, linetype = FALSE),
                 info_tpr_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 2)
+                labels = LETTERS[3:4], ncol = 2)
 gp <- plot_grid(gp, get_legend(info_tpr_diff), rel_widths = c(1, 1/8))
 gp
 ```
@@ -680,7 +680,7 @@ noise_tpr_diff <- dplyr::filter(res_ua, key == "TPR") %>%
 
 gp <- plot_grid(noise_fdr_diff + guides(color = FALSE, linetype = FALSE),
                 noise_tpr_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[3:4], ncol = 1)
 gp <- plot_grid(gp, get_legend(noise_tpr_diff), rel_widths = c(1, 1/16))
 gp
 ```
@@ -768,7 +768,7 @@ noise_tpr_diff <- dplyr::filter(res_ua, key == "TPR") %>%
 
 gp <- plot_grid(noise_fdr_diff + guides(color = FALSE, linetype = FALSE),
                 noise_tpr_diff + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:2], ncol = 1)
+                labels = LETTERS[3:4], ncol = 1)
 gp <- plot_grid(gp, get_legend(noise_tpr_diff), rel_widths = c(1, 1/16))
 gp
 ```
