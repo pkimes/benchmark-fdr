@@ -36,12 +36,12 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-n100_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n100.rds")
-n500_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n500.rds")
-n1000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n1000.rds")
-n5000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n5000.rds")
-n10000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n10000.rds")
-n50000_file <- file.path(resdir, "varyingntests-lowsignal-benchmark-n50000.rds")
+n100_file <- file.path(resdir, "varyingntests-benchmark-n100.rds")
+n500_file <- file.path(resdir, "varyingntests-benchmark-n500.rds")
+n1000_file <- file.path(resdir, "varyingntests-benchmark-n1000.rds")
+n5000_file <- file.path(resdir, "varyingntests-benchmark-n5000.rds")
+n10000_file <- file.path(resdir, "varyingntests-benchmark-n10000.rds")
+n50000_file <- file.path(resdir, "varyingntests-benchmark-n50000.rds")
 
 ## number of cores for parallelization
 cores <- 20

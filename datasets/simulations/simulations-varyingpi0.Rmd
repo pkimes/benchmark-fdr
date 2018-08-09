@@ -38,18 +38,18 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-null05_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop05.rds")
-null10_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop10.rds")
-null20_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop20.rds")
-null30_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop30.rds")
-null40_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop40.rds")
-null50_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop50.rds")
-null60_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop60.rds")
-null70_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop70.rds")
-null80_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop80.rds")
-null90_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop90.rds")
-null95_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop95.rds")
-null99_file <- file.path(resdir, "varyingpi0-lowsignal-benchmark-nullprop99.rds")
+null05_file <- file.path(resdir, "varyingpi0-benchmark-nullprop05.rds")
+null10_file <- file.path(resdir, "varyingpi0-benchmark-nullprop10.rds")
+null20_file <- file.path(resdir, "varyingpi0-benchmark-nullprop20.rds")
+null30_file <- file.path(resdir, "varyingpi0-benchmark-nullprop30.rds")
+null40_file <- file.path(resdir, "varyingpi0-benchmark-nullprop40.rds")
+null50_file <- file.path(resdir, "varyingpi0-benchmark-nullprop50.rds")
+null60_file <- file.path(resdir, "varyingpi0-benchmark-nullprop60.rds")
+null70_file <- file.path(resdir, "varyingpi0-benchmark-nullprop70.rds")
+null80_file <- file.path(resdir, "varyingpi0-benchmark-nullprop80.rds")
+null90_file <- file.path(resdir, "varyingpi0-benchmark-nullprop90.rds")
+null95_file <- file.path(resdir, "varyingpi0-benchmark-nullprop95.rds")
+null99_file <- file.path(resdir, "varyingpi0-benchmark-nullprop99.rds")
 
 ## number of cores for parallelization
 cores <- 20
