@@ -1,6 +1,6 @@
 ---
-title: "Simulation Summary Figures (simulations)"
-author: "Rafalab"
+title: "Simulation Summary Figures"
+author: "Patrick Kimes"
 output: 
     html_document:
         toc: true
@@ -26,7 +26,7 @@ library(grid)
 library(SummarizedBenchmark)
 
 ## load helper functions
-for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 
@@ -459,7 +459,7 @@ false discovery proportion and true positive rate at a nominal alpha cutoff of 0
 for each method. The sine informative covariate was used in these simulation settings.
 
 ```{r, fig.width = 10, fig.height = 4}
-res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0-lowsignal", alpha == 0.05)
+res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
                       
 pi0_fdr <- dplyr::filter(res_pi0, key == "FDR") %>%
     ggplot(aes(x = pi0, y = mean.info, color = Method)) +
@@ -510,7 +510,7 @@ respectively. We plot the false discovery proportion and true positive rate at a
 cutoff of 0.05 for each method. 
 
 ```{r, fig.width = 10, fig.height = 4}
-res_info <- dplyr::filter(resmet, setting == "varyinginfo-lowsignal", alpha == 0.05)
+res_info <- dplyr::filter(resmet, setting == "varyinginfo", alpha == 0.05)
 
 info_fdr <- dplyr::filter(res_info, key == "FDR") %>%
     ggplot(aes(x = inform, y = mean.info, color = Method)) +
