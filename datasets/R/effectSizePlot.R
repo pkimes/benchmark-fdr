@@ -156,7 +156,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   names(lty) <- as.character(df$Method)
   
   if (linePlot){
-    p <- ggplot(df, aes(x = bin/nbins, y = nsig, color = Method)) +
+    p <- ggplot(df, aes(x = (2*bin-1)/(2*nbins), y = nsig, color = Method)) +
       geom_line(alpha = 0.85, aes(linetype=Method)) +
       ylab("Mean % Significant") +
       scale_x_continuous(labels = scales::percent) +
@@ -179,7 +179,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       p <- p + scale_x_continuous(trans=transx)
     }
   }else{
-    p <- ggplot(df, aes(x = as.factor(Method), y = bin/nbins)) +
+    p <- ggplot(df, aes(x = as.factor(Method), y = (2*bin-1)/(2*nbins))) +
          geom_raster(aes(fill = nsig)) +
       xlab("Method") +
       scale_y_continuous(labels = scales::percent) +
