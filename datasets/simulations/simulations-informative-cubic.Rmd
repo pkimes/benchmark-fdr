@@ -163,6 +163,12 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
+We also look at the FDR as a function of the independent covariate.
+
+```{r gauss-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
@@ -287,6 +293,12 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 ```
 
+We also look at the FDR as a function of the independent covariate.
+
+```{r t5-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
@@ -409,6 +421,12 @@ the effect size and independent covariate.
 covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r t11-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
@@ -554,6 +572,12 @@ covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")]
 
 covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
                   alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r chisq4-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
 ```
 
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
