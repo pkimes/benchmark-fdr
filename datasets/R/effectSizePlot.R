@@ -95,6 +95,9 @@ return(p)
 #' @param nbins positive inter value indicating how many bins to divide the 
 #' covariate values into for the x-axis (lineplot) or rows (heatmap). 
 #' Defaults to 50.
+#' @param metric string specifying which metric to plot as a function of the
+#'        covariate specified by \code{covname}. Must be one of
+#'        "discoveries" (default), "FDR", "TDR", or "TNR".
 #' @param trans character indicating a transformation to apply to the scale
 #' of the y-axis (lineplot) or fill (heatmap). For example, "log1p" applies 
 #' the log(x+1) transform. The default NULL means no transformation. 
@@ -104,9 +107,11 @@ return(p)
 #' 
 #' @return a ggplot object
 covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25, 
-                             covname, trans = NULL, transx = NULL,
-                             linePlot = TRUE, palette=candycols){
-  
+                              covname, metric = c("discoveries", "FDR", "TDR", "TNR") ,
+                              trans = NULL, transx = NULL,
+                              linePlot = TRUE, palette=candycols){
+  metric <- match.arg(metric)
+    
   summarize_one_item <- function(object, alpha, nbins){
     object <- object[,!( grepl("^ihw", as.character( colData( object )$blabel ))
                          & colData( object )$param.alpha != alpha )]
@@ -120,19 +125,31 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
                     "bl-df03", lfdr, 
                     contains("fdrreg"), contains("adapt")) %>%
       dplyr::mutate(bin = ntile(abs(get(covname)), nbins)) %>%
-      tidyr::gather(method, significant, -covname, -bin) %>%
+      tidyr::gather(method, significant, -covname, -bin, -truth) %>%
       dplyr::group_by(method, bin) %>%
-      dplyr::summarize(nsig = sum(significant),
-                       tot = sum(!is.na(significant))) %>%
-      dplyr::filter(method != 'truth') 
+      dplyr::summarize(nfp = sum(significant * (1-truth), na.rm = TRUE),
+                       ntp = sum(significant * truth, na.rm = TRUE),
+                       ntn = sum((1-significant) * (1-truth), na.rm = TRUE),
+                       nsig = sum(significant, na.rm = TRUE),
+                       tot = sum(!is.na(significant)))
   }
   
   if (is.list(sbl)){
     df <- lapply(sbl, summarize_one_item, alpha=alpha, nbins=nbins)
     df <- bind_rows(df, .id = "rep")
-    df <- as_tibble(df) %>%
-        dplyr::mutate(prop = nsig / tot) %>%
-        dplyr::group_by(method, bin) %>%
+    df <- as_tibble(df)
+    if (metric == "discoveries") {
+        df <- dplyr::mutate(df, prop = nsig / tot)
+    } else if (metric == "FDR") {
+        df <- dplyr::mutate(df, prop = nfp / nsig)
+    } else if (metric == "TDR") {
+        df <- dplyr::mutate(df, prop = ntp / nsig)
+    } else if (metric == "TNR") {
+        df <- dplyr::mutate(df, prop = ntn / tot)
+    } else {
+        stop("metric was not a valid input.")
+    }
+    df <- dplyr::group_by(df, method, bin) %>%
         dplyr::summarize(nsig = mean(prop)*100,
                          se = sd(prop * 100) / sqrt(n())) 
   }else if ("SummarizedBenchmark" %in% class(sbl)){
@@ -154,18 +171,24 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   
   lty <- as.character(df$lty)
   names(lty) <- as.character(df$Method)
-  
+
+  if (metric == "discoveries") {
+      ystr <- "% Significant"
+  } else {
+      ystr <- metric
+  }
+
   if (linePlot){
     p <- ggplot(df, aes(x = (2*bin-1)/(2*nbins), y = nsig, color = Method)) +
       geom_line(alpha = 0.85, aes(linetype=Method)) +
-      ylab("Mean % Significant") +
+      ylab(paste0("Mean ", ystr)) +
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
       scale_color_manual(values = col) +
       scale_linetype_manual(values = lty) 
     
     if (!is.list(sbl)){
-      p <- p + ylab("% Significant") 
+      p <- p + ylab(ystr)
     }else{
       p <- p + geom_errorbar(aes(ymin = nsig - se, ymax = nsig + se),
                     width=0.02, alpha=0.5)
@@ -184,10 +207,10 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       xlab("Method") +
       scale_y_continuous(labels = scales::percent) +
       ylab(paste0(covname, " percentile")) +
-      labs(fill="Mean % Significant")
+      labs(fill=paste0("Mean ", ystr))
     
     if (!is.list(sbl)){
-      p <- p + labs(fill = "% Significant")
+      p <- p + labs(fill = ystr)
     }
     
     mpoint <- median(df$nsig)
