@@ -271,7 +271,7 @@ between 0.01 and 0.10 for each method, as well as the true positive rate for eac
 the set of cutoffs. 
 
 ```{r, fig.width = 18, fig.height = 8}
-res_noise <- dplyr::filter(resmet, setting == "informative-cosine")
+res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
 
 noise_fdr <- dplyr::filter(res_noise, key == "FDR") %>%
     ggplot(aes(x = alpha, y = mean.info, color = Method)) +
