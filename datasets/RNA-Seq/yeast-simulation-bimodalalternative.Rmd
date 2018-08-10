@@ -1,5 +1,5 @@
 ---
-title: "Yeast RNA-seq 48 sample simulation study"
+title: "Yeast RNA-seq 48 sample simulation study - II"
 author: "Keegan Korthauer"
 output: 
     html_document:
@@ -31,12 +31,13 @@ Processed count table is made available by the authors in their paper codebase
 [GitHub repository](https://github.com/bartongroup/profDGE48). 
 
 In this Rmd we will carry out simulations for multiple
-replicates, and plot results averaging over the replications. Here we draw effect
-sizes (log2 fold changes) from the observed fold changes in the full comparison of the 
-two conditions. Since this results in a distribution of effect sizes and test
-statistics under the alternative that has a mode at zero, the assumptions for 
-FDRreg-empirical are violated. For this reason, we do not include this method in
-the benchmark comparisons.
+replicates, and plot results averaging over the replications. In contrast to
+`yeast-simulation.Rmd` we will use an alternate simulation framework for generating
+the effect sizes of the DE genes. Here we will use the fold changes of only genes
+that were DE in a comparison of wild type versus knockout (with sample size 10).
+Since this results in a distribution of effect sizes (log2 fold changes) under the
+alternative that does not have a mode at zero, the assumptions for ashq are violated.
+For this reason, we do not include this method in the benchmark comparisons.
 
 # Set up workspace
 
@@ -68,15 +69,15 @@ dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 # results files that will be generated
-resfile_n5 <- file.path(resdir, "yeast-results-null5.rds")
-resfile_n10 <- file.path(resdir, "yeast-results-null10.rds")
-resfile_d5 <- file.path(resdir, "yeast-results-de5.rds")
-resfile_d10 <- file.path(resdir, "yeast-results-de10.rds")
+resfile_n5 <- file.path(resdir, "yeastII-results-null5.rds")
+resfile_n10 <- file.path(resdir, "yeastII-results-null10.rds")
+resfile_d5 <- file.path(resdir, "yeastII-results-de5.rds")
+resfile_d10 <- file.path(resdir, "yeastII-results-de10.rds")
 
-resfile_n5_uninfCov <- file.path(resdir, "yeast-results-null5-uninfCov.rds")
-resfile_n10_uninfCov <- file.path(resdir, "yeast-results-null10-uninfCov.rds")
-resfile_d5_uninfCov <- file.path(resdir, "yeast-results-de5-uninfCov.rds")
-resfile_d10_uninfCov <- file.path(resdir, "yeast-results-de10-uninfCov.rds")
+resfile_n5_uninfCov <- file.path(resdir, "yeastII-results-null5-uninfCov.rds")
+resfile_n10_uninfCov <- file.path(resdir, "yeastII-results-null10-uninfCov.rds")
+resfile_d5_uninfCov <- file.path(resdir, "yeastII-results-de5-uninfCov.rds")
+resfile_d10_uninfCov <- file.path(resdir, "yeastII-results-de10-uninfCov.rds")
 
 # set up parallel backend
 library(parallel)
@@ -140,11 +141,13 @@ counts <- files %>%
   dplyr::select(-badreps ) # remove badreps
 ```
 
-# Analysis of full 48v48 (non-null)
+# Empirical analysis of 10 vs 10 (non-null)
 
-Here we'll carry out an analysis of the full dataset, comparing the controls to the
+Here we'll carry out an analysis of a subset of the full dataset, comparing the controls to the
 knockout samples. The fold changes observed in this comparison will be used when 
-generating the non-null simulated data in the following sections.
+generating the non-null simulated data in the following sections. Here we use a subset
+of the samples (10 samples in each group) to mimic the sample sizes we use in 
+simulation. 
 
 We're ready to construct a DESeq2 object. First we pull out the feature names and
 add them as rownames for the count table, and next we construct a column data object
@@ -167,18 +170,24 @@ coldat <- tibble(sample=colnames(counts)) %>%
 # filter low count genes
 counts <- counts[rowMeans(counts) > 1,]
 
-dds <- DESeqDataSetFromMatrix(countData = counts,
+dds_full <- DESeqDataSetFromMatrix(countData = counts,
                               colData = coldat,
                               design= ~ condition)
 ```
 
 ## Run DESeq2
 
-Next we run DESeq2.
+Next we run DESeq2, and subset results on genes with FDR < 0.05.
 
 ```{r}
 # results on full set
-dds <- DESeq(dds)
+set.seed(9384)
+subset.wt <- dds_full[,colData(dds_full)$condition == "WT"]
+subset.sn <- dds_full[,colData(dds_full)$condition == "Snf2"]
+subset <- cbind(subset.wt[, sample(1:ncol(subset.wt), 10)],
+                subset.sn[, sample(1:ncol(subset.sn), 10)])
+
+dds <- DESeq(subset)
 resultsNames(dds) # lists the coefficients
 resFULL <- results(dds, name="condition_WT_vs_Snf2", independentFiltering = F)
 
@@ -187,15 +196,15 @@ head(resFULL)
 sum(resFULL$padj < 0.05, na.rm=T)
 ```
 
-Check densities of the test statistic and effect sizes.
+Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(resFULL) %>% 
+data.frame(resFULL[resFULL$padj < 0.05,]) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(resFULL) %>% 
+data.frame(resFULL[resFULL$padj < 0.05,]) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
   xlab("Effect Size (log2 Fold Change") 
@@ -212,7 +221,7 @@ geneExp <- tbl_df(data.frame(geneName=rownames(resFULL),
                              ind_covariate = resFULL$baseMean, 
                              effect_size=resFULL$log2FoldChange, 
                              test_statistic=resFULL$stat,
-                             pzero=rowSums(counts(dds)==0)/ncol(counts(dds))))
+                             pzero=rowSums(counts(subset)==0)/ncol(counts(subset))))
 
 # filter NAs and those with less than 50% expressed 
 geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
@@ -250,11 +259,18 @@ strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=32)
 rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
 ```
 
+Subset on only significant DE genes (FDR < 0.05) to draw fold changes from.
+
+```{r}
+resFULL <- resFULL[resFULL$padj < 0.05,]
+```
+
 ## FDR benchmarking
 
-Build common bench design. We also add in Scott's FDR Regression (only
-`nulltype = "theoretical"` since assumptions of the empirical method are violated)
-since our test statistics are approximately t-distributed. 
+Build common bench design. We also add in Scott's FDR Regression (both
+`nulltype = "empirical"` and `nulltype = "theoretical"`)
+since our test statistics are approximately t-distributed. We also 
+drop the ashq method since its assumptions are violated here.
 
 ```{r}
 bd <- initializeBenchDesign()
@@ -265,6 +281,14 @@ bd <- addBMethod(bd, "fdrreg-t",
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
+bd <- addBMethod(bd, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+bd <- dropBMethod(bd, "ashq")
 ```
 
 Run benchmark methods. 
@@ -316,7 +340,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   set.seed(as.numeric(X)*as.numeric(rseed))
   
   # select a random subset of 20 WT samples
-  dds_test <- dds[,sample(1:ncol(dds), sampleSize*2)]
+  dds_test <- dds_full[,sample(1:ncol(dds_full), sampleSize*2)]
 
   # add a fake condition column to coldat
   colData(dds_test)$fake <-  factor(c(rep("A", sampleSize), 
@@ -364,12 +388,13 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     wts <- rowMeans(counts(dds_test, normalize = TRUE))
     DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
-    
+ 
     # randomly sample a log2FC from original FCs (without regard to DE)
     counts_new <- counts(dds_test)
     log2FC <- rep(0, nrow(dds_test))
-    log2FC[DE] <- resFULL$log2FoldChange[pzero < 0.5][DE]
-    
+    log2FC[DE] <- resFULL$log2FoldChange[sample(1:nrow(resFULL), nDE, 
+                                                replace = TRUE)]
+    log2FC[DE] <- pmax(1, abs(rnorm(nDE, 2)))
     
     # randomize which condition is shifted up or down
     ran <- runif(nrow(dds_test)) 
@@ -382,9 +407,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     counts_new[-down,colData(dds_test)$fake==unique(refcond[-down])] <- 
         counts(dds_test)[-down, colData(dds_test)$fake==unique(refcond[-down])] *
         2^log2FC
-           
     counts_new <- apply(counts_new, 2, as.integer)
-    
     
     counts(dds_test) <- counts_new
   }
@@ -438,7 +461,7 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 
 # only keep one condition for subsetting in simulations that follow 
-dds <- dds[,colData(dds)$condition == "Snf2"]
+dds_full <- dds_full[,colData(dds_full)$condition == "Snf2"]
 ```
 
 Here's a helper function to return the number of methods with rejections at
