@@ -31,7 +31,12 @@ Processed count table is made available by the authors in their paper codebase
 [GitHub repository](https://github.com/bartongroup/profDGE48). 
 
 In this Rmd we will carry out simulations for multiple
-replicates, and plot results averaging over the replications.
+replicates, and plot results averaging over the replications. Here we draw effect
+sizes (log2 fold changes) from the observed fold changes in the full comparison of the 
+two conditions. Since this results in a distribution of effect sizes and test
+statistics under the alternative that has a mode at zero, the assumptions for 
+FDRreg-empirical are violated. For this reason, we do not include this method in
+the benchmark comparisons.
 
 # Set up workspace
 
@@ -182,6 +187,20 @@ head(resFULL)
 sum(resFULL$padj < 0.05, na.rm=T)
 ```
 
+Check densities of the test statistic and effect sizes.
+
+```{r}
+data.frame(resFULL) %>% 
+  ggplot(aes(x = stat)) +
+  geom_density() +
+  xlab("Test Statistic") 
+
+data.frame(resFULL) %>% 
+  ggplot(aes(x = log2FoldChange)) +
+  geom_density() +
+  xlab("Effect Size (log2 Fold Change") 
+```
+
 ## Check assumptions
 
 There are several thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
@@ -233,8 +252,8 @@ rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
 
 ## FDR benchmarking
 
-Build common bench design. We also add in Scott's FDR Regression (both
-`nulltype = "empirical"` and `nulltype = "theoretical"`)
+Build common bench design. We also add in Scott's FDR Regression (only
+`nulltype = "theoretical"` since assumptions of the empirical method are violated)
 since our test statistics are approximately t-distributed. 
 
 ```{r}
@@ -245,13 +264,6 @@ bd <- addBMethod(bd, "fdrreg-t",
                      z = test_statistic,
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
-                     control = list(lambda = 0.01))
-bd <- addBMethod(bd, "fdrreg-e",
-                     FDRreg::FDRreg,
-                     function(x) { x$FDR },
-                     z = test_statistic,
-                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
-                     nulltype = 'empirical',
                      control = list(lambda = 0.01))
 ```
 
@@ -352,24 +364,24 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     wts <- rowMeans(counts(dds_test, normalize = TRUE))
     DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
- 
+    
     # randomly sample a log2FC from original FCs (without regard to DE)
     counts_new <- counts(dds_test)
     log2FC <- rep(0, nrow(dds_test))
     log2FC[DE] <- resFULL$log2FoldChange[pzero < 0.5][DE]
-
+    
+    
     # randomize which condition is shifted up or down
     ran <- runif(nrow(dds_test)) 
-    multiplier <- ifelse(ran < 0.5, 2^log2FC, 1/(2^log2FC))
     refcond <- ifelse(ran < 0.5, "A", "B")
     down <- which(ran < 0.5)
     
     counts_new[down,colData(dds_test)$fake==unique(refcond[down])] <- 
         counts(dds_test)[down, colData(dds_test)$fake==unique(refcond[down])] *
-        multiplier[down]
+        2^log2FC
     counts_new[-down,colData(dds_test)$fake==unique(refcond[-down])] <- 
         counts(dds_test)[-down, colData(dds_test)$fake==unique(refcond[-down])] *
-        multiplier[-down]
+        2^log2FC
            
     counts_new <- apply(counts_new, 2, as.integer)
     
