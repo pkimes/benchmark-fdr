@@ -25,6 +25,11 @@ rejections_scatter <- function( sb, as_fraction=FALSE, supplementary=TRUE,
     deno <- 1
     yl <- "Number of rejections"
   }
+  if(sum(colSums(is.na(assays(sb)$qvalue)) == nrow(sb)) > 0){
+    miss <- which(colSums(is.na(assays(sb)$qvalue)) == nrow(sb)) 
+    sb <- sb[,-miss]
+  }
+  
   plotDF <- estimatePerformanceMetrics( sb, alpha=alphas, tidy=TRUE ) %>%
     dplyr:::filter( !(grepl("ihw", blabel) & param.alpha != alpha ) ) %>%
     dplyr:::mutate( blabel=gsub("(ihw)-a\\d+", "\\1", blabel ) ) %>%
