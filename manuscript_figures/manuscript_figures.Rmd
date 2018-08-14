@@ -55,7 +55,7 @@ alpha <- 0.10
 
 ```{r Figure2, fig.width = 10, fig.height = 8}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("yeast", objects) & 
+resfile <- objects[grepl("yeast-", objects) & 
                    grepl("de5", objects) & 
                   !grepl("uninf", objects)] 
 
@@ -448,7 +448,7 @@ on the yeast and polyester simulation (DE sample size 5). We'll plot
 differences in TPR and FDR due to informative covariate by alpha level.
 
 ```{r, fig.width = 10, fig.height = 4}
-for (org in c("yeast", "polyester")){
+for (org in c("yeast-", "polyester")){
   
   objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
   resfile <- objects[grepl(org, objects) ] 
@@ -683,7 +683,7 @@ objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 
 # remove simulation objects
 sim <- unique(c(which(grepl("simulations", objects)),
-               which(grepl("yeast", objects)),
+               which(grepl("yeast-", objects)),
                which(grepl("polyester", objects))))
 if (length(sim) > 0){
   objects <- objects[-sim]
