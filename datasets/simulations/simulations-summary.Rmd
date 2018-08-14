@@ -129,6 +129,11 @@ resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges$", setting), "ga
 resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-t$", setting), "t11", dist))
 resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-chisq$", setting), "chisq4", dist))
 resmet <- dplyr::mutate(resmet, setting = ifelse(grepl("varyinges", setting), "varyinges", setting))
+
+resmet <- dplyr::mutate(resmet, pi0 = ifelse(grepl("varyingntests", setting), 90, pi0))
+resmet <- dplyr::mutate(resmet, ntests = ifelse(grepl("varyingntests", setting), dist, "n20000"))
+resmet <- dplyr::mutate(resmet, ntests = as.numeric(gsub("n", "", ntests)))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyingntests", setting), "gaussian", dist))
 ```
 
 We also replace the sampling noise labels with more plotting-friendly labels.
@@ -773,3 +778,88 @@ gp <- plot_grid(gp, get_legend(noise_tpr_diff), rel_widths = c(1, 1/16))
 gp
 ```
 
+
+# Varying Test Count
+
+We take a look at a sequence of simulation settings where only the total number of hypthesis tests
+is varied. We take a look at the false discovery proportion and true positive rate for each method
+at a nomial alpha cutoff of 0.05 as the number of tests is changed.
+
+```{r, fig.width = 10, fig.height = 4}
+res_ntests <- dplyr::filter(resmet, setting == "varyingntests", alpha == 0.05)
+
+ntests_fdr <- dplyr::filter(res_ntests, key == "FDR") %>%
+    ggplot(aes(x = as.factor(ntests), y = mean.info, color = Method, group = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5) +
+    geom_hline(yintercept = 0.05, lty = 2, color = "blue", alpha = 1/2) + 
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    xlab("Number of Tests") +
+    scale_y_continuous("FDR", labels = scales::percent) +
+    ggtitle("Mean FDR Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14))
+
+ntests_tpr <- dplyr::filter(res_ntests, key == "TPR") %>%
+    ggplot(aes(x = as.factor(ntests), y = mean.info, color = Method, group = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    xlab("Number of Tests") + 
+    scale_y_continuous("TPR", labels = scales::percent) +
+    ggtitle("Mean TPR Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14))
+
+gp <- plot_grid(ntests_fdr + guides(color = FALSE, linetype = FALSE),
+                ntests_tpr + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:2], ncol = 2)
+gp <- plot_grid(gp, get_legend(ntests_tpr), rel_widths = c(1, 1/8))
+gp
+```
+
+We also look at the difference between informative and uninformative covariates.
+
+```{r, fig.width = 10, fig.height = 4}
+ntests_fdr_diff <- dplyr::filter(res_ntests, key == "FDR") %>%
+    ggplot(aes(x = as.factor(ntests), y = mean.diff, color = Method, group = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.1, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    xlab("Number of Tests") + 
+    scale_y_continuous("FDR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean FDR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14))
+
+ntests_tpr_diff <- dplyr::filter(res_ntests, key == "TPR") %>%
+    ggplot(aes(x = as.factor(ntests), y = mean.diff, color = Method, group = Method)) +
+    geom_line(aes(linetype = Method), alpha = 0.85) +
+    geom_errorbar(aes(ymin = mean.diff - se.diff, ymax = mean.diff + se.diff), width = 0.1, alpha=0.5) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    xlab("Number of Tests") + 
+    scale_y_continuous("TPR\n(informative - uninformative)", labels = scales::percent) +
+    ggtitle("Mean TPR Difference Over 100 Replications") +
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14))
+
+gp <- plot_grid(ntests_fdr_diff + guides(color = FALSE, linetype = FALSE),
+                ntests_tpr_diff + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[3:4], ncol = 2)
+gp <- plot_grid(gp, get_legend(ntests_tpr_diff), rel_widths = c(1, 1/8))
+gp
+```
