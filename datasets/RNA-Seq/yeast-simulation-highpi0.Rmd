@@ -77,15 +77,15 @@ resfile_n5_uninfCov <- file.path(resdir, "yeast-results-null5-uninfCov.rds")
 resfile_n10_uninfCov <- file.path(resdir, "yeast-results-null10-uninfCov.rds")
 
 # results files that will be generated
-resfile_d5 <- file.path(resdir, "yeast-results-de5.rds")
-resfile_d10 <- file.path(resdir, "yeast-results-de10.rds")
-resfile_d5_uw <- file.path(resdir, "yeastU-results-de5.rds")
-resfile_d10_uw <- file.path(resdir, "yeastU-results-de10.rds")
+resfile_d5 <- file.path(resdir, "yeastH-results-de5.rds")
+resfile_d10 <- file.path(resdir, "yeastH-results-de10.rds")
+resfile_d5_uw <- file.path(resdir, "yeastHU-results-de5.rds")
+resfile_d10_uw <- file.path(resdir, "yeastHU-results-de10.rds")
 
-resfile_d5_uninfCov <- file.path(resdir, "yeast-results-de5-uninfCov.rds")
-resfile_d10_uninfCov <- file.path(resdir, "yeast-results-de10-uninfCov.rds")
-resfile_d5_uninfCov_uw <- file.path(resdir, "yeastU-results-de5-uninfCov.rds")
-resfile_d10_uninfCov_uw <- file.path(resdir, "yeastU-results-de10-uninfCov.rds")
+resfile_d5_uninfCov <- file.path(resdir, "yeastH-results-de5-uninfCov.rds")
+resfile_d10_uninfCov <- file.path(resdir, "yeastH-results-de10-uninfCov.rds")
+resfile_d5_uninfCov_uw <- file.path(resdir, "yeastHU-results-de5-uninfCov.rds")
+resfile_d10_uninfCov_uw <- file.path(resdir, "yeastHU-results-de10-uninfCov.rds")
 
 # set up parallel backend
 library(parallel)
@@ -626,110 +626,6 @@ numberMethodsReject <- function(res, alphacutoff, filterSet){
 
 ```
 
-
-# Sim N5: Null Comparison 5v5
-
-Here we'll repeat the above, but for a null comparison 5 versus 5 Snf2 samples,
-where the groups are selected randomly. This will be done for 100 random splits.
-
-## Generate a list of SB results objects
-
-```{r n5, results='hide', message=FALSE}
-rseed <- 225
-sampleSize <- 5
-nDE <- 0
-
-if (!file.exists(resfile_n5)){
-  null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                    nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
-  saveRDS(null5, file = resfile_n5)
-}else{
-  null5 <- readRDS(file = resfile_n5)
-}
-```
-
-## Plot average results over replications
-
-Plot results. 
-
-```{r}
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
-
-res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(res5, met="rejections",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res5, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-
-covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p")
-covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 trans="log1p")
-
-if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-}else{
-  message("Not enough methods found rejections at alpha ", ualpha, 
-          "; skipping upset plot")
-}
-
-```
-
-# Sim N10: Null Comparison 10v10
-
-Here we'll repeat the above, but for a null comparison 10 versus 10 Snf2 samples,
-where the groups are selected randomly. This will be done for 100 random splits.
-
-## Generate a list of SB results objects
-
-```{r n10, results='hide', message=FALSE}
-rseed <- 837
-sampleSize <- 10
-nDE <- 0
-
-if (!file.exists(resfile_n10)){
-  null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                    nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores)
-  saveRDS(null10, file = resfile_n10)
-}else{
-  null10 <- readRDS(file = resfile_n10)
-}
-
-```
-
-## Plot average results over replications
-
-Plot results.
-
-```{r}
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
-
-res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(res10, met="rejections",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res10, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-
-covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p")
-covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 trans="log1p")
-
-if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-}else{
-  message("Not enough methods found rejections at alpha ", ualpha, 
-          "; skipping upset plot")
-}
-
-```
-
-
-
 # Sim D5: DE Comparison 5v5
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 Snf2 samples,
@@ -977,110 +873,6 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 Here we repeat the previous four sections, using an uninformative covariate 
 instead of the overall mean expression.
-
-## Sim N5: Null Comparison 5v5
-
-Here we'll repeat the above, but for a null comparison 5 versus 5 Snf2 samples,
-where the groups are selected randomly. This will be done for 100 random splits.
-
-### Generate a list of SB results objects
-
-```{r n5-uc, results='hide', message=FALSE}
-rseed <- 225
-sampleSize <- 5
-nDE <- 0
-
-if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed,
-                   nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE, mc.cores = nCores)
-  saveRDS(null5, file = resfile_n5_uninfCov)
-}else{
-  null5 <- readRDS(file = resfile_n5_uninfCov)
-}
-```
-
-### Plot average results over replications
-
-Plot results. 
-
-```{r}
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
-
-res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(res5, met="rejections",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res5, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-
-covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p")
-covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 trans="log1p")
-
-if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-}else{
-  message("Not enough methods found rejections at alpha ", ualpha, 
-          "; skipping upset plot")
-}
-
-```
-
-## Sim N10: Null Comparison 10v10
-
-Here we'll repeat the above, but for a null comparison 10 versus 10 Snf2 samples,
-where the groups are selected randomly. This will be done for 100 random splits.
-
-### Generate a list of SB results objects
-
-```{r n10-uc, results='hide', message=FALSE}
-rseed <- 837
-sampleSize <- 10
-nDE <- 0
-
-if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
-                   nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE, mc.cores=nCores)
-  saveRDS(null10, file = resfile_n10_uninfCov)
-}else{
-  null10 <- readRDS(file = resfile_n10_uninfCov)
-}
-```
-
-### Plot average results over replications
-
-Plot results.
-
-```{r}
-# Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
-
-res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(res10, met="rejections",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res10, met="TNR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
-
-covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25, 
-                 trans="log1p")
-covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
-                 trans="log1p")
-
-if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
-}else{
-  message("Not enough methods found rejections at alpha ", ualpha, 
-          "; skipping upset plot")
-}
-
-```
-
-
 
 ## Sim D5: DE Comparison 5v5
 
