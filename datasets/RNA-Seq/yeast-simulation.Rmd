@@ -35,7 +35,8 @@ replicates, and plot results averaging over the replications. Here we draw effec
 sizes (log2 fold changes) from the observed fold changes in the full comparison of the 
 two conditions. Since this results in a distribution of effect sizes and test
 statistics under the alternative that has a mode at zero, the assumptions for 
-FDRreg-empirical are violated. For this reason, we do not include this method in
+FDRreg-empirical are violated. However, since this assumption is impossible to check
+outside of a simulation setting, we still include this method in
 the benchmark comparisons.
 
 # Set up workspace
@@ -140,11 +141,14 @@ counts <- files %>%
   dplyr::select(-badreps ) # remove badreps
 ```
 
-# Analysis of full 48v48 (non-null)
 
-Here we'll carry out an analysis of the full dataset, comparing the controls to the
+# Empirical analysis of 10 vs 10 (non-null)
+
+Here we'll carry out an analysis of a subset of the full dataset, comparing the controls to the
 knockout samples. The fold changes observed in this comparison will be used when 
-generating the non-null simulated data in the following sections.
+generating the non-null simulated data in the following sections. Here we use a subset
+of the samples (10 samples in each group) to mimic the sample sizes we use in 
+simulation. 
 
 We're ready to construct a DESeq2 object. First we pull out the feature names and
 add them as rownames for the count table, and next we construct a column data object
@@ -167,38 +171,44 @@ coldat <- tibble(sample=colnames(counts)) %>%
 # filter low count genes
 counts <- counts[rowMeans(counts) > 1,]
 
-dds <- DESeqDataSetFromMatrix(countData = counts,
+dds_full <- DESeqDataSetFromMatrix(countData = counts,
                               colData = coldat,
                               design= ~ condition)
 ```
 
 ## Run DESeq2
 
-Next we run DESeq2.
+Next we run DESeq2, and subset results on genes with FDR < 0.05.
 
 ```{r}
 # results on full set
-dds <- DESeq(dds)
+set.seed(9384)
+subset.wt <- dds_full[,colData(dds_full)$condition == "WT"]
+subset.sn <- dds_full[,colData(dds_full)$condition == "Snf2"]
+subset <- cbind(subset.wt[, sample(1:ncol(subset.wt), 10)],
+                subset.sn[, sample(1:ncol(subset.sn), 10)])
+
+dds <- DESeq(subset)
 resultsNames(dds) # lists the coefficients
-resFULL <- results(dds, name="condition_WT_vs_Snf2", independentFiltering = F)
+res_10 <- results(dds, name="condition_WT_vs_Snf2", independentFiltering = F)
 
-head(resFULL)
+head(res_10)
 
-sum(resFULL$padj < 0.05, na.rm=T)
+sum(res_10$padj < 0.05, na.rm=T)
 ```
 
-Check densities of the test statistic and effect sizes.
+Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(resFULL) %>% 
+data.frame(res_10) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(resFULL) %>% 
+data.frame(res_10) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
-  xlab("Effect Size (log2 Fold Change") 
+  xlab("Effect Size (log2 Fold Change)") 
 ```
 
 ## Check assumptions
@@ -206,13 +216,13 @@ data.frame(resFULL) %>%
 There are several thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
 
 ```{r}
-geneExp <- tbl_df(data.frame(geneName=rownames(resFULL), 
-                             pval=resFULL$pvalue, 
-                             SE=resFULL$lfcSE,
-                             ind_covariate = resFULL$baseMean, 
-                             effect_size=resFULL$log2FoldChange, 
-                             test_statistic=resFULL$stat,
-                             pzero=rowSums(counts(dds)==0)/ncol(counts(dds))))
+geneExp <- tbl_df(data.frame(geneName=rownames(res_10), 
+                             pval=res_10$pvalue, 
+                             SE=res_10$lfcSE,
+                             ind_covariate = res_10$baseMean, 
+                             effect_size=res_10$log2FoldChange, 
+                             test_statistic=res_10$stat,
+                             pzero=rowSums(counts(subset)==0)/ncol(counts(subset))))
 
 # filter NAs and those with less than 50% expressed 
 geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
@@ -243,7 +253,7 @@ ggplot(data=geneExp, aes(x = ind_covariate, y = SE)) +
 Look at covariate diagnostic plots.
 
 ```{r, width=15, height=15}
-strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=32)
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=30)
 ```
 
 ```{r}
@@ -252,9 +262,15 @@ rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
 
 ## FDR benchmarking
 
-Build common bench design. We also add in Scott's FDR Regression (only
-`nulltype = "theoretical"` since assumptions of the empirical method are violated)
+Build common bench design. We also add in Scott's FDR Regression 
 since our test statistics are approximately t-distributed. 
+Note that the assumption of FDRreg-empirical that the distribution of non-null test 
+statistics does not have a significant mass at zero is violated here, but
+we still include fdrreg-e in the evaluation since this assumption is impossible to check
+outside of a simulation setting (since it is not possible to know which tests are 
+non-null). Thus, we'd like to evaluate how results change 
+when the assumption is violated, since it's plausible that it is violated in the 
+case studies.
 
 ```{r}
 bd <- initializeBenchDesign()
@@ -265,7 +281,128 @@ bd <- addBMethod(bd, "fdrreg-t",
                      features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
                      nulltype = 'theoretical',
                      control = list(lambda = 0.01))
+bd <- addBMethod(bd, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
 ```
+
+Run benchmark methods. 
+```{r}
+sb <- bd %>% buildBench(data=geneExp, parallel = FALSE)
+
+assayNames(sb) <- "qvalue"
+sb <- addDefaultMetrics(sb)
+```
+
+Plot results.
+
+```{r}
+rejections_scatter(sb, supplementary=FALSE)
+```
+
+```{r}
+plotFDRMethodsOverlap(sb, alpha=0.05, nsets=ncol(sb), order.by="freq", decreasing=TRUE, supplementary=FALSE)
+
+```
+
+
+# Empirical analysis of 5 vs 5 (non-null)
+
+Here we'll carry out an analysis of a subset of the full dataset, comparing the controls to the
+knockout samples. The fold changes observed in this comparison will be used when 
+generating the non-null simulated data in the following sections. Here we use a subset
+of the samples (5 samples in each group) to mimic the sample sizes we use in 
+simulation. 
+
+## Run DESeq2
+
+First we run DESeq2.
+
+```{r}
+# results on full set
+set.seed(728)
+subset.wt <- dds_full[,colData(dds_full)$condition == "WT"]
+subset.sn <- dds_full[,colData(dds_full)$condition == "Snf2"]
+subset <- cbind(subset.wt[, sample(1:ncol(subset.wt), 5)],
+                subset.sn[, sample(1:ncol(subset.sn), 5)])
+
+dds <- DESeq(subset)
+resultsNames(dds) # lists the coefficients
+res_5 <- results(dds, name="condition_WT_vs_Snf2", independentFiltering = F)
+
+head(res_5)
+
+sum(res_5$padj < 0.05, na.rm=T)
+```
+
+Check densities of the test statistic and effect sizes for significant DE genes.
+
+```{r}
+data.frame(res_5) %>% 
+  ggplot(aes(x = stat)) +
+  geom_density() +
+  xlab("Test Statistic") 
+
+data.frame(res_5) %>% 
+  ggplot(aes(x = log2FoldChange)) +
+  geom_density() +
+  xlab("Effect Size (log2 Fold Change)") 
+```
+
+## Check assumptions
+
+There are several thousand genes detected using the full set. Next, we'll build input data frame for summarized benchmark.
+
+```{r}
+geneExp <- tbl_df(data.frame(geneName=rownames(res_5), 
+                             pval=res_5$pvalue, 
+                             SE=res_5$lfcSE,
+                             ind_covariate = res_5$baseMean, 
+                             effect_size=res_5$log2FoldChange, 
+                             test_statistic=res_5$stat,
+                             pzero=rowSums(counts(subset)==0)/ncol(counts(subset))))
+
+# filter NAs and those with less than 50% expressed 
+geneExp <- geneExp %>% na.omit() %>% dplyr::filter(pzero < 0.5)
+```
+
+We'll create a plot to examine the distribution of effect sizes, since
+the ash method assumes that the distribution of true (unobserved) effect
+sizes is unimodal.
+
+```{r}
+ggplot(data=geneExp, aes(effect_size)) +
+  geom_histogram(bins=30)
+```
+
+We'll also explore how the standard error (used by ash) 
+correlates with the independent covariate (used by methods that incorporate 
+covariates), in order to get an idea of how these pieces of information relate
+to one another.
+
+```{r}
+ggplot(data=geneExp, aes(x = ind_covariate, y = SE)) +
+  geom_hex(bins = 100) +
+  scale_x_continuous(trans="log10") +
+  xlab("Covariate: Mean gene expression") 
+```
+
+
+Look at covariate diagnostic plots.
+
+```{r, width=15, height=15}
+strat_hist(geneExp, pvalue="pval", covariate="ind_covariate", maxy=23)
+```
+
+```{r}
+rank_scatter(geneExp, pvalue="pval", covariate="ind_covariate")
+```
+
+## FDR benchmarking
 
 Run benchmark methods. 
 ```{r}
@@ -310,13 +447,13 @@ looped over many replications and results averaged over them.
 simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
   
-  uninf_covar <- rnorm(nrow(dds))
+  uninf_covar <- rnorm(nrow(dds_full))
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
   
   # select a random subset of 20 WT samples
-  dds_test <- dds[,sample(1:ncol(dds), sampleSize*2)]
+  dds_test <- dds_full[,sample(1:ncol(dds_full), sampleSize*2)]
 
   # add a fake condition column to coldat
   colData(dds_test)$fake <-  factor(c(rep("A", sampleSize), 
@@ -368,8 +505,15 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     # randomly sample a log2FC from original FCs (without regard to DE)
     counts_new <- counts(dds_test)
     log2FC <- rep(0, nrow(dds_test))
-    log2FC[DE] <- resFULL$log2FoldChange[pzero < 0.5][DE]
     
+    if(sampleSize == 5){
+      log2FC[DE] <- res_5$log2FoldChange[pzero < 0.5][DE]
+    }else if (sampleSize == 10){
+      log2FC[DE] <- res_10$log2FoldChange[pzero < 0.5][DE]
+    }else{
+      stop("Only sample sizes 5 and 10 are currently supported with pre-",
+           "computed fold changes for sampling from.")
+    }
     
     # randomize which condition is shifted up or down
     ran <- runif(nrow(dds_test)) 
@@ -378,10 +522,10 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     
     counts_new[down,colData(dds_test)$fake==unique(refcond[down])] <- 
         counts(dds_test)[down, colData(dds_test)$fake==unique(refcond[down])] *
-        2^log2FC
+        2^log2FC[down]
     counts_new[-down,colData(dds_test)$fake==unique(refcond[-down])] <- 
         counts(dds_test)[-down, colData(dds_test)$fake==unique(refcond[-down])] *
-        2^log2FC
+        2^log2FC[-down]
            
     counts_new <- apply(counts_new, 2, as.integer)
     
@@ -438,7 +582,7 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 
 # only keep one condition for subsetting in simulations that follow 
-dds <- dds[,colData(dds)$condition == "Snf2"]
+dds_full <- dds_full[,colData(dds_full)$condition == "Snf2"]
 ```
 
 Here's a helper function to return the number of methods with rejections at
