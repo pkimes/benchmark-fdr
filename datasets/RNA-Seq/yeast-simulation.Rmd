@@ -200,12 +200,12 @@ sum(res_10$padj < 0.05, na.rm=T)
 Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(res_10) %>% 
+data.frame(res_10[res_10$padj < 0.5]) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(res_10) %>% 
+data.frame(res_10[res_10$padj < 0.5]) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
   xlab("Effect Size (log2 Fold Change)") 
@@ -342,12 +342,12 @@ sum(res_5$padj < 0.05, na.rm=T)
 Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(res_5) %>% 
+data.frame(res_5[res_5$padj < 0.5]) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(res_5) %>% 
+data.frame(res_5[res_5$padj < 0.5]) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
   xlab("Effect Size (log2 Fold Change)") 
