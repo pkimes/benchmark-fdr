@@ -230,7 +230,26 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
 }
 
 
-
+#' Function to create a tidy data frame of performance metrics 
+#' 
+#' Takes as input a vector of filepaths, each one pointing to a SummarizedBenchmark
+#' results object, labels for each object, as well as various annotation variables.
+#' Used internally by plotMethodRanks, but can also be used on its own.
+#' 
+#' @param objects a character vector containing the full filepaths to 
+#'  SummarizedBenchmark results objects.
+#' @param colLabels a character vector containing the labels to use for the 
+#'  heatmap columns (same length and order as `objects`). 
+#' @param alpha numeric value  or vector indicating which alpha value(s) to use for IHW 
+#'  (need to be among of the values specified in the bench object). Default 0.10.
+#' @param fill character indicating the outcome variable of interest. Default
+#'  is 'propMaxRejections'. For 'FDR' and 'TPR' sb objects need to contain 
+#'  these performance metrics.
+#' @param annotate character indicating what should be plotted as text labels
+#'  (heatmap plot only). Default is proportion of total possible rejections 
+#'  (propPossible). Could also be another variable (from \code{fill} choices) 
+#'  or NULL (for no text label annotations).
+#' @author Keegan Korthauer  
 tidy_df <- function(objects, colLabels, fill, annotate, alpha){
     ## create tidy data frame where each row is a method / dataset observation
     ## of a rank 
@@ -258,7 +277,9 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
         if (sum(hasResults) > 0){
             tmp <- data.frame()
             for (lev in alpha){
-              tmp <- bind_rows(tmp, estimatePerformanceMetrics(x, alpha=lev, tidy=TRUE))  
+              df <- estimatePerformanceMetrics(x, alpha=lev)
+              df$alpha <- lev
+              tmp <- bind_rows(tmp, zeroRejectionsFDR(df, tidy=TRUE))  
             }
             
             if (fill %in% c("TPR", "FDR", "TNR") && !(fill %in% tmp$performanceMetric))
@@ -297,5 +318,31 @@ tidy_df <- function(objects, colLabels, fill, annotate, alpha){
         }
     }
     return(ranks)
+}
+
+
+# function to replace observations of NA FDR when nrejects = 0 to 0
+# useful when averaging over simulation reps so we don't penalize a method
+# that almost never rejects anything but we take the mean over all the 
+# times it does
+#' @param tidy_df a data frame output from estimatePerformanceMetrics with the 
+#' tidy = FALSE option, where 
+#' each row is an observation of a performance metric for a method. Assumes that
+#' method is in the blabel column, the performance metric is in the performanceMetric
+#' column, and that the value of the performance metric is in the value column.
+#' @param tidy logical, whether to return the metrics table in tidy format or not
+#' (analagous to the same argument in tidyUpMetrics function). Default is TRUE.
+#' @author Keegan Korthauer
+zeroRejectionsFDR <- function(df, tidy = TRUE){
+  df$FDR <- ifelse(df$rejections == 0, 0, df$FDR)
+  
+  if(tidy){
+    valueCols <- c("TPR", "FDR", "TNR", "FNR", "rejections")
+    tidy_df <- gather(as.data.frame(df), keys = valueCols) %>%
+      dplyr::rename(performanceMetric = key)
+    return(tidy_df)
+  }else{
+    return(df)
+  }
 }
 
