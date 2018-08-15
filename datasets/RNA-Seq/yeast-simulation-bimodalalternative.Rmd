@@ -1,5 +1,5 @@
 ---
-title: "Yeast RNA-seq 48 sample simulation study - II"
+title: "Yeast RNA-seq 48 sample simulation study: Bimodal alternative, 2000 DE genes"
 author: "Keegan Korthauer"
 output: 
     html_document:
@@ -40,6 +40,8 @@ alternative that does not have a mode at zero, the assumptions for ashq are viol
 However, since this assumption is impossible to check, we still include this 
 method in the benchmark comparisons.
 
+In this setting, we assume 500 DE genes and a bimodal alternative.
+
 # Set up workspace
 
 ```{r, results='hide', message=FALSE}
@@ -74,11 +76,15 @@ resfile_n5 <- file.path(resdir, "yeastII-results-null5.rds")
 resfile_n10 <- file.path(resdir, "yeastII-results-null10.rds")
 resfile_d5 <- file.path(resdir, "yeastII-results-de5.rds")
 resfile_d10 <- file.path(resdir, "yeastII-results-de10.rds")
+resfile_d5_uw <- file.path(resdir, "yeastIIU-results-de5.rds")
+resfile_d10_uw <- file.path(resdir, "yeastIIU-results-de10.rds")
 
 resfile_n5_uninfCov <- file.path(resdir, "yeastII-results-null5-uninfCov.rds")
 resfile_n10_uninfCov <- file.path(resdir, "yeastII-results-null10-uninfCov.rds")
 resfile_d5_uninfCov <- file.path(resdir, "yeastII-results-de5-uninfCov.rds")
 resfile_d10_uninfCov <- file.path(resdir, "yeastII-results-de10-uninfCov.rds")
+resfile_d5_uninfCov_uw <- file.path(resdir, "yeastIIU-results-de5-uninfCov.rds")
+resfile_d10_uninfCov_uw <- file.path(resdir, "yeastIIU-results-de10-uninfCov.rds")
 
 # set up parallel backend
 library(parallel)
@@ -201,12 +207,12 @@ sum(res_10$padj < 0.05, na.rm=T)
 Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(res_10[res_10$padj < 0.5]) %>% 
+data.frame(res_10[res_10$padj < 0.05 & !is.na(res_10$padj),]) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(res_10[res_10$padj < 0.5]) %>% 
+data.frame(res_10[res_10$padj < 0.05 & !is.na(res_10$padj),]) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
   xlab("Effect Size (log2 Fold Change)") 
@@ -343,12 +349,12 @@ sum(res_5$padj < 0.05, na.rm=T)
 Check densities of the test statistic and effect sizes for significant DE genes.
 
 ```{r}
-data.frame(res_5[res_5$padj < 0.5]) %>% 
+data.frame(res_5[res_5$padj < 0.05 & !is.na(res_5$padj),]) %>% 
   ggplot(aes(x = stat)) +
   geom_density() +
   xlab("Test Statistic") 
 
-data.frame(res_5[res_5$padj < 0.5]) %>% 
+data.frame(res_5[res_5$padj < 0.05 & !is.na(res_5$padj),]) %>% 
   ggplot(aes(x = log2FoldChange)) +
   geom_density() +
   xlab("Effect Size (log2 Fold Change)") 
@@ -469,7 +475,8 @@ looped over many replications and results averaged over them.
 #' @param pvalHists logical whether to return histograms of pvalues by covariate
 #'  instead of SB objects
 simulateOneSplit <- function(X, rseed, nDE, sampleSize,
-                             bd, uninformativeCovariate = FALSE, pvalHists = FALSE){
+                             bd, uninformativeCovariate = FALSE, pvalHists = FALSE,
+                             weightByCovariate = TRUE){
   
   uninf_covar <- rnorm(nrow(dds))
   
@@ -522,7 +529,11 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
-    wts <- rowMeans(counts(dds_test, normalize = TRUE))
+    if(weightByCovariate){
+      wts <- rowMeans(counts(dds_test, normalize = TRUE))
+    }else{
+      wts <- rep(1, nrow(dds_test))
+    }
     DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
  
@@ -876,15 +887,111 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Sample size comparison
+# Sim D5: Unweighted 5v5
 
-Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+Here we'll repeat the above, but not explicitly weighting the DE gene selection by
+the informative covariate.
+
+## Generate a list of SB results objects
+
+```{r d5-uw, results='hide', message=FALSE}
+rseed <- 445
+sampleSize <- 5
+nDE <- 2000
+
+if (!file.exists(resfile_d5_uw)){
+  de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores,
+                  weightByCovariate = FALSE)
+  saveRDS(de5, file = resfile_d5_uw)
+}else{
+  de5 <- readRDS(file = resfile_d5_uw)
+}
+```
+
+## Plot average results over replications
+
+Plot results. 
 
 ```{r}
-plotMethodRanks(c(resfile_d5, resfile_d10), 
-                colLabels = c("DE 5", "DE 10"), 
-                alpha = 0.10, xlab = "Comparison", 
-                excludeMethods = NULL)
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
+
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+  
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+# Sim D10: Unweighted 10v10
+
+Here we'll repeat the above, but not explicitly weighting the DE gene selection by
+the informative covariate.
+
+## Generate a list of SB results objects
+
+```{r d10-uw, results='hide', message=FALSE}
+rseed <- 868
+sampleSize <- 10
+nDE <- 2000
+
+if(!file.exists(resfile_d10_uw)){
+  de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores,
+                  weightByCovariate = FALSE)
+  saveRDS(de10, file = resfile_d10_uw)
+}else{
+  de10 <- readRDS(file = resfile_d10_uw)
+}
+```
+
+## Plot average results over replications
+
+Plot results.
+
+```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(res10d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
+
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
 ```
 
 
@@ -1106,18 +1213,127 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-## Sample size comparison
+## Sim D5: Unweighted 5v5
 
-Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+Here we'll repeat the above, but not explicitly weighting the DE gene selection by
+the informative covariate.
+This will be done for 100 random splits. 
+
+### Generate a list of SB results objects
+
+```{r d5-uc-uw, results='hide', message=FALSE}
+rseed <- 445
+sampleSize <- 5
+nDE <- 2000
+
+if (!file.exists(resfile_d5_uninfCov_uw)){
+  de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd,
+                  uninformativeCovariate = TRUE, mc.cores=nCores)
+  saveRDS(de5, file = resfile_d5_uninfCov_uw)
+}else{
+  de5 <- readRDS(file = resfile_d5_uninfCov_uw)
+}
+```
+
+### Plot average results over replications
+
+Plot results. 
 
 ```{r}
-# uninformative covariate
-plotMethodRanks(c(resfile_d5_uninfCov, resfile_d10_uninfCov), 
-                colLabels = c("DE 5", "DE 10"), 
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
+
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+  
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+## Sim D10: Unweighted 10v10
+
+Here we'll repeat the above, but not explicitly weighting the DE gene selection by
+the informative covariate.
+
+### Generate a list of SB results objects
+
+```{r d10-uc-uw, results='hide', message=FALSE}
+rseed <- 868
+sampleSize <- 10
+nDE <- 2000
+
+if(!file.exists(resfile_d10_uninfCov_uw)){
+  de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd,
+                   uninformativeCovariate = TRUE, mc.cores=nCores)
+  saveRDS(de10, file = resfile_d10_uninfCov_uw)
+}else{
+  de10 <- readRDS(file = resfile_d10_uninfCov_uw)
+}
+```
+
+### Plot average results over replications
+
+Plot results.
+
+```{r}
+# Check for missing results (if any methods threw an error for relevant metrics).
+rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(res10d, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+
+covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
+                 trans="log1p")
+covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
+                 trans="log1p")
+
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+}else{
+  message("Not enough methods found rejections at alpha ", ualpha, 
+          "; skipping upset plot")
+}
+
+```
+
+# Simulation setting comparison
+
+Here we compare the method ranks for the different sample sizes, weighting, and
+covariate settings at alpha = 0.10.
+
+```{r, fig.width=18, fig.height=12}
+plotMethodRanks(c(resfile_d5, resfile_d5_uw, resfile_d10, resfile_d10_uw,
+                  resfile_d5_uninfCov, resfile_d5_uninfCov_uw, resfile_d10_uninfCov, resfile_d10_uninfCov_uw), 
+                colLabels = c("5", "5 UW", "10", "10 UW",
+                              "5 UI", "5 UI UW", "10 UI", "10 UI UW"), 
                 alpha = 0.10, xlab = "Comparison", 
                 excludeMethods = NULL)
 ```
-
 
 # Session information
 
