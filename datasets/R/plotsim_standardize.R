@@ -13,7 +13,7 @@
 #' a tibble of the following performance metrics:
 #' 'rejections', 'TPR', 'TNR', 'FPR', 'FNR', 'FWER'.
 #' 
-#' @author Patrick Kimes
+#' @author Patrick Kimes & Keegan Korthauer
 plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
     
     sbl <- lapply(res, addDefaultMetrics)
@@ -29,6 +29,19 @@ plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
                       function( query, truth, alpha = 0.1) {
                           mean(query < alpha, na.rm = TRUE)
                       })
+    # override default FDR perf. metric st fdr is zero (instead of NA) when
+    # there are zero rejections
+    sbl <- lapply(sbl, addPerformanceMetric,
+                  evalMetric = "FDR", assay = "qvalue",
+                  evalFunction =
+                    function( query, truth, alpha = 0.1) {
+                     rejections <- sum( query <= alpha, na.rm = TRUE )
+                     fdr <- sum( query <= alpha & truth == 0, na.rm = TRUE ) / 
+                        sum( query <= alpha, na.rm = TRUE )
+                     fdr[rejections == 0] <- 0
+                     return(fdr)
+                    })
+    
     tsb <- lapply(sbl, estimatePerformanceMetrics,
                   alpha = alpha, tidy = TRUE)
     
