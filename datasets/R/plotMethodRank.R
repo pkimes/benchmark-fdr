@@ -32,6 +32,8 @@
 #'  (heatmap plot only). Default is proportion of total possible rejections 
 #'  (propPossible). Could also be another variable (from \code{fill} choices) 
 #'  or NULL (for no text label annotations).
+#' @param maxColor character indicating the color of the text annotation of the
+#'  maximum value of the variable indicated in \code{annotate}. 
 #' @author Keegan Korthauer  
 
 plotMethodRanks <- function(objects, colLabels, alpha = 0.10, 
@@ -45,7 +47,8 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
                             rowOrder = NULL,
                             tableOnly = FALSE,
                             Nlabel = TRUE,
-                            annotate = "propPossible"){
+                            annotate = "propPossible",
+                            maxColor= "white"){
   fill <- match.arg(fill)
   if (is.list(readRDS(objects[1]))){
     ranks <- data.frame()
@@ -210,7 +213,7 @@ plotMethodRanks <- function(objects, colLabels, alpha = 0.10,
         geom_text(data = ranks_avg, 
                   aes(label = ifelse(is.na(topLayer), "", 
                                      scales::percent(topLayer))),
-                  color = "white")
+                  color = maxColor)
     }
     
     return(Fig)
