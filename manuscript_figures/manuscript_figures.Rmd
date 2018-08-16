@@ -211,7 +211,8 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
 # non-null
 wcs <- which(grepl("RNAseq", casestudy) & 
-            !grepl(c("brain|mir|null|polyester"), dataset) &
+            grepl(c("yeast-"), dataset) &
+            grepl("de", dataset) &
             !grepl("scRNAseq", casestudy) &
             !grepl("uninf", dataset))
 objs <- objects[wcs]
