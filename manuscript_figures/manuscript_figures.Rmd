@@ -225,7 +225,8 @@ pfdr <- plotMethodRanks(objs,
                 alpha = alpha, xlab = "Comparison",
                 fill = "FDR",
                 rowOrder = Fig4All.rowOrder, 
-                annotate = "FDR", excludeMethods = NULL) +
+                annotate = "FDR", excludeMethods = NULL,
+                maxColor = "black") +
           scale_fill_gradient2(high = "darkred", 
                          mid = "white", 
                          low = "#2171B5", 
@@ -684,7 +685,7 @@ objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 
 # remove simulation objects
 sim <- unique(c(which(grepl("simulations", objects)),
-               which(grepl("yeast-", objects)),
+               which(grepl("yeast", objects)),
                which(grepl("polyester", objects))))
 if (length(sim) > 0){
   objects <- objects[-sim]
