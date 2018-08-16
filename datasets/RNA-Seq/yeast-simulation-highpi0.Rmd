@@ -994,7 +994,9 @@ nDE <- 500
 if(!file.exists(resfile_d5_uninfCov_uw)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                   nDE=nDE, sampleSize=sampleSize, bd=bd,
-                  uninformativeCovariate = TRUE, mc.cores=nCores)
+                  uninformativeCovariate = TRUE, 
+                  weightByCovariate=FALSE,
+                  mc.cores=nCores)
   saveRDS(de5, file = resfile_d5_uninfCov_uw)
 }else{
   de5 <- readRDS(file = resfile_d5_uninfCov_uw)
@@ -1048,7 +1050,9 @@ nDE <- 500
 if(!file.exists(resfile_d10_uninfCov_uw)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd,
-                   uninformativeCovariate = TRUE, mc.cores=nCores)
+                   uninformativeCovariate = TRUE, 
+                   weightByCovariate = FALSE,
+                   mc.cores=nCores)
   saveRDS(de10, file = resfile_d10_uninfCov_uw)
 }else{
   de10 <- readRDS(file = resfile_d10_uninfCov_uw)
