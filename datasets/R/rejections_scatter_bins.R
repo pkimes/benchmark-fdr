@@ -27,6 +27,10 @@ rejection_scatter_bins <- function( sb, covariate, threshold=NULL, bins= 4, ncol
   if( !is.null(threshold) ){
     sb <- sb[rowData(sb)[[covariate]] > threshold,]
   }
+  if(sum(colSums(is.na(assays(sb)$qvalue)) == nrow(sb)) > 0){
+    miss <- which(colSums(is.na(assays(sb)$qvalue)) == nrow(sb)) 
+    sb <- sb[,-miss]
+  }
   rowData(sb)$bin <- cut(rank( rowData(sb)[[covariate]], ties="first"),
                          quantile( rank(rowData(sb)[[covariate]], ties="first"), seq(0, 1, length.out=bins+1) ),
                          include.lowest=TRUE)
