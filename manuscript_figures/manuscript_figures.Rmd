@@ -573,7 +573,8 @@ lineplot_tpr <- ggplot(dftab, aes(x = alpha, y = tpr_diff, color = method, linet
                   labels = LETTERS[1:2], nrow = 1)
   gp <- plot_grid(gp, get_legend(lineplot_fdr), rel_widths = c(1, 1/8))
   gp
-  ggsave(file.path(outdir, paste0("Figure_infCov_", org, ".pdf")), height = 3.5, width = 8)
+  ggsave(file.path(outdir, paste0("Figure_infCov_", gsub("-", "", org), ".pdf")), 
+                   height = 3.5, width = 8)
 }
 ```
 
