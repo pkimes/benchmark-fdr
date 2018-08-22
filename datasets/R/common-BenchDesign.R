@@ -114,9 +114,9 @@ addDefaultMetrics <- function(sb) {
 ## adapted from IHWpaper::clfdr()
 clfdr_hickswrapper <- function(unadj_p, groups, lfdr_estimation="fdrtool") {
   
-  # Exclude this method if there are fewer than 200 tests (fdrtool throws 
-  # a warning in this case)
-  if(length(unadj_p) < 200)
+  # Exclude this method if there are fewer than 200 tests within a grouping 
+  # (fdrtool is applied separately to each group, and throws a warning in such case)
+  if(min(table(groups)) < 200)
     stop("Not enough tests to apply this method. Require at least 200.")
   
   ## estimate local fdr within each stratum first
