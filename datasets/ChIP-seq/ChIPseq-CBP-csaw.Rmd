@@ -265,7 +265,7 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "nWindows") +
 ```
 
 ```{r, nwin-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 35, numQ = 3)
+strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 10, numQ = 3)
 ```
 
 ### Region Width

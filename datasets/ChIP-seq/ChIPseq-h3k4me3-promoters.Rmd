@@ -151,7 +151,7 @@ if (file.exists(count_file)) {
 
 ## Differential Testing
 
-We test for differential peaks at each of the .
+We test for differential binding at each of the promoters.
 
 ```{r chipseq-deseq, results='hide', message=FALSE, warning=FALSE}
 if (file.exists(result_file)) {
@@ -188,7 +188,7 @@ rank_scatter(dat, pvalue = "pval", covariate = "ind_covariate")
 
 ```{r, chipseq-diag-hist, fig.width=10, fig.height=3.2}
 strat_hist(dat, pvalue = "pval", covariate = "ind_covariate",
-           maxy = 10)
+           maxy = 30)
 ```
 
 ## Multiple-Testing Correction
