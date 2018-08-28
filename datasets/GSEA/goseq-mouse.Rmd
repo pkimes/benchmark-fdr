@@ -1,6 +1,6 @@
 ---
 title: "Case Study: Gene Set Enrichment Analysis (Mouse Data Set)"
-author: "Alejandro Reyes"
+author: "Alejandro Reyes and Keegan Korthauer"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
    html_document:
@@ -17,6 +17,11 @@ knitr::opts_chunk$set(echo = TRUE)
 # Summary
 
 The objective of this vignette is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). To do this, we will use mouse data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The dataset consists of RNA-seq data from mouse hematopoietic stem cells and 4 multipotent progenitor lineages. We will test for difference in gene expression between two different cell fractions and perform GSEA in the resulting list of genes. 
+
+Here we use the `goseq` Bioconductor package to implement the gene set analysis. This is 
+an Over-Representation Analysis which does requires setting an arbitrary threshold
+for Differential Expression. The test concerns whether any of the GO sets are enriched
+for DE genes.
 
 # Workspace Setup
 
@@ -46,9 +51,7 @@ dir.create(sbdir, showWarnings = FALSE)
 count_file <- file.path(datdir, "mouse-counts.rds")
 deseq_file <- file.path(datdir, "mouse-deseq.rds")
 goset_file <- file.path(datdir, "mouse-gosets.rds")
-result_file <- file.path(resdir, "mouse-results.rds")
-bench_file <- file.path(sbdir, "mouse-benchmark.rds")
-bench_file_uninf <- file.path(sbdir, "mouse-uninf-benchmark.rds")
+result_file <- file.path(resdir, "mouse-results-goseq.rds")
 ```
 
 # Data Preparation
@@ -131,12 +134,13 @@ in them (many of these are set to 1).
 
 ```{r}
 goRes <- goRes %>%
-  dplyr::filter(numDEInCat > 0, numInCat > 10 )
+  dplyr::filter(numDEInCat > 0, numInCat > 5 )
 ```
 
 ## Covariate Diagnostics
 
-Here, we can see that the size of the gene set is actually informative.
+Here, we want to check whether the size of the gene set is actually informative and 
+independent under the null.
 
 ### Gene Set Size
 
@@ -152,126 +156,22 @@ rank_scatter(dat = goRes, pval = "over_represented_pvalue",
     ylab(expression(-log[10]~"(p-value)")) 
 ```
 
-And at the same time, it seems to be fair to assume that it is independent under the null hypothesis.
+But unfortunately the distribution 
+p-values is quite different for the different covariate strata. This is not surprising, as
+we expect that smaller gene sets that have at least one DE gene in them will be skewed 
+toward smaller p-values (as compared to larger gene sets that have at least one DE gene), 
+simply because a single DE gene represents a larger proportion in the smaller sets.
+If we don't condition on sets that have at least one DE gene, however, the distribution 
+of p-values is spiked at 1 since goseq assigns all such sets to a p-value of 1.
 
 ```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
 strat_hist(goRes, pval = "over_represented_pvalue", covariate = "numInCat", maxy=7)
 ```
 
-### Random
-
-We will explore whether the random covariate can be used as a covariate for modern multiple-testing correction methods in the context of GSEA. In the plot below, the log10 of the p-values is plotted as a function of the 
-random covariate. This covariate looks independent of the p-values.
-
-```{r informativeCovariate-rand, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
-rank_scatter(dat = goRes, pval = "over_represented_pvalue", 
-              covariate = "rand_covar", bins = 50, 
-              funfill = log10_trans()) +
-    ylim(0, 12) +
-    ggtitle("Over-represented gene sets") +
-    ylab(expression(-log[10]~"(p-value)") ) 
-```
-
-We can also explore if the covariate seems to be independent under the null. 
-
-```{r assumptions-rand, message=FALSE, fig.width=10, fig.height=3.2}
-strat_hist(goRes, pval="over_represented_pvalue", covariate="rand_covar", maxy=10)
-```
-
-## Multiple-Testing Correction
-
-Generating the *SummarizedBenchmark* object:
- 
-```{r setup-benckmark, message=FALSE}
-## rename columns and prepare for benchmarking
-res <- dplyr::select(goRes, over_represented_pvalue, numInCat, rand_covar) %>%
-    dplyr::rename(pval = over_represented_pvalue,
-                  ind_covariate = numInCat) %>%
-    dplyr::mutate(pval = pmin(pval, 1))
-
-## generate default BenchDesign
-bd <- initializeBenchDesign()
-```
-
-We don't include `ashq`, `fdrreg-e` and `fdrreg-t` from the analysis because
-the necessary assumptions are not met in the current case study. Namely, effect sizes
-and standard errors are not available for ASH, and the test statistics are not normally
-distributed under the null and alternative, as required by Scott's FDR regression methods.
-
-```{r run-benchmark}
-if (!file.exists(bench_file)) {
-    sGSEAMouse <- buildBench(bd, res, ftCols = "ind_covariate")
-    saveRDS(sGSEAMouse, file = bench_file)
-} else {
-    sGSEAMouse <- readRDS(bench_file)
-}
-```
-
-We'll also compare the results to an uninformative (random) covariate.
-
-```{r run-benchmark-rand}
-if (!file.exists(bench_file_uninf)) {
-  res$ind_covariate <- res$rand_covar
-  sGSEAMouse_rand <- buildBench(bd, res, ftCols = "ind_covariate")
-  saveRDS(sGSEAMouse_rand, file = bench_file_uninf)
-} else {
-  sGSEAMouse_rand <- readRDS(bench_file_uninf)
-}
-```
-
-
-## Benchmark Metrics
-
-### Gene Set Size
-
-```{r}
-assayNames(sGSEAMouse) <- "qvalue"
-sGSEAMouse <- addDefaultMetrics(sGSEAMouse)
-```
-
-```{r plottingResults}
-rejections_scatter(sGSEAMouse, as_fraction = FALSE, supplementary = FALSE)
-```
-  
-```{r}
-plotFDRMethodsOverlap(sGSEAMouse, alpha = 0.1, supplementary = FALSE,
-                      order.by = "freq", nsets = 100)
-```
-
-```{r}
-covariateLinePlot(sGSEAMouse, alpha = 0.1, covname = "ind_covariate", trans="log1p")
-```
-
-### Random
-
-```{r}
-assayNames(sGSEAMouse_rand) <- "qvalue"
-sGSEAMouse_rand <- addDefaultMetrics(sGSEAMouse_rand)
-sGSEAMouse_rand <- estimatePerformanceMetrics(sGSEAMouse_rand, addColData=TRUE)
-```
-
-```{r plottingResults-rand}
-rejections_scatter(sGSEAMouse_rand, as_fraction=FALSE, supplementary=FALSE)
-```
-  
-```{r}
-plotFDRMethodsOverlap(sGSEAMouse_rand, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
-```
-
-```{r}
-covariateLinePlot(sGSEAMouse_rand, alpha = 0.1, covname = "ind_covariate", trans = "log1p")
-```
-
-## Covariate comparison
-
-Here we compare the method ranks for the two covariates at alpha = 0.10.
-
-```{r}
-plotMethodRanks(c(bench_file, bench_file_uninf), 
-                colLabels = c("Set Size", "Random"), 
-                alpha = 0.10, xlab = "Covariate", 
-                excludeMethods = NULL)
-``` 
+This suggests that
+the covariate is *not* independent under the null hypothesis, so the assumptions
+of many of the methods (which use an independent covariate) are not satisfied. 
+Therefore we will not proceed with the benchmarking using these results.
 
 # Session Info
 

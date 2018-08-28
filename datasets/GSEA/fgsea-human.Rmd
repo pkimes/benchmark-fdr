@@ -1,0 +1,288 @@
+---
+title: "Case Study: Gene Set Enrichment Analysis (Human Data Set)"
+author: "Alejandro Reyes and Keegan Korthauer"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+The objective of this document is to compare different methods for multiple testing correction in the context of Gene Set Enrichment Analysis (GSEA). In order to get a list of genes, we will use RNA-seq data consisting of cortex and cerebellum samples of a subset of the GTEx data. 
+
+Here we use the `fgsea` Bioconductor package to implement the GSEA method. This is 
+a Functional Class Scoring approach, which does not require setting an arbitrary threshold
+for Differential Expression, but instead relies on the gene's rank (here we rank by
+DESeq2 test statistic).
+
+# Workspace Setup
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(DESeq2)
+library(EnsDb.Hsapiens.v86)
+library(biomaRt)
+library(fgsea)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+datdir <- "data"
+resdir <- "results"
+sbdir <- "../../results/GSEA"
+dir.create(datdir, showWarnings = FALSE)
+dir.create(resdir, showWarnings = FALSE)
+dir.create(sbdir, showWarnings = FALSE)
+
+## intermediary files we create below
+count_file <- file.path(datdir, "human-counts.rds")
+deseq_file <- file.path(datdir, "human-deseq.rds")
+goset_file <- file.path(datdir, "human-gosets.rds")
+result_file <- file.path(resdir, "human-results.rds")
+bench_file <- file.path(sbdir, "human-benchmark.rds")
+bench_file_uninf <- file.path(sbdir, "human-uninf-benchmark.rds")
+```
+
+# Data Preparation
+
+The dataset consists of 10 samples (6 cerebellum and 4 cortex samples), all from male individuals. We download a *DESeqDataSet* if not present locally and modify the design to test for differences in gene expression between cerebellums and cortex.
+	    
+```{r, message=FALSE}
+if (!file.exists(count_file)) {
+    download.file("https://www.dropbox.com/s/itrs2a6cnmurnck/gsea-human-counts.rds?dl=1",
+                  destfile = count_file)
+}
+dsdObject <- readRDS(count_file)
+design( dsdObject ) <- ~ tissue
+```
+
+To keep running times short, we only perform differential tesing on protein coding genes, as specified in Ensembl release 86. 
+
+```{r}
+gnType <- genes(EnsDb.Hsapiens.v86, column = "gene_biotype")
+protGenes <- gnType$gene_id[gnType$gene_biotype == "protein_coding"]
+dsdObject <- dsdObject[rownames(dsdObject) %in% protGenes, ]
+```
+
+# Data Analysis
+
+## Enrichment Analysis
+
+Next, we run DESeq2 to retrieve a list of differentially expressed genes at a FDR of 10%. 
+
+```{r deseq2, message=FALSE}
+if (!file.exists(deseq_file)) {
+    dsdObject <- DESeq(dsdObject)
+    res <- results(dsdObject, independentFiltering = FALSE)
+    saveRDS(res, file = deseq_file)
+} else {
+    res <- readRDS(deseq_file)
+}
+
+genes <- as.numeric(res$padj < 0.1)
+names(genes) <- rownames(res)
+sum(genes, na.rm=TRUE)
+```
+
+Next we’ll use the biomaRt package to download and associate GO annotations for each gene. 
+
+```{r goseq, message=FALSE}
+if (!file.exists(goset_file)) {
+    mart <- useMart("ensembl", "hsapiens_gene_ensembl")
+    goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
+                    filters = "ensembl_gene_id", values = rownames(res))
+    goSets <- goSets[!nchar( goSets$go_id ) == 0, ]
+    goSets <- with(goSets, split(go_id, ensembl_gene_id))
+    saveRDS(goSets, file = goset_file)
+} else {
+    goSets <- readRDS(goset_file)
+}
+```
+
+
+Now we use the `fgsea` package to perform the gene set enrichment analysis and 
+obtain a enrichment p-value for each pathway.
+
+```{r}
+# invert the list so each item is a pathway instead of a gene
+goSets <- split(rep(names(goSets), lengths(goSets)), unlist(goSets))
+stats <- res$stat
+names(stats) <- rownames(res)
+stats <- stats[!is.na(stats)]
+
+if (!file.exists(result_file)) {
+  goRes <- fgsea(goSets, 
+                  stats, 
+                  nperm=10000, 
+                  maxSize=500,
+                  minSize=5)  
+  saveRDS(goRes, file = result_file)
+} else {
+  goRes <- readRDS(result_file)
+}
+```
+
+Add a random (uninformative covariate) to the dataset.
+
+```{r}
+## Add random (uninformative) covariate
+set.seed(66778)
+goRes$rand_covar <- rnorm(nrow(goRes))
+
+```
+
+
+## Covariate Diagnostics
+
+Here, we want to check whether the size of the gene set is actually informative and 
+independent under the null.
+
+### Gene Set Size
+
+We will explore whether the size of the gene set can be used as a covariate for modern multiple-testing correction methods in the context of GSEA. In the plot below, the log10 of the p-values is plotted as a function of the size of the gene set. There is a pattern in which gene sets with a higher number of genes tend to have smaller p-values, which is indicative that gene set size is an informative covariate. 
+
+```{r informativeCovariate, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter(dat = goRes, pval = "pval", 
+              covariate = "size", bins = 50, funx = log2, 
+              funfill = log10_trans()) +
+    ggtitle("Enriched gene sets") +
+    xlab(expression(log[10]~"(# of genes)")) +
+    ylab(expression(-log[10]~"(p-value)") ) 
+```
+
+We can also explore if the covariate seems to be independent under the null. 
+
+```{r assumptions, message=FALSE, fig.width=10, fig.height=3.2}
+strat_hist(goRes, pval="pval", covariate="size", maxy=11)
+```
+ 
+### Random
+
+We will explore whether the random covariate can be used as a covariate for modern multiple-testing correction methods in the context of GSEA. In the plot below, the log10 of the p-values is plotted as a function of the 
+random covariate. This covariate looks independent of the p-values.
+
+```{r informativeCovariate-rand, message=FALSE, fig.height=3.5, message=FALSE, fig.width=4.5}
+rank_scatter(dat = goRes, pval = "pval", 
+              covariate = "rand_covar", bins = 50, 
+              funfill = log10_trans()) +
+    ggtitle("Enriched gene sets") +
+    ylab(expression(-log[10]~"(p-value)") ) 
+```
+
+We can also explore if the covariate seems to be independent under the null. 
+
+```{r assumptions-rand, message=FALSE, fig.width=10, fig.height=3.2}
+strat_hist(goRes, pval="pval", covariate="rand_covar", maxy=11)
+```
+  
+ 
+## Multiple-Testing Correction
+
+We then execute the benchDesign and generate a *SummarizedBenchmark* object containing multiple-testing corrections using several methods. 
+ 
+```{r setup-benckmark, message=FALSE}
+## rename columns and prepare for benchmarking
+res <- dplyr:::select(goRes, c("pval", "size", "rand_covar")) %>%
+    dplyr:::rename(ind_covariate = size)
+
+## generate default BenchDesign
+bd <- initializeBenchDesign()
+```
+
+We don't include `ashq`, `fdrreg-e` and `fdrreg-t` from the analysis because
+the necessary assumptions are not met in the current case study. Namely, effect sizes
+and standard errors are not available for ASH, and the test statistics are not normally
+distributed under the null and alternative, as required by Scott's FDR regression methods.
+
+```{r run-benchmark}
+if (!file.exists(bench_file)) {
+  sGSEA <- buildBench(bd, res, ftCols = "ind_covariate")
+  saveRDS(sGSEA, file = bench_file)
+} else {
+  sGSEA <- readRDS(bench_file)
+}
+```
+
+We'll also compare the results to an uninformative (random) covariate.
+
+```{r run-benchmark-rand}
+if (!file.exists(bench_file_uninf)) {
+  res$ind_covariate <- res$rand_covar
+  sGSEA_rand <- buildBench(bd, res, ftCols = "ind_covariate")
+  saveRDS(sGSEA_rand, file = bench_file_uninf)
+} else {
+  sGSEA_rand <- readRDS(bench_file_uninf)
+}
+```
+
+## Benchmark Metrics
+
+### Gene Set Size
+
+```{r}
+assayNames(sGSEA) <- "qvalue"
+sGSEA <- addDefaultMetrics(sGSEA)
+sGSEA <- estimatePerformanceMetrics(sGSEA, addColData=TRUE)
+```
+
+```{r plottingResults}
+rejections_scatter(sGSEA, as_fraction=FALSE, supplementary=FALSE)
+```
+  
+```{r}
+plotFDRMethodsOverlap(sGSEA, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
+```
+
+```{r}
+covariateLinePlot(sGSEA, alpha = 0.1, covname = "ind_covariate", trans = "log1p")
+```
+
+### Random
+
+```{r}
+assayNames(sGSEA_rand) <- "qvalue"
+sGSEA_rand <- addDefaultMetrics(sGSEA_rand)
+sGSEA_rand <- estimatePerformanceMetrics(sGSEA_rand, addColData=TRUE)
+```
+
+```{r plottingResults-rand}
+rejections_scatter(sGSEA_rand, as_fraction=FALSE, supplementary=FALSE)
+```
+  
+```{r}
+plotFDRMethodsOverlap(sGSEA_rand, alpha=0.1, supplementary=FALSE, order.by="freq", nsets=100)
+```
+
+```{r}
+covariateLinePlot(sGSEA_rand, alpha = 0.1, covname = "ind_covariate", trans = "log1p")
+```
+
+## Covariate comparison
+
+Here we compare the method ranks for the two covariates at alpha = 0.10.
+
+```{r}
+plotMethodRanks(c(bench_file, bench_file_uninf), 
+                colLabels = c("Set Size", "Random"), 
+                alpha = 0.10, xlab = "Covariate", 
+                excludeMethods = NULL)
+``` 
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
