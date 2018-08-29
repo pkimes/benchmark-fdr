@@ -99,7 +99,7 @@ sum(genes, na.rm=TRUE)
 
 Next we’ll use the biomaRt package to download and associate GO annotations for each gene. 
 
-```{r goseq, message=FALSE}
+```{r gocat, message=FALSE}
 if (!file.exists(goset_file)) {
     mart <- useMart("ensembl", "hsapiens_gene_ensembl")
     goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
