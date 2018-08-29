@@ -49,7 +49,7 @@ outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
 # set alpha cutoff for plots that are fixed at a certain value of alpha
-alpha <- 0.10
+alpha <- 0.05
 ```
 
 
@@ -384,7 +384,7 @@ sb <- readRDS(file=resfile)
 res <- data.frame(rowData(sb)) %>%
   dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
 pa <- strat_hist(res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 10, axislabs = FALSE) +
+           covariate = "ind_covariate", maxy = 8.75, axislabs = FALSE) +
   draw_plot_label("  RNA-seq case study: Brain", 0.5, 1, hjust = 0.5,fontface = "bold", 
                   size = 12) +
   draw_plot_label("Overall mean expression pvalue", size = 11, 0.5, 0.14, fontface = "plain",
@@ -415,7 +415,7 @@ res <- data.frame(rowData(sb)) %>%
   dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
 
 pc <- strat_hist(res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 7, axislabs = FALSE) +
+           covariate = "ind_covariate", maxy = 8.5, axislabs = FALSE) +
   draw_plot_label("  GSEA case study: Mouse", 0.5, 1, hjust = 0.5, fontface = "bold" , size = 12) +
   draw_plot_label("Gene Set size pvalue", size = 11, 0.5, 0.14, fontface = "plain",
                   hjust =0.5) +
