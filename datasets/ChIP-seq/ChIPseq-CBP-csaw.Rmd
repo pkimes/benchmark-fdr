@@ -36,6 +36,7 @@ library(Rsamtools)
 library(Rsubread)
 library(csaw)
 library(edgeR)
+library(GenomicAlignments)
 
 ## load helper functions
 for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
@@ -56,6 +57,7 @@ filtered_file <- file.path(resdir, "cbp-csaw-counts-filtered.rds")
 normfacs_file <- file.path(resdir, "cbp-csaw-counts-normfacs.rds")
 result_file <- file.path(resdir, "cbp-csaw-results.rds")
 bench_file <- file.path(sbdir, "cbp-csaw-benchmark.rds")
+bench_file_cov <- file.path(sbdir, "cbp-csaw-cov-benchmark.rds")
 bench_file_uninf <- file.path(sbdir, "cbp-csaw-uninf-benchmark.rds")
 
 ## set up parallel backend
@@ -204,7 +206,7 @@ if (file.exists(filtered_file)) {
     filtered_cnts <- win_cnts[keep, ]
 
     ## calculate normalizing offsets based on larger windows
-    normfacs <- normOffsets(bins)
+    normfacs <- normOffsets(bins, se.out = FALSE)
     
     ## save filtered counts, normalizing factors
     saveRDS(filtered_cnts, file = filtered_file)
@@ -243,6 +245,11 @@ if (file.exists(result_file)) {
         data.frame(tab_comb,
                    best_pos = mid(ranges(rowRanges(filtered_cnts[tab_best$best]))),
                    best_logFC = tab_best$logFC)
+
+    ## get overall mean counts for each window
+    merged_cnts <- summarizeOverlaps(res_ranges, BamFileList(meta$sortedfile))
+    res_ranges$meancnt <- rowMeans(assays(merged_cnts)$counts)
+    
     saveRDS(res_ranges, file = result_file)
 }
 
@@ -265,7 +272,7 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "nWindows") +
 ```
 
 ```{r, nwin-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 10, numQ = 3)
+strat_hist(res_df, pvalue = "PValue", covariate = "nWindows", maxy = 15)
 ```
 
 ### Region Width
@@ -277,7 +284,19 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "width") +
 ```
 
 ```{r, width-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 35, numQ = 3)
+strat_hist(res_df, pvalue = "PValue", covariate = "width", maxy = 15)
+```
+
+### Mean Coverage
+
+```{r, cov-diag-scatter, fig.width=4.5, fig.height=3.5}
+rank_scatter(res_df, pvalue = "PValue", covariate = "meancnt") +
+    ggtitle("Mean coverage as independent covariate") +
+    xlab("Mean coverage")
+```
+
+```{r, cov-diag-hist, fig.width=10, fig.height=3.2}
+strat_hist(res_df, pvalue = "PValue", covariate = "meancnt", maxy = 15)
 ```
 
 ### Random
@@ -289,14 +308,21 @@ rank_scatter(res_df, pvalue = "PValue", covariate = "uninf_covar") +
 ```
 
 ```{r, rand-diag-hist, fig.width=10, fig.height=3.2}
-strat_hist(res_df, pvalue = "PValue", covariate = "uninf_covar", maxy = 35, numQ = 3)
+strat_hist(res_df, pvalue = "PValue", covariate = "uninf_covar", maxy = 15)
 ```
 
 ## Multiple-Testing Correction
 
 We use the common `BenchDesign` with the set of multiple testing correction
-methods already included. We use the width of the regions as the independent
-covariate.
+methods already included. We investigate both the width of the regions and their
+mean coverage as the independent covariate. We won't assess the number of windows,
+since this is very tightly correlated with the width of the region. 
+
+```{r}
+cor(res_df[,c("width", "nWindows", "meancnt")])
+```
+
+First, we'll use the region width covariate.
 
 ```{r}
 if (!file.exists(bench_file)) {
@@ -308,6 +334,21 @@ if (!file.exists(bench_file)) {
     saveRDS(sb, file = bench_file)
 } else {
     sb <- readRDS(bench_file)
+}
+```
+
+Next, we'll use the mean coverage covariate.
+
+```{r}
+if (!file.exists(bench_file_cov)) {
+    res_df$ind_covariate <- res_df$meancnt
+    res_df$pval <- res_df$PValue
+
+    bd <- initializeBenchDesign()
+    sbC <- buildBench(bd, data = res_df, ftCols = "ind_covariate")
+    saveRDS(sbC, file = bench_file_cov)
+} else {
+    sbC <- readRDS(bench_file_cov)
 }
 ```
 
@@ -356,6 +397,33 @@ plotFDRMethodsOverlap(sb, alpha = 0.05, nsets = ncol(sb),
 covariateLinePlot(sb, alpha = 0.05, covname = "ind_covariate")
 ```
 
+### Mean Coverage
+
+We'll do the same for the mean coverage covariate.
+
+```{r, chipseq-metrics-cov}
+assayNames(sbC) <- "qvalue"
+sbC <- addDefaultMetrics(sbC)
+```
+
+Now, we'll plot the results.
+
+```{r, chipseq-scatter-cov, results="hide"}
+rejections_scatter(sbC, supplementary = FALSE)
+rejection_scatter_bins(sbC, covariate = "ind_covariate",
+                       bins = 4, supplementary = FALSE)
+```
+
+```{r, chipseq-overlap-cov}
+plotFDRMethodsOverlap(sbC, alpha = 0.05, nsets = ncol(sbC),
+                      order.by = "freq", decreasing = TRUE,
+                      supplementary = FALSE)
+```
+
+```{r, rnaseq-lineplot-cov}
+covariateLinePlot(sbC, alpha = 0.05, covname = "ind_covariate")
+```
+
 ### Random
 
 We'll do the same for the random (uninformative covariate).
@@ -374,7 +442,7 @@ rejection_scatter_bins(sbU, covariate = "ind_covariate",
 ```
 
 ```{r, chipseq-overlap-rand}
-plotFDRMethodsOverlap(sbU, alpha = 0.05, nsets = ncol(sb),
+plotFDRMethodsOverlap(sbU, alpha = 0.05, nsets = ncol(sbU),
                       order.by = "freq", decreasing = TRUE,
                       supplementary = FALSE)
 ```
@@ -388,8 +456,8 @@ covariateLinePlot(sbU, alpha = 0.05, covname = "ind_covariate")
 Here we compare the method ranks for the two covariates at alpha = 0.10.
 
 ```{r}
-plotMethodRanks(c(bench_file, bench_file_uninf), 
-                colLabels = c("Region width", "Random"), 
+plotMethodRanks(c(bench_file, bench_file_cov, bench_file_uninf), 
+                colLabels = c("Region width", "Mean Coverage", "Random"), 
                 alpha = 0.10, xlab = "Covariate", 
                 excludeMethods = NULL)
 ``` 
