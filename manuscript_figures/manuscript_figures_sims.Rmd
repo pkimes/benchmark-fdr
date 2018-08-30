@@ -1,0 +1,150 @@
+---
+title: "Manuscript Figures for Genome Biology (simulation subset)"
+author: "Rafalab"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Running this
+
+```{r Figure2-load-data}
+## Load packages and source benchmark FDR
+library(tidyverse)
+library(cowplot)
+library(ggthemes)
+library(grid)
+library(SummarizedBenchmark)
+
+## load helper functions
+for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+# assumes sb objects are in the following location
+resmet_file <- file.path("..", "datasets", "simulations", "results-summary", "result-metrics.rds")
+
+# set up results directory
+outdir <- "./figures"
+dir.create(outdir, showWarnings = FALSE)
+
+methodset <- c("bonf", "bh", "ihw", "qvalue", "bl-df03", "lfdr",
+               "fdrreg-e", "fdrreg-t", "ashq", "adapt-glm")
+```
+
+We use the standardize candy color scheme and line types for the plots.
+
+```{r}
+col <- as.character(candycols$col)
+names(col) <- as.character(candycols$Method)
+lty <- as.character(candycols$lty)
+names(lty) <- as.character(candycols$Method)
+```
+
+To generate the figures in this document, the simulation results must first be aggregated by running the code at `datasets/simulations/simulations-summary.Rmd`.
+
+```{r}
+resmet <- readRDS(resmet_file)
+```
+
+Unfortunately, because the plots in this section illustrate FDR and TPR acorss varying simulation settings rather than varying nominal FDR cutoff, we cannot simply use the `plotsim_average()` function to generate plots. Instead, we define the following helper function to consistently generate plots similar to those output by `plotsim_average()` with arbitrary covariate, e.g. number of tests or proportion of null hypotheses, as the x-axis. The function assumes that the input table only includes FDR or TPR values for each method at a single nominal alpha cutoff. In these figures, we only plot FDR and TPR values at the nominal alpha cutoff of 0.05.
+
+```{r}
+genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
+    met <- match.arg(met)
+    cov <- rlang::enquo(cov)
+    gp <- dplyr::filter(tab, key == met) %>%
+        ggplot(aes(x = !!cov, y = mean.info, color = Method, group = Method)) +
+        geom_line(aes(linetype = Method), alpha = 0.85) +
+        geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = ebw, alpha=0.5) +
+        scale_linetype_manual(values = lty) + 
+        scale_color_manual(values = col) +
+        scale_y_continuous(met, labels = scales::percent) +
+        expand_limits(y = 0) +
+        ggtitle(paste("Mean", met)) +
+        theme_classic() +
+        theme(axis.title = element_text(face = "bold", size = 10),
+              plot.title = element_text(face = "bold", size = 14))
+    if (met == "FDR") {
+        if (rlang::quo_name(cov) == "alpha") {
+            gp <- gp + geom_abline(lty = 2, color = "blue", alpha = 1/2) 
+        } else {
+            gp <- gp + geom_hline(yintercept = 0.05, lty = 2, color = "blue", alpha = 1/2) 
+        }
+    }
+    gp
+}
+```
+
+# Figure 3
+
+This is a faceted figure with results from the pure simulation studies showing several key results from a subset of simulation settings. Namely, the figure includes plots of FDR and TPR values at a nominal FDR cutoff of 0.05 over 100 replications illustrating the impact of (A,B) changing total number of tests, (C,D) changing the proportion of non-null tests, and (E,F) changing the informativeness of a covariate. 
+
+```{r, fig.width = 10, fig.height = 12}
+## Figure 3A,B: FDR/TPR of methods across varying number of tests at alpha = 0.05
+res_ntests <- dplyr::filter(resmet, setting == "varyingntests", alpha == 0.05)
+p3a <- genplot(res_ntests, cov = as.factor(ntests), met = "FDR", ebw = 0.15) +
+    xlab("Number of Tests")
+p3b <- genplot(res_ntests, cov = as.factor(ntests), met = "TPR", ebw = 0.15) +
+    xlab("Number of Tests")
+
+## Figure 3C,D: FDR/TPR of methods across varying null proportion at alpha = 0.05
+res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
+p3c <- genplot(res_pi0, cov = pi0, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Null Hypotheses",
+                       breaks = c(5, seq(10, 90, by = 10), 95, 99))
+p3d <- genplot(res_pi0, cov = pi0, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Null Hypotheses",
+                       breaks = c(5, seq(10, 90, by = 10), 95, 99))
+
+## Figure 3E,F: FDR/TPR of methods across varying informativeness at alpha = 0.05
+res_info <- dplyr::filter(resmet, setting == "varyinginfo", alpha == 0.05)
+p3e <- genplot(res_info, cov = inform, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
+p3f <- genplot(res_info, cov = inform, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
+
+Fig3 <- plot_grid(p3a + guides(color = FALSE, linetype = FALSE),
+                p3b + guides(color = FALSE, linetype = FALSE),
+                p3c + guides(color = FALSE, linetype = FALSE),
+                p3d + guides(color = FALSE, linetype = FALSE),
+                p3e + guides(color = FALSE, linetype = FALSE),
+                p3f + guides(color = FALSE, linetype = FALSE),
+                labels = LETTERS[1:6], ncol = 2)
+Fig3 <- plot_grid(Fig3, get_legend(p3a), rel_widths = c(1, .2))
+Fig3
+ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
+```
+
+# Figure 3+
+
+This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. 
+
+```{r, fig.width = 10, fig.height = 12}
+## Figure 3plus A,B: FDR/TPR of methods across varying test statistics distribution
+res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
+p3pa <- genplot(res_noise, cov = alpha, met = "FDR") +
+    facet_grid(. ~ dist, labeller = label_parsed)
+p3pb <- genplot(res_noise, cov = alpha, met = "TPR") +
+    facet_grid(. ~ dist, labeller = label_parsed)
+
+Fig3p <- plot_grid(p3pa + guides(color = FALSE, linetype = FALSE),
+                   p3pb + guides(color = FALSE, linetype = FALSE),
+                   labels = LETTERS[1:2], ncol = 1)
+Fig3p <- plot_grid(Fig3p, get_legend(p3pa), rel_widths = c(7.5, 1))
+Fig3p
+ggsave(file.path(outdir, "Figure3plus.pdf"), width=14, height=8)
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
