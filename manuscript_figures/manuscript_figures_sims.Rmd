@@ -68,7 +68,6 @@ genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
         scale_color_manual(values = col) +
         scale_y_continuous(met, labels = scales::percent) +
         expand_limits(y = 0) +
-        ggtitle(paste("Mean", met)) +
         theme_classic() +
         theme(axis.title = element_text(face = "bold", size = 10),
               plot.title = element_text(face = "bold", size = 14))
@@ -95,6 +94,15 @@ p3a <- genplot(res_ntests, cov = as.factor(ntests), met = "FDR", ebw = 0.15) +
 p3b <- genplot(res_ntests, cov = as.factor(ntests), met = "TPR", ebw = 0.15) +
     xlab("Number of Tests")
 
+## add title to 3A,B
+p3ab <- plot_grid(p3a + guides(color = FALSE, linetype = FALSE),
+                  p3b + guides(color = FALSE, linetype = FALSE),
+                  labels = LETTERS[1:2], ncol = 2)
+p3abTitle <- ggdraw() +
+    draw_label("Simulation performance across varying numbers of hypotheses",
+               fontface = 'bold')
+p3ab <- plot_grid(p3abTitle, p3ab, ncol = 1, rel_heights = c(0.1, 1))
+
 ## Figure 3C,D: FDR/TPR of methods across varying null proportion at alpha = 0.05
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
 p3c <- genplot(res_pi0, cov = pi0, met = "FDR", ebw = 2.5) +
@@ -104,6 +112,15 @@ p3d <- genplot(res_pi0, cov = pi0, met = "TPR", ebw = 2.5) +
     scale_x_continuous("Proportion of Null Hypotheses",
                        breaks = c(5, seq(10, 90, by = 10), 95, 99))
 
+## add title to 3C,D
+p3cd <- plot_grid(p3c + guides(color = FALSE, linetype = FALSE),
+                  p3d + guides(color = FALSE, linetype = FALSE),
+                  labels = LETTERS[3:4], ncol = 2)
+p3cdTitle <- ggdraw() +
+    draw_label("Simulation performance across varying null proportion",
+               fontface = 'bold')
+p3cd <- plot_grid(p3cdTitle, p3cd, ncol = 1, rel_heights = c(0.1, 1))
+
 ## Figure 3E,F: FDR/TPR of methods across varying informativeness at alpha = 0.05
 res_info <- dplyr::filter(resmet, setting == "varyinginfo", alpha == 0.05)
 p3e <- genplot(res_info, cov = inform, met = "FDR", ebw = 2.5) +
@@ -111,13 +128,17 @@ p3e <- genplot(res_info, cov = inform, met = "FDR", ebw = 2.5) +
 p3f <- genplot(res_info, cov = inform, met = "TPR", ebw = 2.5) +
     scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
 
-Fig3 <- plot_grid(p3a + guides(color = FALSE, linetype = FALSE),
-                p3b + guides(color = FALSE, linetype = FALSE),
-                p3c + guides(color = FALSE, linetype = FALSE),
-                p3d + guides(color = FALSE, linetype = FALSE),
-                p3e + guides(color = FALSE, linetype = FALSE),
-                p3f + guides(color = FALSE, linetype = FALSE),
-                labels = LETTERS[1:6], ncol = 2)
+## add title to 3E,F
+p3ef <- plot_grid(p3e + guides(color = FALSE, linetype = FALSE),
+                  p3f + guides(color = FALSE, linetype = FALSE),
+                  labels = LETTERS[5:6], ncol = 2)
+p3efTitle <- ggdraw() +
+    draw_label("Simulation performance across varying informativeness",
+               fontface = 'bold')
+p3ef <- plot_grid(p3efTitle, p3ef, ncol = 1, rel_heights = c(0.1, 1))
+
+## pull Figure 3 together
+Fig3 <- plot_grid(p3ab, p3cd, p3ef, ncol = 1)
 Fig3 <- plot_grid(Fig3, get_legend(p3a), rel_widths = c(1, .2))
 Fig3
 ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
@@ -130,14 +151,22 @@ This is a faceted figure with results from the pure simulation studies showing t
 ```{r, fig.width = 10, fig.height = 12}
 ## Figure 3plus A,B: FDR/TPR of methods across varying test statistics distribution
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
+levels(res_noise$dist) <- gsub("Noise:", "Distribution:", levels(res_noise$dist))
 p3pa <- genplot(res_noise, cov = alpha, met = "FDR") +
     facet_grid(. ~ dist, labeller = label_parsed)
 p3pb <- genplot(res_noise, cov = alpha, met = "TPR") +
     facet_grid(. ~ dist, labeller = label_parsed)
 
+## create title for 3plus
+p3pTitle <- ggdraw() +
+    draw_label("Simulation performance across test statistic distributions",
+               fontface = 'bold', size = 20)
+
+## pull Figure 3plus together
 Fig3p <- plot_grid(p3pa + guides(color = FALSE, linetype = FALSE),
                    p3pb + guides(color = FALSE, linetype = FALSE),
                    labels = LETTERS[1:2], ncol = 1)
+Fig3p <- plot_grid(p3pTitle, Fig3p, ncol = 1, rel_heights = c(0.1, 1))
 Fig3p <- plot_grid(Fig3p, get_legend(p3pa), rel_widths = c(7.5, 1))
 Fig3p
 ggsave(file.path(outdir, "Figure3plus.pdf"), width=14, height=8)
