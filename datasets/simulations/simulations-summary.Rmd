@@ -13,7 +13,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r Figure2-load-data}
+```{r load-workspace}
 # Load packages and source benchmark FDR
 library(tidyr)
 library(dplyr)
@@ -29,9 +29,6 @@ library(SummarizedBenchmark)
 for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
-
-# assumes sb objects are in the following location
-path <- file.path("..", "datasets", "simulations", "results")
 
 # set up results directory
 outdir <- "./figures"
@@ -50,10 +47,10 @@ read in and summarized. Ideally, this initial step should be run externally sepa
 from this Rmd (by default, the following code chunk will not be run).
 
 ```{r, eval = FALSE}
-for (ia in c(1:10, 20, 30, 40, 50)) {
-    summary_file <- file.path("results", paste0("summary_alpha", ia, ".rds"))
+for (ia in 1:10) {
+    summary_file <- file.path("results-summary", paste0("summary_alpha", ia, ".rds"))
     if (!file.exists(summary_file)) {
-        res_files <- list.files(path, "\\.rds$", full.names = TRUE)
+        res_files <- list.files("results", "\\.rds$", full.names = TRUE)
         res <- lapply(res_files, function(x) {
             zz <- readRDS(x)
             zz_i <- lapply(zz, `[[`, "informative")
@@ -82,7 +79,7 @@ res <- vector("list", length(alphas))
 for (ia in seq_len(length(alphas))) {
     imethodset <- methodset
     imethodset[which(imethodset == "ihw")] <- paste0("ihw-a", sprintf("%02d", alphas[ia]))
-    ires <- readRDS(file.path("results", paste0("summary_alpha", alphas[ia], ".rds")))
+    ires <- readRDS(file.path("results-summary", paste0("summary_alpha", alphas[ia], ".rds")))
     ires <- bind_rows(ires, .id = "setting")
     ires <- dplyr::mutate(ires, dist = gsub(".*?-benchmark-(.*)", "\\1", setting),
                          setting = gsub("(.*?)-benchmark-.*", "\\1", setting))
@@ -179,6 +176,15 @@ resmet <- dplyr::filter(resmet, !( grepl("chi", dist) & Method == "ashq" ))
 resmet <- dplyr::filter(resmet, !( grepl("chi", dist) & grepl("fdrreg", Method) ))
 ```
 
+Since the table will be used again for generating manuscript figures, we save it as
+an RDS object for easier future access.
+
+```{r save-resmet}
+resmet_file <- file.path("results-summary", "result-metrics.rds")
+if (!file.exists(resmet_file)) {
+    saveRDS(resmet, file = resmet_file)
+}
+```
 
 # Null Simulations
 
