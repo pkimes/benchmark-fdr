@@ -763,9 +763,15 @@ inftab <- dftab %>%
 
 rowOrder <- c("ihw", "bl", "adapt-glm", "lfdr", "fdrreg-e", "fdrreg-t")
 
+# calculate percentage diff as percentage of the smallest (nonzero) number 
+# of rejections (i.e. using n rejects with informative or uninf for denominator,
+# depending on which one was smaller while still being greater than zero)
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   dplyr::mutate(diff_inf = nrejects - uninf) %>%
-  dplyr::mutate(diff_inf_percent = diff_inf / nrejects) %>%
+  dplyr::mutate(basenum = ifelse(nrejects == 0 | uninf == 0, 
+                                 pmax(nrejects, uninf),
+                                 pmin(nrejects, uninf))) %>%
+  dplyr::mutate(diff_inf_percent = diff_inf / basenum) %>%
   dplyr::mutate(method = factor(method, levels = rowOrder)) %>%
   dplyr::group_by(casestudy, cov) %>%
   complete(method, dataset)
@@ -776,6 +782,10 @@ maxVals <- dftab %>%
 
 dftab <- left_join(dftab, maxVals, by = c("dataset", "cov")) %>%
   mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) 
+
+# if no change, set diff_inf_percent to zero, even if no rejections in either case
+dftab <- dftab %>% 
+  mutate(diff_inf_percent = ifelse(nrejects == uninf, 0, diff_inf_percent))
   
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
         geom_tile() + 
@@ -798,7 +808,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
               legend.margin = margin(6, 10, 6, 10)) +
         geom_text(aes(label = ifelse(is.na(top), "", scales::percent(top))),
                   color = "black", size = 2)
-
 
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
