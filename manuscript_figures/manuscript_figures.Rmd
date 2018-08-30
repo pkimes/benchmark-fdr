@@ -734,7 +734,8 @@ df <- data.frame(filename, casestudy, dataset, inform, cov, stringsAsFactors = F
   mutate(dataset = ifelse(casestudy == "scRNAseq", paste(dataset, extM, sep="-"),
                           dataset)) %>%
   mutate(cov = ifelse(casestudy == "scRNAseq" & inform != "uninf", extC,  cov)) %>%
-  mutate(cov = ifelse(casestudy == "ChIPseq" & inform != "uninf", "region-width",  cov)) %>%
+  mutate(cov = ifelse(casestudy == "ChIPseq" & inform != "uninf", 
+                      ifelse(grepl("cov", filename), "coverage", "region-width"),  cov)) %>%
   mutate(cov = ifelse(casestudy == "GSEA" & inform != "uninf", "set-size",  cov)) %>%
   mutate(cov = ifelse(casestudy == "GWAS" & inform != "uninf", extD,  cov)) %>%
   mutate(cov = ifelse(casestudy == "microbiome" & inform != "uninf", 
@@ -761,18 +762,19 @@ inftab <- dftab %>%
   dplyr::filter(inform == "inf") %>%
   dplyr::select(-inform)
 
+colOrder <- c("GWAS", "RNAseq", "ChIPseq", "GSEA", "microbiome", "scRNAseq")
 rowOrder <- c("ihw", "bl", "adapt-glm", "lfdr", "fdrreg-e", "fdrreg-t")
 
-# calculate percentage diff as percentage of the smallest (nonzero) number 
-# of rejections (i.e. using n rejects with informative or uninf for denominator,
-# depending on which one was smaller while still being greater than zero)
+# calculate percentage diff as percentage of the # of rejections found by 
+# using no covariate. If no rejections are found using no covariate, and
+# rejections are found with the covariate, set to 100%. 
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   dplyr::mutate(diff_inf = nrejects - uninf) %>%
-  dplyr::mutate(basenum = ifelse(nrejects == 0 | uninf == 0, 
-                                 pmax(nrejects, uninf),
-                                 pmin(nrejects, uninf))) %>%
-  dplyr::mutate(diff_inf_percent = diff_inf / basenum) %>%
+  dplyr::mutate(diff_inf_percent = diff_inf / uninf) %>%
+  dplyr::mutate(diff_inf_percent = ifelse(uninf==0 & nrejects > 0, 1, 
+                                          diff_inf_percent)) %>%
   dplyr::mutate(method = factor(method, levels = rowOrder)) %>%
+  dplyr::mutate(casestudy = factor(casestudy, levels = colOrder)) %>%
   dplyr::group_by(casestudy, cov) %>%
   complete(method, dataset)
 
@@ -789,28 +791,34 @@ dftab <- dftab %>%
   
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
         geom_tile() + 
-        scale_fill_gradientn("% Increase\nin rejections",
-                             labels = scales::percent, trans="log1p",
+        geom_text(aes(label = ifelse(is.na(top), "", #adaptive text lab color
+                                     ifelse(top > 0.7, scales::percent(top), ""))), 
+                  color = "white", size = 2) +
+        geom_text(aes(label = ifelse(is.na(top), "", 
+                                     ifelse(top <= 0.7, scales::percent(top), ""))), 
+                  color = "black", size = 2) +
+        scale_fill_gradientn("% Change in\nrejections",
+                             labels = scales::percent, 
                              colours = c("darkblue","white","darkred"), 
                              values = scales::rescale(c(-.05,0,1)),
-                             guide = "colorbar", limits=c(-.05,1)) +
+                             guide = "colorbar", oob=scales::squish,
+                             limits=c(-.05,1)) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
         facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
         ggtitle("Impact of informative covariate on number of rejections") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.985, 0.93), legend.justification = c(1, 1),
+              legend.position = c(0.99, 0.94), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7),
               legend.title = element_text(size = 9),
-              legend.margin = margin(6, 10, 6, 10)) +
-        geom_text(aes(label = ifelse(is.na(top), "", scales::percent(top))),
-                  color = "black", size = 2)
+              legend.margin = margin(6, 10, 6, 10)) 
 
 Fig_impactofinfcov
-ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15, height = 4.25)
+ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15.5, height = 4.25)
+
 ```
 
 Make the Figure above, but average over all datasets within a case study.
@@ -818,32 +826,176 @@ Make the Figure above, but average over all datasets within a case study.
 ```{r}
 dftab <- dftab %>%
   group_by(casestudy, method) %>%
-  summarize(diff_inf_percent = mean(diff_inf_percent, na.rm = TRUE))
+  summarize(ndatasets = sum(!is.na(diff_inf_percent)),
+            diff_inf_percent = mean(diff_inf_percent, na.rm = TRUE))
 
 maxVals <- dftab %>% 
   group_by(casestudy) %>%
-  summarize(top = max(diff_inf_percent, na.rm=TRUE))
+  summarize(top = max(diff_inf_percent, na.rm=TRUE),
+            maxd = max(ndatasets)) 
 
 dftab <- left_join(dftab, maxVals, by = c("casestudy")) %>%
-  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) 
+  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) %>%
+  ungroup() %>%
+  mutate(casestudy = factor(casestudy, levels = colOrder)) %>%
+  mutate(casestudyN = paste0(casestudy, "(", maxd, ")")) %>%
+  mutate(casestudyN = factor(casestudyN, 
+                             levels = unique(casestudyN)[unique(as.numeric(casestudy))]))
+
   
 Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_percent)) + 
         geom_tile() + 
-        scale_fill_gradientn("% Increase\nin rejections",
-                             labels = scales::percent, trans="log1p",
+        scale_fill_gradientn("% Change in\nrejections",
+                             labels = scales::percent, 
                              colours = c("darkblue","white","darkred"), 
                              values = scales::rescale(c(-.05,0,1)),
-                             guide = "colorbar", limits=c(-.05,1)) +
+                             guide = "colorbar", limits=c(-.05,1),
+                             oob=scales::squish) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
-        ggtitle("Impact of informative covariate on number of rejections") +
+        ggtitle("Impact of informative covariate") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-        geom_text(aes(label = ifelse(is.na(top), "", scales::percent(top))),
-                  color = "black", size = 2)
+        geom_text(aes(label = ifelse(is.na(top), "", #adaptive text lab color
+                                     ifelse(top > 0.7, scales::percent(top), ""))), 
+                  color = "white", size = 2) +
+        geom_text(aes(label = ifelse(is.na(top), "", 
+                                     ifelse(top <= 0.7, scales::percent(top), ""))), 
+                  color = "black", size = 2)  +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.945, 0.94), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 9),
+              legend.margin = margin(6, 10, 6, 10)) 
 
 Fig_impactofinfcov
-ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5.75, height = 4)
+ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5, height = 4)
+
+
+###################################
+# Add average simulation results 
+###################################
+org <- "yeast-"
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl(org, objects) ] 
+resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
+
+# regexp to construct master data table separating case study datasets, methods
+# and covariates
+obj.names <- str_split(resfile, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
+inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
+type <-  ifelse(grepl("null", resfile), "null", "de")
+size <-  ifelse(grepl("10", resfile), "10", "5")
+aseq <- alpha
+
+tab <- data.frame()
+for (l in seq_along(resfile)){
+  x <- readRDS(resfile[l])
+  
+  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                  fill =  "FDR", annotate = NULL, 
+                  alpha = aseq) %>%
+    mutate(fdr = nrejects) %>%
+    select(method, casestudy, replicate, fdr, alpha)
+  
+
+  tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "TPR", annotate = NULL, 
+                    alpha = aseq) %>%
+    mutate(tpr = nrejects) %>%
+    select(method, casestudy, replicate, tpr, alpha)
+    
+  tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
+      left_join(tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
+      mutate(inform = inform[l],
+             type = type[l],
+             size = size[l])
+
+  tab <- bind_rows(tab, tmp)
+}
+
+myspread <- function(df, key, value) {
+    # quote key
+    keyq <- rlang::enquo(key)
+    # break value vector into quotes
+    valueq <- rlang::enquo(value)
+    s <- rlang::quos(!!valueq)
+    df %>% gather(variable, value, !!!s) %>%
+        unite(temp, !!keyq, variable) %>%
+        spread(temp, value)
+}
+
+dftab <- tab %>%
+  select(-casestudy, -tnr) %>%
+  myspread(inform, c(tpr, fdr))
+
+dftab <- dftab %>%
+  mutate(tpr_diff = inf_tpr - uninf_tpr,
+         fdr_diff = inf_fdr - uninf_fdr) %>%
+  group_by(type, size, method, alpha) %>%
+  summarize(tpr_se = sd(tpr_diff)/n(),
+            fdr_se = sd(fdr_diff)/n(),
+            tpr_diff = mean(tpr_diff),
+            fdr_diff = mean(fdr_diff)) %>%
+  ungroup() %>%
+  filter(method %in% rowOrder) %>%
+  mutate(method = factor(method, levels = rowOrder)) %>%
+  mutate(top_fdr = ifelse(fdr_diff == max(fdr_diff), fdr_diff, NA)) %>%
+  mutate(top_tpr = ifelse(tpr_diff == max(tpr_diff), tpr_diff, NA)) %>%
+  mutate(size ="sim(100)")
+  
+
+pfdr <- ggplot(dftab, aes(x = size, y = method, fill = fdr_diff)) + 
+        geom_tile() + 
+        geom_text(aes(label = ifelse(is.na(top_fdr), "",  scales::percent(top_fdr))), 
+                  color = "black", size = 2) +
+        scale_fill_gradientn("% Change\nin FDR",
+                             labels = scales::percent, 
+                             colours = c("darkblue","white","darkred"), 
+                             values = scales::rescale(c(-.01,0,.01)),
+                             guide = "colorbar", oob=scales::squish,
+                             limits=c(-.01,0.01)) +
+        xlab("") + ylab("") +
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1))
+
+
+ptpr <- ggplot(dftab, aes(x = size, y = method, fill = tpr_diff)) + 
+        geom_tile() + 
+        geom_text(aes(label = ifelse(is.na(top_tpr), "",  scales::percent(top_tpr))), 
+                  color = "black", size = 2) +
+        scale_fill_gradientn("% Change\nin TPR",
+                             labels = scales::percent, 
+                             colours = c("darkblue","white","darkred"), 
+                             values = scales::rescale(c(-.01,0,.1)),
+                             guide = "colorbar", oob=scales::squish,
+                             limits=c(-.01,0.1)) +
+        xlab("") + ylab("") +
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1))
+
+ggdraw() +
+  draw_plot(pfdr, 0.53, 0.025, 0.24, 0.93) +
+  draw_plot(ptpr, 0.77, 0.025, 0.24, 0.93) +
+  draw_plot(Fig_impactofinfcov, 0, 0, 0.52, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
+  draw_plot_label("Simulation", 0.71, 0.06, size =11, fontface = "plain")
+ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim.pdf"), width=9.5, height=5)
+
+
 ```
 
 
