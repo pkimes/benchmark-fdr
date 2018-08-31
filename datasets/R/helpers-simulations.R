@@ -184,6 +184,13 @@ pi0_varyinfo80 <- function(zz) {
     function(x) { ifelse(x > 4/5, 0.8 * (1 - zz), 0.2 * (4 + zz)) }
 }
 
+## logistic function to test different levels of "informativeness" with pi0 = 80%
+pi0_varyinfo80l <- function(zz) {
+    stopifnot(zz <= 1L, zz >= 0L)
+    function(x) { zz / (1+exp(5-25*x)) + (1 - zz) * 0.8 }
+}
+
+
 ## ##############################################################################
 ## CODE DERIVED FROM EXTERNAL SOURCE
 ## source: https://github.com/stephenslab/ash/blob/94a3347/code/dsc-shrink/datamakers/datamaker.R

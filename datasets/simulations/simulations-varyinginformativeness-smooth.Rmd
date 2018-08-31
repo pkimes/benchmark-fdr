@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Informativeness"
+title: "Simulation Study: Varying Informativeness (smooth)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -15,15 +15,15 @@ output:
 In this set of simulations, we consider settings with both null and non-null
 tests with varying levels of informativeness of an informative covariate. The
 covariate is sampled uniformly from the interval [0, 1], and the conditional
-probability of a test being non-null is a step function of the covariate with
-two levels (over the intervals [0, 4/5], (4/5, 1]) where the size of the step
-is used to indicate the informativeness of the covariate.
+probability of a test being non-null is a smooth function of the covariate taking
+values between 0 and 1 based on the logistic function.
 
 For all settings, the marginal proportion of null hypotheses is set to 80%.
 A tuning parameter is used to modify the informativeness of the covariate
-such that 0 corresponds to an uninformative covariate, and 1 corresponds to a
-fully informative covariate (i.e. all tests with covariate values in [0, 4/5]
-are null and all tests in (4/5, 1] are non-null).
+such that 0 corresponds to a completely uninformative covariate, and increasing
+"informativeness" corresponds to more non-null tests concentrating in a smaller
+range of the covariate. The functional relationship between the covariate and
+the null probability over varying informativeness is shown below.
 
 # Workspace Setup
 
@@ -107,7 +107,7 @@ proportion, pi0, across varying levels of "informativeness."
 xseq <- seq(0, 1, by = .01)
 pi0trends <- lapply(seq(0, 1, by = .2), function(i) {
     tibble(info = i, x = xseq,
-           pi0 = pi0_varyinfo80(i)(xseq))
+           pi0 = pi0_varyinfo80l(i)(xseq))
 })
 pi0trends <- bind_rows(pi0trends)
 
@@ -123,30 +123,6 @@ ggplot(pi0trends, aes(x = x, y = pi0)) +
     ggtitle("Covariate vs. pi0 for varying informativeness")
 ```
 
-Alternatively, since the function is a step function, we can simply plot the levels
-of the two steps. 
-
-```{r, plot-informativeness-v2, fig.width = 6, fig.height = 5}
-xseq <- seq(0, 1, by = .01)
-pi0trends <- lapply(xseq, function(i) {
-    tibble(info = i, x = 0:1,
-           pi0 = pi0_varyinfo80(i)(0:1))
-})
-pi0trends <- bind_rows(pi0trends)
-pi0trends <- dplyr::mutate(pi0trends,
-                           x = factor(x, levels = 0:1,
-                                      labels = c("[0, .8]", "(.8, 1]")))
-
-ggplot(pi0trends, aes(x = info, y = pi0, group = x)) +
-    geom_line() +
-    geom_text(aes(label = x, vjust = round(pi0)),
-              dplyr::filter(pi0trends, info == 1),
-              hjust = 1, size = 3, color = 'blue') + 
-    theme_bw() +
-    scale_x_continuous("Informativeness", labels = scales::percent) +
-    scale_y_continuous(labels = scales::percent) +
-    ggtitle("null proportions for varying informativeness")
-```
 
 # Informativeness = 0 Setting
 
@@ -155,7 +131,7 @@ First, we consider the setting where the informativeness is 0.
 ## Data Simulation
 
 ```{r info00-parameters}
-pi0 <- pi0_varyinfo80(0.00)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(0.00)             # numeric: proportion of null hypotheses
 seed <- 1010
 ```
 
@@ -268,7 +244,7 @@ Next, we consider the setting where the informativeness is 0.20.
 ## Data Simulation
 
 ```{r info20-parameters}
-pi0 <- pi0_varyinfo80(0.20)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(0.20)             # numeric: proportion of null hypotheses
 seed <- 1201
 ```
 
@@ -381,7 +357,7 @@ Next, we consider the setting where the informativeness is 0.40.
 ## Data Simulation
 
 ```{r info40-parameters}
-pi0 <- pi0_varyinfo80(0.40)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(0.40)             # numeric: proportion of null hypotheses
 seed <- 51
 ```
 
@@ -494,7 +470,7 @@ Next, we consider the setting where the informativeness is 0.60.
 ## Data Simulation
 
 ```{r info60-parameters}
-pi0 <- pi0_varyinfo80(0.60)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(0.60)             # numeric: proportion of null hypotheses
 seed <- 500
 ```
 
@@ -607,7 +583,7 @@ Next, we consider the setting where the informativeness is 0.80.
 ## Data Simulation
 
 ```{r info80-parameters}
-pi0 <- pi0_varyinfo80(0.80)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(0.80)             # numeric: proportion of null hypotheses
 seed <- 608
 ```
 
@@ -720,7 +696,7 @@ Finally, we consider the setting where the informativeness is 1.00.
 ## Data Simulation
 
 ```{r info100-parameters}
-pi0 <- pi0_varyinfo80(1.00)             # numeric: proportion of null hypotheses
+pi0 <- pi0_varyinfo80l(1.00)             # numeric: proportion of null hypotheses
 seed <- 808
 ```
 
