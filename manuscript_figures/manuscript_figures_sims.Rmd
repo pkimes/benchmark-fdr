@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Running this
 
-```{r Figure2-load-data}
+```{r load-workspace}
 ## Load packages and source benchmark FDR
 library(tidyverse)
 library(cowplot)
@@ -50,13 +50,13 @@ names(lty) <- as.character(candycols$Method)
 
 To generate the figures in this document, the simulation results must first be aggregated by running the code at `datasets/simulations/simulations-summary.Rmd`.
 
-```{r}
+```{r load-sim-metrics}
 resmet <- readRDS(resmet_file)
 ```
 
 Unfortunately, because the plots in this section illustrate FDR and TPR acorss varying simulation settings rather than varying nominal FDR cutoff, we cannot simply use the `plotsim_average()` function to generate plots. Instead, we define the following helper function to consistently generate plots similar to those output by `plotsim_average()` with arbitrary covariate, e.g. number of tests or proportion of null hypotheses, as the x-axis. The function assumes that the input table only includes FDR or TPR values for each method at a single nominal alpha cutoff. In these figures, we only plot FDR and TPR values at the nominal alpha cutoff of 0.05.
 
-```{r}
+```{r genplot-function}
 genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
     met <- match.arg(met)
     cov <- rlang::enquo(cov)
@@ -86,13 +86,15 @@ genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
 
 This is a faceted figure with results from the pure simulation studies showing several key results from a subset of simulation settings. Namely, the figure includes plots of FDR and TPR values at a nominal FDR cutoff of 0.05 over 100 replications illustrating the impact of (A,B) changing total number of tests, (C,D) changing the proportion of non-null tests, and (E,F) changing the informativeness of a covariate. 
 
-```{r, fig.width = 10, fig.height = 12}
+```{r Figure3, fig.width = 10, fig.height = 12}
 ## Figure 3A,B: FDR/TPR of methods across varying number of tests at alpha = 0.05
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", alpha == 0.05)
-p3a <- genplot(res_ntests, cov = as.factor(ntests), met = "FDR", ebw = 0.15) +
-    xlab("Number of Tests")
-p3b <- genplot(res_ntests, cov = as.factor(ntests), met = "TPR", ebw = 0.15) +
-    xlab("Number of Tests")
+p3a <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.05) +
+    scale_x_continuous("Number of Tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
+p3b <- genplot(res_ntests, cov = ntests, met = "TPR", ebw = 0.05) +
+    scale_x_continuous("Number of Tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
 
 ## add title to 3A,B
 p3ab <- plot_grid(p3a + guides(color = FALSE, linetype = FALSE),
@@ -105,19 +107,19 @@ p3ab <- plot_grid(p3abTitle, p3ab, ncol = 1, rel_heights = c(0.1, 1))
 
 ## Figure 3C,D: FDR/TPR of methods across varying null proportion at alpha = 0.05
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
-p3c <- genplot(res_pi0, cov = pi0, met = "FDR", ebw = 2.5) +
-    scale_x_continuous("Proportion of Null Hypotheses",
-                       breaks = c(5, seq(10, 90, by = 10), 95, 99))
-p3d <- genplot(res_pi0, cov = pi0, met = "TPR", ebw = 2.5) +
-    scale_x_continuous("Proportion of Null Hypotheses",
-                       breaks = c(5, seq(10, 90, by = 10), 95, 99))
+p3c <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Non-Null Hypotheses",
+                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
+p3d <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Non-Null Hypotheses",
+                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
 
 ## add title to 3C,D
 p3cd <- plot_grid(p3c + guides(color = FALSE, linetype = FALSE),
                   p3d + guides(color = FALSE, linetype = FALSE),
                   labels = LETTERS[3:4], ncol = 2)
 p3cdTitle <- ggdraw() +
-    draw_label("Simulation performance across varying null proportion",
+    draw_label("Simulation performance across varying non-null proportion",
                fontface = 'bold')
 p3cd <- plot_grid(p3cdTitle, p3cd, ncol = 1, rel_heights = c(0.1, 1))
 
@@ -148,7 +150,7 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
 
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. 
 
-```{r, fig.width = 10, fig.height = 12}
+```{r Figure3plus, fig.width = 10, fig.height = 12}
 ## Figure 3plus A,B: FDR/TPR of methods across varying test statistics distribution
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
 levels(res_noise$dist) <- gsub("Noise:", "Distribution:", levels(res_noise$dist))
