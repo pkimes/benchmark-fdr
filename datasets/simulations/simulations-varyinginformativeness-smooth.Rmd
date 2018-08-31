@@ -43,12 +43,12 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-info00_file <- file.path(resdir, "varyinginfo-benchmark-level00.rds")
-info20_file <- file.path(resdir, "varyinginfo-benchmark-level20.rds")
-info40_file <- file.path(resdir, "varyinginfo-benchmark-level40.rds")
-info60_file <- file.path(resdir, "varyinginfo-benchmark-level60.rds")
-info80_file <- file.path(resdir, "varyinginfo-benchmark-level80.rds")
-info100_file <- file.path(resdir, "varyinginfo-benchmark-level100.rds")
+info00_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level00.rds")
+info20_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level20.rds")
+info40_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level40.rds")
+info60_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level60.rds")
+info80_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level80.rds")
+info100_file <- file.path(resdir, "varyinginfo-smooth-benchmark-level100.rds")
 
 ## number of cores for parallelization
 cores <- 20
