@@ -1,0 +1,323 @@
+---
+title: "Simulation Study: ASH with VASH shrinkage estimation"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+# Summary
+
+In this set of simulations, we consider settings with both null and non-null
+tests with an informative covariate. The covariate is sampled uniformly from
+the interval [0, 1], and the conditional probability of a test being non-null
+is a smooth (cubic) function of the covariate. We include simulation results
+with only t-distributed noise.
+
+In primary analyses (`simulations-informative-cubic.Rmd` and others), we observed
+that the ASH method was anti-conservative when the test statistic was t-distributed,
+with the effect size following an approximate normal distribution, and standard
+errors sampled from a chi-squared distribution. This was the case even when specifying
+the `df=` argument of the `ash` method.
+
+In personal communications with the authors of the `ashr` package, it was suggested
+that this was possibly attributable to the approximation used when computing
+t-likelihoods, where the randomness of the observed standard errors are not properly
+accounted for. The authors suggested a solution to this problem based on passing
+shrunken standard error estimates and moderated degrees of freedom as input to ASH,
+rather than the observed standard errors and degrees of freedom. The `ashq` method
+in this analysis is run with shrunken standard errors and moderated degrees of
+freedom estimated using the `vashr` package available at the authors' GitHub site
+([`mengyin/vashr`](https://github.com/mengyin/vashr)). Since the focus of the analysis
+is on the ASH method which does not make use of an auxiliary informative covariate,
+the comparison of performance using informative and uninformative covariates is
+excluded from this write-up. Additionally, since the VASH approach is only necessary
+for t-distributed settings, we exclude the Gaussian and Chi-Squared settings as
+well.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(parallel)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+tdist_file <- file.path(resdir, "vashr-informative-cubic-benchmark-t5.rds")
+tdist11_file <- file.path(resdir, "vashr-informative-cubic-benchmark-t11.rds")
+
+## number of cores for parallelization
+cores <- 20
+B <- 100
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+for simulations with Gaussian or t-distributed noise. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. 
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "fdrreg-t",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+m <- 20000                        # integer: number of hypothesis tests
+pi0 <- pi0_cubic(0.90)            # numeric: proportion of null hypotheses
+icovariate <- runif               # functional: independent covariate
+```
+
+Simulation results will be presented excluding a subset of methods, and
+for certain plots (upset plots), a single alpha cutoff will be used.
+
+```{r}
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+# Student's t Setting (df = 5)
+
+We consider the setting with t-distributed noise.
+
+## Data Simulation
+
+```{r t5-parameters}
+es_dist <- rnorm_generator(6)    # functional: dist of alternative test stats
+ts_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
+seed <- 815
+```
+
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+library(vashr)
+
+bdplust <- modifyBMethod(bdplus, "ashq",
+                         df = 2 * vashr::vash(SE, df = 5, singlecomp = TRUE)$PosteriorShape[1],
+                         sebetahat = vashr::vash(SE, df = 5, singlecomp = TRUE)$sd.post)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
+
+```{r t5-run-simulation}
+if (file.exists(tdist_file)) {
+    res <- readRDS(tdist_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = tdist_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r t5-one-simulation}
+onerun <- simIteration(1, bdplust, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, t5-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, t5-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r t5-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r t5-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r t5-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r t5-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# Student's t Setting (df = 11)
+
+Next, we consider a second setting with t-distributed noise.
+
+## Data Simulation
+
+```{r t11-parameters}
+es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
+ts_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
+seed <- 9158
+```
+
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+bdplust <- modifyBMethod(bdplus, "ashq",
+                         df = 2 * vashr::vash(SE, df = 11, singlecomp = TRUE)$PosteriorShape[1],
+                         sebetahat = vashr::vash(SE, df = 11, singlecomp = TRUE)$sd.post)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
+
+```{r t11-run-simulation}
+if (file.exists(tdist11_file)) {
+    res <- readRDS(tdist11_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = tdist11_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r t11-one-simulation}
+onerun <- simIteration(1, bdplust, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, t11-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, t11-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r t11-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r t11-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r t11-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r t11-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
