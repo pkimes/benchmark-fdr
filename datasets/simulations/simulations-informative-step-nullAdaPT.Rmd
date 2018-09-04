@@ -1,0 +1,882 @@
+---
+title: "Simulation Study: AdaPT with null model option (step covariate)" 
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+# Summary
+
+In this set of simulations, we consider settings with both null and non-null
+tests with an informative covariate. The covariate is sampled uniformly from
+the interval [0, 1], and the conditional probability of a test being non-null
+is a non-smooth (monotone) step function of the covariate. We include simulation
+results again with Gaussian, t-distributed, and Chi-Squared distributed noise.
+
+This set of simulations differs from `simulations-informative-step.Rmd` only
+in the implementation of the AdaPT method for multiple testing correction.
+In the primary set of simulation results (`simulations-informative-step.Rmd`),
+we observed that the AdaPT method can lose power when the informative covariate
+is only weakly informative. While the method still controls the FDR, we observe
+that the loss in power is substantial, with AdaPT achieving a lower mean TPR
+across 100 replications when using a weakly informative covariate rather than a
+completely uninformative (random) covariate.
+
+In this set of simulations, we assess whether this loss of power with a weakly
+informative covariate can be mitigated by allowing the AdaPT model selection
+procedure to decide between the same collection of spline models used before, and
+an intercept-only (null) model, which makes no use of the covariate. This approach
+was suggested by the authors of the AdaPT method through personal communication. 
+
+Two additional implementations of the AdaPT model are included in this analysis:
+`adapt-withnull`, the approach described above, and `adapt-onlynull`, where the method
+is forced to ignore the informative covariate. The latter (`onlynull`) implementation
+provides a baseline for comparing the two other AdaPT parameter settings.
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(parallel)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+gauss_file <- file.path(resdir, "nullAdaPT-informative-step-benchmark-gaussian.rds")
+tdist_file <- file.path(resdir, "nullAdaPT-informative-step-benchmark-t5.rds")
+tdist11_file <- file.path(resdir, "nullAdaPT-informative-step-benchmark-t11.rds")
+chisq_file <- file.path(resdir, "nullAdaPT-informative-step-benchmark-chisq4.rds")
+
+## number of cores for parallelization
+cores <- 20
+B <- 100
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+for simulations with Gaussian or t-distributed noise. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. 
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "fdrreg-t",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+We add a couple alternative calls to AdaPT to test whether the method performance improves in cases
+of low "informativeness" if given the option to not use the informative covariate. This option is
+coded by the null model, `"pi0 ~ 1"`, where only an intercept term is included in the model. Specifically,
+we add two alternative calls to the benchmark - one call with the null model added as one of the candidate
+models to `pi_formulas=` and `mu_formulas=`, and a second call with the null model given as the only
+candidate model to `pi_formulas=` and `mu_formulas=`.
+
+```{r}
+bdplus <- addBMethod(bdplus, "adapt-withnull",
+                     adaptMT::adapt_glm,
+                     function(x) { x$qvals },
+                     pvals = pval,
+                     x = data.frame(icov = ind_covariate),
+                     pi_formulas = c("~ 1", paste0("splines::ns(icov, df = ", seq(2, 10, 2), ")")),
+                     mu_formulas = c("~ 1", paste0("splines::ns(icov, df = ", seq(2, 10, 2), ")")),
+                     alphas = 0)
+
+bdplus <- addBMethod(bdplus, "adapt-onlynull",
+                     adaptMT::adapt_glm,
+                     function(x) { x$qvals },
+                     pvals = pval,
+                     x = data.frame(icov = ind_covariate),
+                     pi_formulas = "~ 1",
+                     mu_formulas = "~ 1",
+                     alphas = 0)
+
+candycols2 <- rbind(candycols,
+                    data.frame(Method = c("adapt-withnull", "adapt-onlynull"),
+                               col = c("darkgoldenrod3", "darkgoldenrod3"),
+                               lty = c("dashed", "dotted"),
+                               stringsAsFactors = FALSE))
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+m <- 20000                        # integer: number of hypothesis tests
+pi0 <- pi0_step(0.90)             # numeric: proportion of null hypotheses
+icovariate <- runif               # functional: independent covariate
+```
+
+Simulation results will be presented excluding a subset of methods, and
+for certain plots (upset plots), a single alpha cutoff will be used.
+
+```{r}
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+# Gaussian Setting
+
+First, we consider the setting with Gaussian noise.
+
+## Data Simulation
+
+```{r gauss-parameters}
+es_dist <- rnorm_generator(3)       # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+seed <- 608
+```
+
+We next run the simulations (including Scott's FDR Regression).
+
+```{r gauss-run-simulation}
+if (file.exists(gauss_file)) {
+    res <- readRDS(gauss_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = gauss_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r gauss-one-simulation}
+onerun <- simIteration(1, bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, gauss-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, gauss-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r gauss-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+Since we are primarily interested in comparing just the AdaPT methods, we plot these
+metrics excluding all other methods.
+
+```{r gauss-metrics-averages-adapt, results = "hide"}
+plotsim_average(resdf, met="rejections",
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r gauss-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size",
+                  palette = candycols2)
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate",
+                  palette = candycols2)
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r gauss-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR",
+                  palette = candycols2)
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r gauss-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+Again, we recreate the plots after subsetting on AdaPT methods. 
+
+```{r gauss-metrics-differences-adapt, results = "hide"}
+plotsim_average(resdfiu, met="rejections", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+# Student's t Setting (df = 5)
+
+Next, we consider the setting with t-distributed noise.
+
+## Data Simulation
+
+```{r t5-parameters}
+es_dist <- rnorm_generator(6)    # functional: dist of alternative test stats
+ts_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
+seed <- 815
+```
+
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+bdplust <- modifyBMethod(bdplus, "ashq", df = 5)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
+
+```{r t5-run-simulation}
+if (file.exists(tdist_file)) {
+    res <- readRDS(tdist_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = tdist_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r t5-one-simulation}
+onerun <- simIteration(1, bdplust, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, t5-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, t5-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r t5-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+Since we are primarily interested in comparing just the AdaPT methods, we plot these
+metrics excluding all other methods.
+
+```{r t5-metrics-averages-adapt, results = "hide"}
+plotsim_average(resdf, met="rejections",
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r t5-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size",
+                  palette = candycols2)
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate",
+                  palette = candycols2)
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r t5-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR",
+                  palette = candycols2)
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r t5-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+Again, we recreate the plots after subsetting on AdaPT methods. 
+
+```{r t5-metrics-differences-adapt, results = "hide"}
+plotsim_average(resdfiu, met="rejections", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+# Student's t Setting (df = 11)
+
+Next, we consider the setting with t-distributed noise.
+
+## Data Simulation
+
+```{r t11-parameters}
+es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
+ts_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
+seed <- 9158
+```
+
+For the t-distributed noise setting, we must specify the number of degrees of freedom
+for ASH. We add an additional parameter to the `ashq` method with the corresponding
+degrees of freedom of the noise distribution.
+
+```{r}
+bdplust <- modifyBMethod(bdplus, "ashq", df = 11)
+```
+
+We next run the simulations (including Scott's FDR Regression and ASH with degrees of
+freedom specified).
+
+```{r t11-run-simulation}
+if (file.exists(tdist11_file)) {
+    res <- readRDS(tdist11_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplust, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = tdist11_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r t11-one-simulation}
+onerun <- simIteration(1, bdplust, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, t11-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, t11-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r t11-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+Since we are primarily interested in comparing just the AdaPT methods, we plot these
+metrics excluding all other methods.
+
+```{r t11-metrics-averages-adapt, results = "hide"}
+plotsim_average(resdf, met="rejections",
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r t11-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size",
+                  palette = candycols2)
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate",
+                  palette = candycols2)
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r t11-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR",
+                  palette = candycols2)
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r t11-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+Again, we recreate the plots after subsetting on AdaPT methods. 
+
+```{r t11-metrics-differences-adapt, results = "hide"}
+plotsim_average(resdfiu, met="rejections", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+# Chi-Squared Setting
+
+Finally, we consider the setting with chi-squared distributed noise.
+
+## Data Simulation
+
+```{r chisq4-parameters}
+es_dist <- rnorm_generator(15)       # functional: dist of alternative test stats
+ts_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
+null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
+seed <- 1023
+```
+
+For the chi-squared distributed noise setting, we must change the "mode" setting for ASH
+from the default of 0 to `"estimate"` since the mode of null and alternative test statistics
+are no longer centered at 0. While both approximate Normality and unimodality of effects are
+violated in this simulation setting, by allowing the mode to be estimated, rather than forced
+to 0, should return more comparable results.
+
+```{r}
+bdchi <- modifyBMethod(bdplus, "ashq", mode = "empirical")
+```
+
+We also drop the FDRreg methods from the chi-squared setting.
+
+```{r}
+bdchi <- dropBMethod(bdchi, "fdrreg-t")
+bdchi <- dropBMethod(bdchi, "fdrreg-e")
+```
+
+We next run the simulations. We do not include FDR Regression because the test statistics
+are not approximately normally distributed.
+
+```{r chisq4-run-simulation}
+if (file.exists(chisq_file)) {
+    res <- readRDS(chisq_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdchi, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = chisq_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r chisq4-one-simulation}
+onerun <- simIteration(1, bdchi, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, chisq4-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, chisq4-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r chisq4-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met = "rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met = "FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met = "TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met = "TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+Since we are primarily interested in comparing just the AdaPT methods, we plot these
+metrics excluding all other methods.
+
+```{r chisq4-metrics-averages-adapt, results = "hide"}
+plotsim_average(resdf, met="rejections",
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdf, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate. Again, we plot these without `ashq`.
+
+```{r chisq4-metrics-covlineplot, results = "hide"}
+covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
+                  alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
+                  alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r chisq4-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r chisq4-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+Again, we recreate the plots after subsetting on AdaPT methods. 
+
+```{r chisq4-metrics-differences-adapt, results = "hide"}
+plotsim_average(resdfiu, met="rejections", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="FDR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TPR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+
+plotsim_average(resdfiu, met="TNR", 
+                filter_set = grep("adapt", unique(resdf$blabel),
+                                  invert = TRUE, value = TRUE), 
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
