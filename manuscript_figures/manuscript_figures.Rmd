@@ -1001,46 +1001,80 @@ ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim.pdf"), width=9.5, height
 
 ## Figure contrasting FDR results in different yeast simulation settings
 
-```{r Figure2, fig.width = 10, fig.height = 8}
+```{r Figure-yeast-pi0, fig.width = 10, fig.height = 8}
+
+# strongly informative covariate
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects)) & 
+resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects) | 
+                    grepl("yeastII-", objects) | grepl("yeastIIH-", objects)) & 
                    grepl("de5", objects) & 
                   !grepl("uninf", objects)] 
-labs <- rep("2000 Differentially expressed genes", 2)
-labs[grepl("H", resfile)] <- "500 Differentially expressed genes"
+labs <- rep("30% Non-null", length(resfile))
+labs[grepl("H", resfile)] <- "7.5% Non-null"
+labs2 <- rep("Bimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Unimodal effect size"
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
   
 plist <- vector("list", length(resfile))
+tab <- NULL
 for (l in seq_along(resfile)){
   
   de5 <- readRDS(file=resfile[l])
   res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
-
-  # Fdr by alpha
-  p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) +
-                ggtitle("")
+  res5d$es_dist <- labs2[l]
+  res5d$pi0 <- labs[l]
+  tab <- rbind(tab, res5d)
   
-  # tpr by alpha
-  p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) + 
-                theme(legend.position = "none") + 
-                ggtitle("")
-  
-  if (l == 1){
-    leg <- get_legend(p1)
-  }
-  p1 <- p1 + theme(legend.position = "none")
-  
-  plist[[l]] <- plot_grid(p1, p2, ncol = 2, 
-                   labels = c("", labs[l]), label_x = -0.65 )
 }
 
-# combine rows into one figure
-Fig <- plot_grid(plotlist = plist, nrow = 2, 
-                 labels = LETTERS[1:2], label_size = 20)
-Fig <- plot_grid(Fig, leg, ncol = 2, rel_widths = c(1, 0.2))
-Fig
+FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  facet_grid( ~ es_dist + pi0) +
+  ylim(0,0.3) 
+
+FigStrong
+
+
+# weakly informative covariate
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[(grepl("yeastU-", objects) | grepl("yeastHU-", objects) | 
+                    grepl("yeastIIU-", objects) | grepl("yeastIIHU-", objects)) & 
+                   grepl("de5", objects) & 
+                  !grepl("uninf", objects)] 
+labs <- rep("30% Non-null", length(resfile))
+labs[grepl("H", resfile)] <- "7.5% Non-null"
+labs2 <- rep("Bimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Unimodal effect size"
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+  
+plist <- vector("list", length(resfile))
+tab <- NULL
+for (l in seq_along(resfile)){
+  
+  de5 <- readRDS(file=resfile[l])
+  res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+  res5d$es_dist <- labs2[l]
+  res5d$pi0 <- labs[l]
+  tab <- rbind(tab, res5d)
+  
+}
+
+
+FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.3) +
+  facet_grid( ~ es_dist + pi0)
+
+FigWeak
+
+
+
+plot_grid(FigStrong, FigWeak, nrow = 2, 
+          labels = paste0(LETTERS[1:2], "    "
+                          c("Strongly informative covariate",
+                            "Weakly informative covariate")))
 ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=8)
 
 ```

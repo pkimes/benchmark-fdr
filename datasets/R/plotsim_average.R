@@ -28,6 +28,7 @@
 #'        those that use more than just the p-value (default = FALSE)
 #' @param diffplot logical indicating whether 'value' in tsb is a difference
 #'        between informative and uninformative covariates. (default = FALSE)
+#' @param grpVars vector of character names of additional columns of tsb to keep 
 #'
 #' @return
 #' a ggplot object.
@@ -36,14 +37,24 @@
 plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                             clean_names = FALSE, errorBars=FALSE,
                             palette = candycols, facetMethodType = FALSE,
-                            diffplot = FALSE) {
+                            diffplot = FALSE, grpVars = NULL){
 
     ## cacluate mean per replication
-    tsba <- tsb %>%
+    if(!is.null(grpVars)){
+      tsba <- tsb %>%
+        group_by(blabel, performanceMetric, alpha, param.alpha, key, 
+                 .dots = grpVars) %>%
+        summarize(n = sum(!is.na(value)),
+                  se = sd(value, na.rm = TRUE) / sqrt(n),
+                  value = mean(value, na.rm = TRUE))
+    }else{
+      tsba <- tsb %>%
         group_by(blabel, performanceMetric, alpha, param.alpha, key) %>%
         summarize(n = sum(!is.na(value)),
                   se = sd(value, na.rm = TRUE) / sqrt(n),
                   value = mean(value, na.rm = TRUE))
+   }
+   
    tsba$value[tsba$n == 0] <- NA
    tsba$se[tsba$n == 0] <- NA
     
