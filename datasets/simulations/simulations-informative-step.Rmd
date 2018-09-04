@@ -16,7 +16,7 @@ In this set of simulations, we consider settings with both null and non-null
 tests with an informative covariate. The covariate is sampled uniformly from
 the interval [0, 1], and the conditional probability of a test being non-null
 is a non-smooth (monotone) step function of the covariate. We include simulation results
-again with Gaussian, t-distributed, and Chi-Squared distributed noise.
+again with Gaussian, t-distributed, and Chi-Squared distributed test statistics.
 
 # Workspace Setup
 
@@ -50,7 +50,7 @@ bd <- initializeBenchDesign()
 ```
 
 As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
-for simulations with Gaussian or t-distributed noise. Again, we include both
+for simulations with Gaussian or t-distributed test statistics. Again, we include both
 `nulltype = "empirical"` and `nulltype = "theoretical"`. 
 
 ```{r}
@@ -89,7 +89,7 @@ ualpha <- 0.05
 
 # Gaussian Setting
 
-First, we consider the setting with Gaussian noise.
+First, we consider the setting with Gaussian test statistics.
 
 ## Data Simulation
 
@@ -210,7 +210,7 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
 
 # Student's t Setting (df = 5)
 
-Next, we consider the setting with t-distributed noise.
+Next, we consider the setting with t-distributed test statistics.
 
 ## Data Simulation
 
@@ -221,9 +221,9 @@ null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
 ```
 
-For the t-distributed noise setting, we must specify the number of degrees of freedom
+For the t-distributed setting, we must specify the number of degrees of freedom
 for ASH. We add an additional parameter to the `ashq` method with the corresponding
-degrees of freedom of the noise distribution.
+degrees of freedom of the test statistic distribution.
 
 ```{r}
 bdplust <- modifyBMethod(bdplus, "ashq", df = 5)
@@ -340,7 +340,7 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
 
 # Student's t Setting (df = 11)
 
-Next, we consider a second setting with t-distributed noise.
+Next, we consider a second setting with t-distributed test statistics.
 
 ## Data Simulation
 
@@ -351,9 +351,9 @@ null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
 seed <- 9158
 ```
 
-For the t-distributed noise setting, we must specify the number of degrees of freedom
+For the t-distributed setting, we must specify the number of degrees of freedom
 for ASH. We add an additional parameter to the `ashq` method with the corresponding
-degrees of freedom of the noise distribution.
+degrees of freedom of the test statistic distribution.
 
 ```{r}
 bdplust <- modifyBMethod(bdplus, "ashq", df = 11)
@@ -470,7 +470,7 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
 
 # Chi-Squared Setting
 
-Finally, we consider the setting with chi-squared distributed noise.
+Finally, we consider the setting with chi-squared distributed test statistics.
 
 ## Data Simulation
 
@@ -481,7 +481,7 @@ null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
 seed <- 1023
 ```
 
-For the chi-squared distributed noise setting, we must change the "mode" setting for ASH
+For the chi-squared distributed setting, we must change the "mode" setting for ASH
 from the default of 0 to `"estimate"` since the mode of null and alternative test statistics
 are no longer centered at 0. While both approximate Normality and unimodality of effects are
 violated in this simulation setting, by allowing the mode to be estimated, rather than forced

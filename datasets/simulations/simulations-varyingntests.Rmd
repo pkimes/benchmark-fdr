@@ -52,9 +52,9 @@ bd <- initializeBenchDesign()
 ```
 
 As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
-for simulations with Gaussian noise. Again, we include both
+for simulations with Gaussian test statistics. Again, we include both
 `nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
-series of simulations use test statistics simulated with Gaussian noise, we include
+series of simulations use test statistics simulated with Gaussian test statistics, we include
 Scott's FDR Regression in all of the comparisons.
 
 ```{r}

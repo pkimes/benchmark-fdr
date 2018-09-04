@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Effect Size"
+title: "Simulation Study: Varying Effect Size (chisq-4)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -17,7 +17,7 @@ tests with varying distribution of effect sizes under the non-null (alternative)
 setting. An informative covariate is included in the setting as described in
 `simulations-informative-cubic.Rmd`. This set of simulations is similar to those
 presented in `simulations-varyingeffectsize.Rmd`, however, Chi-Squared
-distributed noise is used to perturb effects. Additionally, since the effect
+distributed test statistics are used. Additionally, since the effect
 must be non-negative (to be a valid value for the non-centrality parameter
 of the a Chi-Squared distribution), the absolute value of all effect sizes
 are used. Note that this modification still maintains a unimodal distribution
