@@ -1002,8 +1002,7 @@ ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim.pdf"), width=9.5, height
 ## Figure contrasting FDR results in different yeast simulation settings
 
 ```{r Figure-yeast-pi0, fig.width = 10, fig.height = 8}
-
-# strongly informative covariate
+# strongly informative covariate (top panel)
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects) | 
                     grepl("yeastII-", objects) | grepl("yeastIIH-", objects)) & 
@@ -1011,8 +1010,8 @@ resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects) |
                   !grepl("uninf", objects)] 
 labs <- rep("30% Non-null", length(resfile))
 labs[grepl("H", resfile)] <- "7.5% Non-null"
-labs2 <- rep("Bimodal effect size", length(resfile))
-labs2[grepl("II", resfile)] <- "Unimodal effect size"
+labs2 <- rep("Unimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Bimodal effect size"
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
   
 plist <- vector("list", length(resfile))
@@ -1024,7 +1023,6 @@ for (l in seq_along(resfile)){
   res5d$es_dist <- labs2[l]
   res5d$pi0 <- labs[l]
   tab <- rbind(tab, res5d)
-  
 }
 
 FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
@@ -1032,11 +1030,11 @@ FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
                 ggtitle("") +
   facet_grid( ~ es_dist + pi0) +
   ylim(0,0.3) 
-
 FigStrong
 
 
-# weakly informative covariate
+
+# weakly informative covariate (bottom panel)
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[(grepl("yeastU-", objects) | grepl("yeastHU-", objects) | 
                     grepl("yeastIIU-", objects) | grepl("yeastIIHU-", objects)) & 
@@ -1044,8 +1042,8 @@ resfile <- objects[(grepl("yeastU-", objects) | grepl("yeastHU-", objects) |
                   !grepl("uninf", objects)] 
 labs <- rep("30% Non-null", length(resfile))
 labs[grepl("H", resfile)] <- "7.5% Non-null"
-labs2 <- rep("Bimodal effect size", length(resfile))
-labs2[grepl("II", resfile)] <- "Unimodal effect size"
+labs2 <- rep("Unimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Bimodal effect size"
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
   
 plist <- vector("list", length(resfile))
@@ -1057,25 +1055,28 @@ for (l in seq_along(resfile)){
   res5d$es_dist <- labs2[l]
   res5d$pi0 <- labs[l]
   tab <- rbind(tab, res5d)
-  
 }
-
 
 FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
                 ggtitle("") +
   ylim(0,0.3) +
   facet_grid( ~ es_dist + pi0)
-
 FigWeak
 
 
-
-plot_grid(FigStrong, FigWeak, nrow = 2, 
-          labels = paste0(LETTERS[1:2], "    "
+leg <- get_legend(FigStrong)
+Fig <- plot_grid(FigStrong + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                 FigWeak + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, 
+                 labels = paste0(LETTERS[1:2], "       ",
                           c("Strongly informative covariate",
-                            "Weakly informative covariate")))
-ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=8)
+                            "Weakly informative covariate")),
+                 hjust = 0)
+plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
+ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=6.5)
 
 ```
 
