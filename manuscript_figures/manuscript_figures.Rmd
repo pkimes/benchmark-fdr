@@ -801,33 +801,56 @@ dftab <- left_join(dftab, maxVals, by = c("dataset", "cov")) %>%
 dftab <- dftab %>% 
   mutate(diff_inf_percent = ifelse(nrejects == uninf, 0, diff_inf_percent))
   
-Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent)) + 
+trim_tails <- function(range = c(-Inf, Inf)) scales::trans_new("trim_tails", 
+                transform = function(x) {
+                  force(range)
+                  desired_breaks <- scales::extended_breaks(n = 7)(x[x >= range[1] & x <= range[2]])
+                  break_increment <- diff(desired_breaks)[1]
+                  x[x < range[1]] <- range[1] - break_increment
+                  x[x > range[2]] <- range[2] + break_increment
+                  x
+                },
+                inverse = function(x) x,
+
+                breaks = function(x) {
+                  force(range)
+                  scales::extended_breaks(n = 7)(x)
+                },
+                format = function(x) {
+                  force(range)
+                  x[1] <- paste("<", range[1])
+                  x[length(x)] <- paste(">", range[2])
+                  paste0(x,"%")
+                })
+
+
+Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent*100)) + 
         geom_tile() + 
         geom_text(aes(label = ifelse(is.na(top), "", #adaptive text lab color
                                      ifelse(top > 0.7, scales::percent(top), ""))), 
                   color = "white", size = 2) +
         geom_text(aes(label = ifelse(is.na(top), "", 
                                      ifelse(top <= 0.7, scales::percent(top), ""))), 
-                  color = "black", size = 2) +
+                  color = "black", size = 2)+
         scale_fill_gradientn("% Change in\nrejections",
-                             labels = scales::percent, 
-                             colours = c("darkblue","white","darkred"), 
-                             values = scales::rescale(c(-.05,0,1)),
-                             guide = "colorbar", oob=scales::squish,
-                             limits=c(-.05,1)) +
+                             colors = c("darkblue","white","darkred"), 
+                             limits = c(-20, 100),
+                             values = scales::rescale(c(-20, 0, 100)), 
+                             trans = trim_tails(range = c(-20, 100)),
+                             oob = scales::squish) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
         facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
         ggtitle("Impact of informative covariate on number of rejections") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.99, 0.94), legend.justification = c(1, 1),
+              legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
-              legend.text = element_text(size = 7),
-              legend.title = element_text(size = 9),
-              legend.margin = margin(6, 10, 6, 10)) 
-
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=5)),
+              legend.title = element_text(size = 9, margin=margin(t=-10)),
+              legend.margin = margin(t=2, r=10, b=-8, l=10))
+  
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15.5, height = 4.25)
 
@@ -855,14 +878,14 @@ dftab <- left_join(dftab, maxVals, by = c("casestudy")) %>%
                              levels = unique(casestudyN)[unique(as.numeric(casestudy))]))
 
   
-Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_percent)) + 
+Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_percent*100)) + 
         geom_tile() + 
         scale_fill_gradientn("% Change in\nrejections",
-                             labels = scales::percent, 
-                             colours = c("darkblue","white","darkred"), 
-                             values = scales::rescale(c(-.05,0,1)),
-                             guide = "colorbar", limits=c(-.05,1),
-                             oob=scales::squish) +
+                             colors = c("darkblue","white","darkred"), 
+                             limits = c(-20, 100),
+                             values = scales::rescale(c(-20, 0, 100)), 
+                             trans = trim_tails(range = c(-20, 100)),
+                             oob = scales::squish) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
@@ -878,9 +901,9 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
               legend.position = c(0.945, 0.94), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
-              legend.text = element_text(size = 7),
-              legend.title = element_text(size = 9),
-              legend.margin = margin(6, 10, 6, 10)) 
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=5)),
+              legend.title = element_text(size = 9, margin=margin(t=-10)),
+              legend.margin = margin(t=2, r=10, b=-8, l=10))
 
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5, height = 4)
@@ -923,7 +946,6 @@ for (l in seq_along(resfile)){
     select(method, casestudy, replicate, tpr, alpha)
     
   tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
-      left_join(tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
       mutate(inform = inform[l],
              type = type[l],
              size = size[l])
@@ -943,7 +965,7 @@ myspread <- function(df, key, value) {
 }
 
 dftab <- tab %>%
-  select(-casestudy, -tnr) %>%
+  select(-casestudy) %>%
   myspread(inform, c(tpr, fdr))
 
 dftab <- dftab %>%
