@@ -757,7 +757,7 @@ We plot the averaged results across `r B` replications.
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met = "rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE),
+                merge_ihw = TRUE, errorBars = TRUE,
                 palette = candycols2)
 
 plotsim_average(resdf, met = "FDR", filter_set = excludeSet,
