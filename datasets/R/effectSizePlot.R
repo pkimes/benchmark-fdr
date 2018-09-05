@@ -173,7 +173,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
   names(lty) <- as.character(df$Method)
 
   if (metric == "discoveries") {
-      ystr <- "% Significant"
+      ystr <- "Percent rejected"
   } else {
       ystr <- metric
   }
@@ -185,7 +185,10 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
       scale_x_continuous(labels = scales::percent) +
       xlab(paste0(covname, " percentile")) +
       scale_color_manual(values = col) +
-      scale_linetype_manual(values = lty) 
+      scale_linetype_manual(values = lty) + 
+      theme_classic() + 
+      theme(axis.title = element_text(face="bold"),
+            plot.title = element_text(face="bold"))
     
     if (!is.list(sbl)){
       p <- p + ylab(ystr)
@@ -195,7 +198,7 @@ covariateLinePlot <- function(sbl, alpha=0.05, nbins = 25,
     }
     
     if(!is.null(trans)){
-      p <- p + scale_y_continuous(trans=trans)
+      p <- p + scale_y_continuous(trans = trans, labels = function(x) paste0(x, "%"))
     }
     
     if(!is.null(transx)){

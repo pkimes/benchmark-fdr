@@ -66,44 +66,51 @@ res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 # Figure 2A: Not all methods control FDR at nominal alpha level
 p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
-      theme(legend.position="none")
+      theme(legend.position="none") +  
+      ggtitle("Mean FDR (100 replications)") +
+      scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2B: TPR of methods across nominal alpha level
 p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
-      theme(legend.position="none")
+      theme(legend.position="none")  +  
+      ggtitle("Mean FDR (100 replications)") +
+      scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2C: Total number of discoveries varied across method
 p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
-      theme(legend.position="none")
+      theme(legend.position="none") +
+      ylab("Number of Rejections") +
+      ggtitle("Mean FDR (100 replications)") +
+      scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
 p4 <- covariateLinePlot(de5, alpha=alpha, covname="log2FC", trans="log1p",
                         nbins=25)
 leg <- get_legend(p4)
-p4 <- p4 + theme(legend.position="none") + 
-  ggtitle("Mean % significant by effect size %ile") + 
-  theme(axis.title = element_text(face="bold", size = 10),
-        plot.title = element_text(face="bold", size = 14)) +
-  xlab("Effect size (log2 fold change) percentile")
+p4 <- p4 +
+  ylab("Rejection rate") +
+  xlab("Effect size (log2 fold change) percentile") +
+  ggtitle("Rejection rate by effect size") + 
+  theme(legend.position="none")
   
 # Figure 2E - upsetr plot - save separately
-pdf(file.path(outdir, "Figure2E.pdf"), width = 10, height = 4, onefile=FALSE)
+pdf(file.path(outdir, "Figure2E.pdf"), width = 8, height = 4, onefile=FALSE)
 aggupset(de5, alpha=alpha, supplementary = FALSE, 
                        return_list = FALSE, nintersects = 12)
-grid.text("Mean overlap Over 100 Replications", x = 0.6, y = 0.97, 
-          gp = gpar(fontsize = 16, fontface = "bold"))
-grid.text("E", x = 0.02, y = 0.97, 
-          gp = gpar(fontsize = 24, fontface = "bold")) 
+grid.text("Mean overlap Over 100 Replications", x = 0.65, y = 0.97, 
+          gp = gpar(fontsize = 14, fontface = "bold"))
+grid.text("E", x = 0.01, y = 0.97, 
+          gp = gpar(fontsize = 22, fontface = "bold")) 
 dev.off()
 
 # Figure 2 (ALL)
 Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
-          labels = LETTERS[1:4], label_size = 20)
+          labels = LETTERS[1:4], label_size = 20, align = "hv")
 Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
 Fig2
-ggsave(file.path(outdir, "Figure2A-D.pdf"), width=10, height=8)
+ggsave(file.path(outdir, "Figure2A-D.pdf"), width=8.5, height=6)
 
 ```
 
@@ -387,9 +394,9 @@ pa <- strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 8.75, axislabs = FALSE) +
   draw_plot_label("  RNA-seq case study: Brain", 0.5, 1, hjust = 0.5,fontface = "bold", 
                   size = 12) +
-  draw_plot_label("Overall mean expression pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+  draw_plot_label("p-value by Overall mean expression group", size = 11, 0.5, 0.14, fontface = "plain",
                   hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
 
 
 # scRNAseq
@@ -403,9 +410,9 @@ pb <- strat_hist(res, pvalue = "pval",
            covariate = "detection", maxy = 12, axislabs = FALSE)+
   draw_plot_label("  scRNA-seq case study: Human, MAST",0.5, 1, hjust = 0.5, fontface = "bold",
                   size = 12 ) +
-  draw_plot_label("Detection rate pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+  draw_plot_label("p-value by Detection rate group", size = 11, 0.5, 0.14, fontface = "plain",
                   hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
  
 
 # GSEA
@@ -417,9 +424,10 @@ res <- data.frame(rowData(sb)) %>%
 pc <- strat_hist(res, pvalue = "pval",
            covariate = "ind_covariate", maxy = 8.5, axislabs = FALSE) +
   draw_plot_label("  GSEA case study: Mouse", 0.5, 1, hjust = 0.5, fontface = "bold" , size = 12) +
-  draw_plot_label("Gene Set size pvalue", size = 11, 0.5, 0.14, fontface = "plain",
+  draw_plot_label("p-value by Gene Set size group", size = 11, 0.5, 0.14, fontface = "plain",
                   hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+
 
 # GWAS
 resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
@@ -430,14 +438,18 @@ res <- data.frame(rowData(sb)) %>%
 pd <- strat_hist(res, pvalue = "pval",
            covariate = "ind_covar_AF", maxy = 3, axislabs = FALSE) +
   draw_plot_label("GWAS case study", 0.5, 1, fontface = "bold", hjust = 0.5, size = 12) +
-  draw_plot_label("Minor Allele Frequency (MAF) pvalue", size = 11, 0.5, 0.14, fontface = "plain", 
+  draw_plot_label("p-value by Minor Allele Frequency (MAF) group", size = 11, 0.5, 0.14, fontface = "plain", 
                   hjust = 0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.36, fontface = "plain", angle=90) 
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
 
 
-p6 <- plot_grid(pa, pb, pc, pd, ncol=1, labels = LETTERS[1:4])
+p6 <- plot_grid(ggdraw(add_sub(pa, " ", size = 2)), 
+                ggdraw(add_sub(pb, " ", size = 2)), 
+                ggdraw(add_sub(pc, " ", size = 2)), 
+                ggdraw(add_sub(pd, " ", size = 2)), 
+                ncol=1, labels = LETTERS[1:4])
 p6
-ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=7)
+ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=8)
 
 ```
 

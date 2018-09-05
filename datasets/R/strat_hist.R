@@ -49,14 +49,15 @@ strat_hist <- function(dat, pvalue, covariate, binwidth=0.025, maxy=3, numQ=3,
                    colour="grey", fill="lightgrey") +
       aes(y=..density..)+
       theme_classic() +
-      theme(plot.title = element_text(size = 11),
+      theme(plot.subtitle = element_text(size = 11, margin = margin(b = -10), hjust = 0.5),
+            plot.title = element_text(size = 11),
             axis.title = element_text(size = 11)) +
       xlim(0,1) +
       scale_y_continuous(expand = c(0.02, 0)) +
       coord_cartesian(ylim=c(0, maxy)) + 
       xlab("") +
       ylab("") +
-      ggtitle(title) 
+      labs(title = "      ", subtitle = title) 
     
     if (axislabs)
       p <- p + xlab("p-value") + ylab("Density")
