@@ -757,16 +757,20 @@ We plot the averaged results across `r B` replications.
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met = "rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
+                merge_ihw = TRUE, errorBars = TRUE),
+                palette = candycols2)
 
 plotsim_average(resdf, met = "FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
 
 plotsim_average(resdf, met = "TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
 
 plotsim_average(resdf, met = "TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
+                merge_ihw = TRUE, errorBars = TRUE,
+                palette = candycols2)
 ```
 
 Since we are primarily interested in comparing just the AdaPT methods, we plot these
@@ -803,16 +807,19 @@ the effect size and independent covariate. Again, we plot these without `ashq`.
 
 ```{r chisq4-metrics-covlineplot, results = "hide"}
 covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
-                  alpha = ualpha, covname = "effect_size")
+                  alpha = ualpha, covname = "effect_size",
+                  palette = candycols2)
 
 covariateLinePlot(lapply(res_i, function(x) { x[, -which(colnames(x) == "ashq")] }),
-                  alpha = ualpha, covname = "ind_covariate")
+                  alpha = ualpha, covname = "ind_covariate",
+                  palette = candycols2)
 ```
 
 We also look at the FDR as a function of the independent covariate.
 
 ```{r chisq4-metrics-covlineplotFDR, results = "hide"}
-covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate", metric = "FDR",
+                  palette = candycols2)
 ```
 
 We also compare the simulation results with and without an informative covariate. 
@@ -830,16 +837,20 @@ resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
 resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
 
 plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
 
 plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
 
 plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
 
 plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE,
+                palette = candycols2)
 ```
 
 Again, we recreate the plots after subsetting on AdaPT methods. 
