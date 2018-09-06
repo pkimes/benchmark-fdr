@@ -154,7 +154,7 @@ pi0_step <- function(pi0) {
 
 ## shifted/stretched cubic function
 pi0_cubic <- function(pi0) {
-    stopifnot(pi0 <= 1L, pi0 >= 2/3)
+    stopifnot(pi0 <= 1L, pi0 >= 3/4)
     function(x) { (1-x)^(1/3) * 4*(1-pi0) + 4 * pi0 - 3 }
 }
 
