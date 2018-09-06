@@ -119,13 +119,13 @@ resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyinginfo", setting), "ga
 
 resmet <- dplyr::mutate(resmet, pi0 = ifelse(grepl("varyingpi0", setting), dist, 90))
 resmet <- dplyr::mutate(resmet, pi0 = as.numeric(gsub("nullprop", "", pi0)))
-resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyingpi0", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyingpi0$", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyingpi0-t$", setting), "t11", dist))
 
-resmet <- dplyr::mutate(resmet, signal = ifelse(grepl("varyinges", setting), dist, NA))
-resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges$", setting), "gaussian", dist))
-resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-t$", setting), "t11", dist))
-resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^varyinges-chisq$", setting), "chisq4", dist))
-resmet <- dplyr::mutate(resmet, setting = ifelse(grepl("varyinges", setting), "varyinges", setting))
+resmet <- dplyr::mutate(resmet, signal = ifelse(grepl("uasettings", setting), dist, NA))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^uasettings$", setting), "gaussian", dist))
+resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("^uasettings-t$", setting), "t11", dist))
+resmet <- dplyr::mutate(resmet, setting = ifelse(grepl("uasettings", setting), "uasettings", setting))
 
 resmet <- dplyr::mutate(resmet, pi0 = ifelse(grepl("varyingntests", setting), 90, pi0))
 resmet <- dplyr::mutate(resmet, ntests = ifelse(grepl("varyingntests", setting), dist, "n20000"))
@@ -133,14 +133,14 @@ resmet <- dplyr::mutate(resmet, ntests = as.numeric(gsub("n", "", ntests)))
 resmet <- dplyr::mutate(resmet, dist = ifelse(grepl("varyingntests", setting), "gaussian", dist))
 ```
 
-We also replace the sampling noise labels with more plotting-friendly labels.
+We also replace the test statistic distribution labels with more plotting-friendly labels.
 
 ```{r}
 resmet <- dplyr::mutate(resmet, dist = factor(dist, levels = c("gaussian", "t11", "t5", "chisq4"),
-                                              labels = c(expression("Noise: " * N(0, 1)),
-                                                         expression("Noise: " * t[11]),
-                                                         expression("Noise: " * t[5]),
-                                                         expression("Noise: " * {chi^2}[4]))))
+                                              labels = c(expression("Distribution: " * N(0, 1)),
+                                                         expression("Distribution: " * t[11]),
+                                                         expression("Distribution: " * t[5]),
+                                                         expression("Distribution: " * {chi^2}[4]))))
 ```
 
 We use the standardize candy color scheme and line types for the plots.
@@ -514,14 +514,13 @@ gp
 We take a look at the impact of the informativeness of a covariate on the performance
 of the different methods under just the normal sampling noise setting. Here, the informative
 covariate is sampled uniformly between 0 and 1 and the probability of the corresponding test
-being null is one value if the covariate is less than 0.8, and another value if the covariate
-is above 0.8. The "informativeness" is measured by the difference between these two probabilities,
-with informativeness 0 and 1 corresponding to no difference and maximal difference (i.e. 0 and 1),
-respectively. We plot the false discovery proportion and true positive rate at a nominal alpha
+being null is more or less dependent on the value of the covariate. The "informativeness" is
+greater when the value of the covariate is more informative of the probability of null being
+high or low. We plot the false discovery proportion and true positive rate at a nominal alpha
 cutoff of 0.05 for each method. 
 
 ```{r, fig.width = 10, fig.height = 4}
-res_info <- dplyr::filter(resmet, setting == "varyinginfo", alpha == 0.05)
+res_info <- dplyr::filter(resmet, setting == "varyinginfo-smooth", alpha == 0.05)
 
 info_fdr <- dplyr::filter(res_info, key == "FDR") %>%
     ggplot(aes(x = inform, y = mean.info, color = Method)) +
@@ -614,7 +613,7 @@ between 0.01 and 0.10. The cubic informative covariate was used in these simulat
 First, we look at the unimodal setting under Normal sampling noise.
 
 ```{r, fig.width = 18, fig.height = 8}
-res_ua <- dplyr::filter(resmet, setting == "varyinges", grepl("N\\(0, 1\\)", dist))
+res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", dist))
 
 noise_fdr <- dplyr::filter(res_ua, key == "FDR") %>%
     ggplot(aes(x = alpha, y = mean.info, color = Method)) +
@@ -702,7 +701,7 @@ Next, we look at the unimodal settings under t (11 degrees of freedom) distribut
 sampling noise.
 
 ```{r, fig.width = 18, fig.height = 8}
-res_ua <- dplyr::filter(resmet, setting == "varyinges", grepl("t\\[11\\]", dist))
+res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("t\\[11\\]", dist))
 
 noise_fdr <- dplyr::filter(res_ua, key == "FDR") %>%
     ggplot(aes(x = alpha, y = mean.info, color = Method)) +
