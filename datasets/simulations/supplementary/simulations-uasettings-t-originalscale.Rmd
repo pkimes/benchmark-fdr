@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Effect Size (t-11)"
+title: "Simulation Study: Unimodal Settings (t-11)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -16,7 +16,7 @@ In this set of simulations, we consider settings with both null and non-null
 tests with varying distribution of effect sizes under the non-null (alternative)
 setting. An informative covariate is included in the setting as described in
 `simulations-informative-cubic.Rmd`. This set of simulations is similar to those
-presented in `simulations-varyingeffectsize.Rmd`, however, t-distributed test
+presented in `simulations-uasettings-originalscale.Rmd`, however, t-distributed test
 statistics are used.
 
 # Workspace Setup
@@ -28,7 +28,7 @@ library(SummarizedBenchmark)
 library(parallel)
 
 ## load helper functions
-for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files("../../R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 
@@ -37,10 +37,10 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-spiky_file <- file.path(resdir, "varyinges-t-benchmark-spiky.rds")
-flattop_file <- file.path(resdir, "varyinges-t-benchmark-flattop.rds")
-skew_file <- file.path(resdir, "varyinges-t-benchmark-skew.rds")
-bimodal_file <- file.path(resdir, "varyinges-t-benchmark-bimodal.rds")
+spiky_file <- file.path(resdir, "uasettings-t-benchmark-spiky.rds")
+flattop_file <- file.path(resdir, "uasettings-t-benchmark-flattop.rds")
+skew_file <- file.path(resdir, "uasettings-t-benchmark-skew.rds")
+bimodal_file <- file.path(resdir, "uasettings-t-benchmark-bimodal.rds")
 
 ## number of cores for parallelization
 cores <- 20

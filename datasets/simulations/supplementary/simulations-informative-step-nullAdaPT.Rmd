@@ -47,7 +47,7 @@ library(SummarizedBenchmark)
 library(parallel)
 
 ## load helper functions
-for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files("../../R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 

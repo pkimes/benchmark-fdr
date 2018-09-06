@@ -37,7 +37,7 @@ dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
 spiky_file <- file.path(resdir, "uasettings-benchmark-spiky.rds")
-flattop_file <- file.path(resdir, "varyinges-benchmark-flattop.rds")
+flattop_file <- file.path(resdir, "uasettings-benchmark-flattop.rds")
 skew_file <- file.path(resdir, "uasettings-benchmark-skew.rds")
 bimodal_file <- file.path(resdir, "uasettings-benchmark-bimodal.rds")
 
