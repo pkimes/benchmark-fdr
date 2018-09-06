@@ -74,7 +74,7 @@ p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
 p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none")  +  
-      ggtitle("Mean FDR (100 replications)") +
+      ggtitle("Mean TPR (100 replications)") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2C: Total number of discoveries varied across method
@@ -82,7 +82,7 @@ p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +
       ylab("Number of Rejections") +
-      ggtitle("Mean FDR (100 replications)") +
+      ggtitle("Mean Rejections (100 replications)") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
@@ -110,7 +110,7 @@ Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2,
           labels = LETTERS[1:4], label_size = 20, align = "hv")
 Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
 Fig2
-ggsave(file.path(outdir, "Figure2A-D.pdf"), width=8.5, height=6)
+ggsave(file.path(outdir, "Figure2A-D.pdf"), width=8.75, height=6)
 
 ```
 
