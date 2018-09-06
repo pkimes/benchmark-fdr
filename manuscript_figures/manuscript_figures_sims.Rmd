@@ -231,10 +231,7 @@ ggsave(file.path(outdir, "SFigureSim2.pdf"), width=10, height=14)
 
 # Supplementary Figure (covariate relationship)
 
-This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different function relationships between the informative covariate and null probability (pi0) of a test. In addition to the more deliberately designed sequence of informative covariates studied in the "informativeness" set of simulations described above, we also considered four functional relationships between the covariate and pi0, named "step", "sine", "cosine", and "cubic".
-
-
-sampling distributions of the effect size for non-null tests. The distributions of effect sizes used here were taken from the Stephens (Biostatistics, 2016) paper which originally introduced the ASH method. All effect size distributions are unimodal, with the exception of the appropriately named "bimodal" setting. The effect size distributions from the ASH manuscript have been doubled from their original implementations since TPRs were low (<10%) for all methods at their original magnitude. Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods.
+This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different function relationships between the informative covariate and null probability (pi0) of a test. In addition to the more deliberately designed sequence of informative covariates studied in the "informativeness" set of simulations described above, we also considered four functional relationships between the covariate and pi0, named "step", "sine", "cosine", and "cubic". Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods. The relationship between the covariate (sampled from the interval between 0 and 1) and pi0 is plotted for each setting as well.
 
 ```{r SFigureSim3, fig.width = 12, fig.height = 16}
 res_icov <- dplyr::filter(resmet, grepl("^informative", setting), grepl("N\\(0, 1\\)", dist))
@@ -287,6 +284,8 @@ SFigS3 <- plot_grid(SFigS3, get_legend(ps3b), rel_widths = c(6.5, 1))
 SFigS3
 ggsave(file.path(outdir, "SFigureSim3.pdf"), width=12, height=16)
 ```
+
+
 
 # Session information
 
