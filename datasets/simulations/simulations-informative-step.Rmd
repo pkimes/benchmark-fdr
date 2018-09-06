@@ -215,7 +215,7 @@ Next, we consider the setting with t-distributed test statistics.
 ## Data Simulation
 
 ```{r t5-parameters}
-es_dist <- rnorm_generator(6)    # functional: dist of alternative test stats
+es_dist <- rnorm_generator(3)    # functional: dist of alternative test stats
 ts_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
