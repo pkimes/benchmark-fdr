@@ -57,13 +57,21 @@ resmet <- readRDS(resmet_file)
 Unfortunately, because the plots in this section illustrate FDR and TPR acorss varying simulation settings rather than varying nominal FDR cutoff, we cannot simply use the `plotsim_average()` function to generate plots. Instead, we define the following helper function to consistently generate plots similar to those output by `plotsim_average()` with arbitrary covariate, e.g. number of tests or proportion of null hypotheses, as the x-axis. The function assumes that the input table only includes FDR or TPR values for each method at a single nominal alpha cutoff. In these figures, we only plot FDR and TPR values at the nominal alpha cutoff of 0.05.
 
 ```{r genplot-function}
-genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
+genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
     met <- match.arg(met)
     cov <- rlang::enquo(cov)
+    type <- match.arg(type)
+    if (type == "info") {
+        ymean <- rlang::quo(mean.info)
+        yse <- rlang::quo(se.info)
+    } else if (type == "diff") {
+        ymean <- rlang::quo(mean.diff)
+        yse <- rlang::quo(se.diff)
+    }        
     gp <- dplyr::filter(tab, key == met) %>%
-        ggplot(aes(x = !!cov, y = mean.info, color = Method, group = Method)) +
+        ggplot(aes(x = !!cov, y = !!ymean, color = Method, group = Method)) +
         geom_line(aes(linetype = Method), alpha = 0.85) +
-        geom_errorbar(aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = ebw, alpha=0.5) +
+        geom_errorbar(aes(ymin = !!ymean - !!yse, ymax = !!ymean + !!yse), width = ebw, alpha=0.5) +
         scale_linetype_manual(values = lty) + 
         scale_color_manual(values = col) +
         scale_y_continuous(met, labels = scales::percent) +
@@ -71,7 +79,9 @@ genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
         theme_classic() +
         theme(axis.title = element_text(face = "bold", size = 10),
               plot.title = element_text(face = "bold", size = 14))
-    if (met == "FDR") {
+    if (type == "diff") {
+        gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) 
+    } else if (met == "FDR") {
         if (rlang::quo_name(cov) == "alpha") {
             gp <- gp + geom_abline(lty = 2, color = "blue", alpha = 1/2) 
         } else {
@@ -87,57 +97,60 @@ genplot <- function(tab, cov, xt = "", met = c("FDR", "TPR"), ebw = 0.0025) {
 This is a faceted figure with results from the pure simulation studies showing several key results from a subset of simulation settings. Namely, the figure includes plots of FDR and TPR values at a nominal FDR cutoff of 0.05 over 100 replications illustrating the impact of (A,B) changing total number of tests, (C,D) changing the proportion of non-null tests, and (E,F) changing the informativeness of a covariate. 
 
 ```{r Figure3, fig.width = 10, fig.height = 12}
-## Figure 3A,B: FDR/TPR of methods across varying number of tests at alpha = 0.05
-res_ntests <- dplyr::filter(resmet, setting == "varyingntests", alpha == 0.05)
-p3a <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.05) +
-    scale_x_continuous("Number of Tests", trans = "log10",
-                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
-p3b <- genplot(res_ntests, cov = ntests, met = "TPR", ebw = 0.05) +
-    scale_x_continuous("Number of Tests", trans = "log10",
-                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
+## Figure 3A,B: FDR/TPR of methods across varying informativeness at alpha = 0.05
+res_info <- dplyr::filter(resmet, setting == "varyinginfo-smooth", alpha == 0.05)
+p3a <- genplot(res_info, cov = inform, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
+p3b <- genplot(res_info, cov = inform, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
 
 ## add title to 3A,B
 p3ab <- plot_grid(p3a + guides(color = FALSE, linetype = FALSE),
                   p3b + guides(color = FALSE, linetype = FALSE),
                   labels = LETTERS[1:2], ncol = 2)
 p3abTitle <- ggdraw() +
-    draw_label("Simulation performance across varying numbers of hypotheses",
+    draw_label("Simulation performance across varying informativeness",
                fontface = 'bold')
 p3ab <- plot_grid(p3abTitle, p3ab, ncol = 1, rel_heights = c(0.1, 1))
 
-## Figure 3C,D: FDR/TPR of methods across varying null proportion at alpha = 0.05
-res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
-p3c <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
-    scale_x_continuous("Proportion of Non-Null Hypotheses",
-                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
-p3d <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
-    scale_x_continuous("Proportion of Non-Null Hypotheses",
-                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
+
+## Figure 3C,D: FDR/TPR of methods across varying number of tests at alpha = 0.05
+res_ntests <- dplyr::filter(resmet, setting == "varyingntests", alpha == 0.05)
+p3c <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.05) +
+    scale_x_continuous("Number of Tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
+p3d <- genplot(res_ntests, cov = ntests, met = "TPR", ebw = 0.05) +
+    scale_x_continuous("Number of Tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4))
 
 ## add title to 3C,D
 p3cd <- plot_grid(p3c + guides(color = FALSE, linetype = FALSE),
                   p3d + guides(color = FALSE, linetype = FALSE),
                   labels = LETTERS[3:4], ncol = 2)
 p3cdTitle <- ggdraw() +
-    draw_label("Simulation performance across varying non-null proportion",
+    draw_label("Simulation performance across varying numbers of hypotheses",
                fontface = 'bold')
 p3cd <- plot_grid(p3cdTitle, p3cd, ncol = 1, rel_heights = c(0.1, 1))
 
-## Figure 3E,F: FDR/TPR of methods across varying informativeness at alpha = 0.05
-res_info <- dplyr::filter(resmet, setting == "varyinginfo", alpha == 0.05)
-p3e <- genplot(res_info, cov = inform, met = "FDR", ebw = 2.5) +
-    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
-p3f <- genplot(res_info, cov = inform, met = "TPR", ebw = 2.5) +
-    scale_x_continuous("Informativeness", breaks = seq(0, 100, by = 20))
+
+## Figure 3E,F: FDR/TPR of methods across varying null proportion at alpha = 0.05
+res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", alpha == 0.05)
+p3e <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Non-Null Hypotheses",
+                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
+p3f <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Proportion of Non-Null Hypotheses",
+                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99))
 
 ## add title to 3E,F
 p3ef <- plot_grid(p3e + guides(color = FALSE, linetype = FALSE),
                   p3f + guides(color = FALSE, linetype = FALSE),
                   labels = LETTERS[5:6], ncol = 2)
 p3efTitle <- ggdraw() +
-    draw_label("Simulation performance across varying informativeness",
+    draw_label("Simulation performance across varying non-null proportion",
                fontface = 'bold')
 p3ef <- plot_grid(p3efTitle, p3ef, ncol = 1, rel_heights = c(0.1, 1))
+
 
 ## pull Figure 3 together
 Fig3 <- plot_grid(p3ab, p3cd, p3ef, ncol = 1)
@@ -146,32 +159,135 @@ Fig3
 ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
 ```
 
-# Figure 3+
+# Supplementary Figure (distributions)
 
-This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. 
+This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. We plot TPR and FDR across 100 replicates over nominal FDR cutoffs of 0.01 to 0.10. Additionally, we plot the differences in TPR and FDR for methods when using an informative or an uninformative covariate.
 
-```{r Figure3plus, fig.width = 10, fig.height = 12}
-## Figure 3plus A,B: FDR/TPR of methods across varying test statistics distribution
+```{r SFigureSim1, fig.width = 14, fig.height = 16}
+## SFigure Sim1 A,B: FDR/TPR of methods across varying test statistics distribution
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
-levels(res_noise$dist) <- gsub("Noise:", "Distribution:", levels(res_noise$dist))
-p3pa <- genplot(res_noise, cov = alpha, met = "FDR") +
+ps1a <- genplot(res_noise, cov = alpha, met = "FDR") +
     facet_grid(. ~ dist, labeller = label_parsed)
-p3pb <- genplot(res_noise, cov = alpha, met = "TPR") +
+ps1b <- genplot(res_noise, cov = alpha, met = "TPR") +
     facet_grid(. ~ dist, labeller = label_parsed)
 
-## create title for 3plus
-p3pTitle <- ggdraw() +
+## SFigure Sim1 C,D: FDR/TPR difference of methods
+ps1c <- genplot(res_noise, cov = alpha, type = "diff", met = "FDR") +
+    facet_grid(. ~ dist, labeller = label_parsed)
+ps1d <- genplot(res_noise, cov = alpha, type = "diff", met = "TPR") +
+    facet_grid(. ~ dist, labeller = label_parsed)
+
+## create title for SFigure Sim1
+ps1Title <- ggdraw() +
     draw_label("Simulation performance across test statistic distributions",
                fontface = 'bold', size = 20)
 
-## pull Figure 3plus together
-Fig3p <- plot_grid(p3pa + guides(color = FALSE, linetype = FALSE),
-                   p3pb + guides(color = FALSE, linetype = FALSE),
-                   labels = LETTERS[1:2], ncol = 1)
-Fig3p <- plot_grid(p3pTitle, Fig3p, ncol = 1, rel_heights = c(0.1, 1))
-Fig3p <- plot_grid(Fig3p, get_legend(p3pa), rel_widths = c(7.5, 1))
-Fig3p
-ggsave(file.path(outdir, "Figure3plus.pdf"), width=14, height=8)
+## pull SFigure Sim1 together
+SFigS1 <- plot_grid(ps1a + guides(color = FALSE, linetype = FALSE),
+                    ps1b + guides(color = FALSE, linetype = FALSE),
+                    ps1c + guides(color = FALSE, linetype = FALSE),
+                    ps1d + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:4], ncol = 1)
+SFigS1 <- plot_grid(ps1Title, SFigS1, ncol = 1, rel_heights = c(0.03, 1))
+SFigS1 <- plot_grid(SFigS1, get_legend(ps1a), rel_widths = c(7.5, 1))
+SFigS1
+ggsave(file.path(outdir, "SFigureSim1.pdf"), width=14, height=16)
+```
+
+# Supplementary Figure (unimodal assumption)
+
+This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different sampling distributions of the effect size for non-null tests. The distributions of effect sizes used here were taken from the Stephens (Biostatistics, 2016) paper which originally introduced the ASH method. All effect size distributions are unimodal, with the exception of the appropriately named "bimodal" setting. The effect size distributions from the ASH manuscript have been doubled from their original implementations since TPRs were low (<10%) for all methods at their original magnitude. Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods.
+
+```{r SFigureSim2, fig.width = 10, fig.height = 14}
+res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", dist),
+                        signal != "bimodal")
+
+## SFigure Sim2 A,B: FDR/TPR of methods across unimodal effect size distribution
+ps2a <- genplot(res_ua, cov = alpha, met = "FDR") +
+    facet_grid(. ~ signal, labeller = label_parsed)
+ps2b <- genplot(res_ua, cov = alpha, met = "TPR") +
+    facet_grid(. ~ signal, labeller = label_parsed)
+
+## SFigure Sim2 C,D: FDR/TPR difference of methods
+ps2c <- genplot(res_ua, cov = alpha, type = "diff", met = "FDR") +
+    facet_grid(. ~ signal, labeller = label_parsed)
+ps2d <- genplot(res_ua, cov = alpha, type = "diff", met = "TPR") +
+    facet_grid(. ~ signal, labeller = label_parsed)
+
+## create title for SFigure Sim2
+ps2Title <- ggdraw() +
+    draw_label("Simulation performance across unimodal effect size distributions",
+               fontface = 'bold', size = 17)
+
+## pull SFigure Sim2 together
+SFigS2 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
+                    ps2b + guides(color = FALSE, linetype = FALSE),
+                    ps2c + guides(color = FALSE, linetype = FALSE),
+                    ps2d + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:4], ncol = 1)
+SFigS2 <- plot_grid(ps2Title, SFigS2, ncol = 1, rel_heights = c(0.03, 1))
+SFigS2 <- plot_grid(SFigS2, get_legend(ps2a), rel_widths = c(6.5, 1))
+SFigS2
+ggsave(file.path(outdir, "SFigureSim2.pdf"), width=10, height=14)
+```
+
+# Supplementary Figure (covariate relationship)
+
+This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different function relationships between the informative covariate and null probability (pi0) of a test. In addition to the more deliberately designed sequence of informative covariates studied in the "informativeness" set of simulations described above, we also considered four functional relationships between the covariate and pi0, named "step", "sine", "cosine", and "cubic".
+
+
+sampling distributions of the effect size for non-null tests. The distributions of effect sizes used here were taken from the Stephens (Biostatistics, 2016) paper which originally introduced the ASH method. All effect size distributions are unimodal, with the exception of the appropriately named "bimodal" setting. The effect size distributions from the ASH manuscript have been doubled from their original implementations since TPRs were low (<10%) for all methods at their original magnitude. Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods.
+
+```{r SFigureSim3, fig.width = 12, fig.height = 16}
+res_icov <- dplyr::filter(resmet, grepl("^informative", setting), grepl("N\\(0, 1\\)", dist))
+res_icov <- dplyr::mutate(res_icov, relationship = gsub("informative-", "", setting))
+
+## SFigure Sim3 A: Form of informative covariate and pi0 relationship
+pi0form <- tibble(x = seq(0, 1, .01))
+pi0form <- dplyr::mutate(pi0form,
+                         cosine = pi0_cosine(0.9)(x),
+                         cubic = pi0_cubic(0.9)(x),
+                         sine = pi0_sine(0.9)(x),
+                         step = pi0_step(0.9)(x))
+pi0form <- tidyr::gather(pi0form, relationship, pi0, -x)
+ps3a <- ggplot(pi0form, aes(x = x, y = pi0)) +
+    geom_line() +
+    expand_limits(y = c(0.5, 1)) + 
+    theme_classic() +
+    scale_x_continuous(breaks = seq(0, 1, .2)) + 
+    scale_y_continuous(labels = scales::percent) + 
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    facet_grid(. ~ relationship)
+
+## SFigure Sim3 B,C: FDR/TPR of methods across varying relationships
+ps3b <- genplot(res_icov, cov = alpha, met = "FDR") +
+    facet_grid(. ~ relationship, labeller = label_parsed)
+ps3c <- genplot(res_icov, cov = alpha, met = "TPR") +
+    facet_grid(. ~ relationship, labeller = label_parsed)
+
+## SFigure Sim3 D,E: FDR/TPR difference of methods
+ps3d <- genplot(res_icov, cov = alpha, type = "diff", met = "FDR") +
+    facet_grid(. ~ relationship, labeller = label_parsed)
+ps3e <- genplot(res_icov, cov = alpha, type = "diff", met = "TPR") +
+    facet_grid(. ~ relationship, labeller = label_parsed)
+
+## create title for SFigure Sim3
+ps3Title <- ggdraw() +
+    draw_label("Simulation performance across informative covariate relationship",
+               fontface = 'bold', size = 20)
+
+## pull SFigure Sim3 together
+SFigS3 <- plot_grid(ps3a + guides(color = FALSE, linetype = FALSE),
+                    ps3b + guides(color = FALSE, linetype = FALSE),
+                    ps3c + guides(color = FALSE, linetype = FALSE),
+                    ps3d + guides(color = FALSE, linetype = FALSE),
+                    ps3e + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
+SFigS3 <- plot_grid(ps3Title, SFigS3, ncol = 1, rel_heights = c(0.03, 1))
+SFigS3 <- plot_grid(SFigS3, get_legend(ps3b), rel_widths = c(6.5, 1))
+SFigS3
+ggsave(file.path(outdir, "SFigureSim3.pdf"), width=12, height=16)
 ```
 
 # Session information
