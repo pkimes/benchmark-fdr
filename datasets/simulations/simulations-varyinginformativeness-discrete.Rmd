@@ -1,0 +1,833 @@
+---
+title: "Simulation Study: Varying Informativeness"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+# Summary
+
+In this set of simulations, we consider settings with both null and non-null
+tests with varying levels of informativeness of an informative covariate. The
+covariate is sampled uniformly from the interval [0, 1], and the conditional
+probability of a test being non-null is a step function of the covariate with
+two levels (over the intervals [0, 4/5], (4/5, 1]) where the size of the step
+is used to indicate the informativeness of the covariate.
+
+For all settings, the marginal proportion of null hypotheses is set to 80%.
+A tuning parameter is used to modify the informativeness of the covariate
+such that 0 corresponds to an uninformative covariate, and 1 corresponds to a
+fully informative covariate (i.e. all tests with covariate values in [0, 4/5]
+are null and all tests in (4/5, 1] are non-null).
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(SummarizedBenchmark)
+library(parallel)
+
+## load helper functions
+for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+info00_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level00.rds")
+info20_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level20.rds")
+info40_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level40.rds")
+info60_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level60.rds")
+info80_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level80.rds")
+info100_file <- file.path(resdir, "varyinginfo-discrete-benchmark-level100.rds")
+
+## number of cores for parallelization
+cores <- 20
+B <- 100
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+for simulations with Gaussian test statistics. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
+series of simulations use test statistics simulated with Gaussian test statistics, we include
+Scott's FDR Regression in all of the comparisons.
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "fdrreg-t",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+m <- 20000                        # integer: number of hypothesis tests
+es_dist <- rnorm_generator(2)       # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+icovariate <- runif               # functional: independent covariate
+```
+
+Simulation results will be presented excluding a subset of methods, and
+for certain plots (upset plots), a single alpha cutoff will be used.
+
+```{r}
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+First, we show the form of the relationship between the informative covariate and null
+proportion, pi0, across varying levels of "informativeness."
+
+```{r plot-informativeness, fig.width = 9, fig.height = 2.5}
+xseq <- seq(0, 1, by = .01)
+pi0trends <- lapply(seq(0, 1, by = .2), function(i) {
+    tibble(info = i, x = xseq,
+           pi0 = pi0_varyinfo80(i)(xseq))
+})
+pi0trends <- bind_rows(pi0trends)
+
+ggplot(pi0trends, aes(x = x, y = pi0)) +
+    geom_line() +
+    geom_text(aes(label = round(pi0, 3), hjust = x, vjust = round(pi0)),
+              dplyr::filter(pi0trends, x == 0 | x == 1),
+              size = 3, color = 'blue') + 
+    theme_bw() +
+    scale_x_continuous("x (informative covariate)", breaks = 0:1) +
+    scale_y_continuous(labels = scales::percent) +
+    facet_grid(. ~ info, labeller = label_both) +
+    ggtitle("Covariate vs. pi0 for varying informativeness")
+```
+
+Alternatively, since the function is a step function, we can simply plot the levels
+of the two steps. 
+
+```{r, plot-informativeness-v2, fig.width = 6, fig.height = 5}
+xseq <- seq(0, 1, by = .01)
+pi0trends <- lapply(xseq, function(i) {
+    tibble(info = i, x = 0:1,
+           pi0 = pi0_varyinfo80(i)(0:1))
+})
+pi0trends <- bind_rows(pi0trends)
+pi0trends <- dplyr::mutate(pi0trends,
+                           x = factor(x, levels = 0:1,
+                                      labels = c("[0, .8]", "(.8, 1]")))
+
+ggplot(pi0trends, aes(x = info, y = pi0, group = x)) +
+    geom_line() +
+    geom_text(aes(label = x, vjust = round(pi0)),
+              dplyr::filter(pi0trends, info == 1),
+              hjust = 1, size = 3, color = 'blue') + 
+    theme_bw() +
+    scale_x_continuous("Informativeness", labels = scales::percent) +
+    scale_y_continuous(labels = scales::percent) +
+    ggtitle("null proportions for varying informativeness")
+```
+
+# Informativeness = 0 Setting
+
+First, we consider the setting where the informativeness is 0.
+
+## Data Simulation
+
+```{r info00-parameters}
+pi0 <- pi0_varyinfo80(0.00)             # numeric: proportion of null hypotheses
+seed <- 1010
+```
+
+We next run the simulations.
+
+```{r info00-run-simulation}
+if (file.exists(info00_file)) {
+    res <- readRDS(info00_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info00_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info00-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info00-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info00-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info00-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info00-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info00-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info00-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Informativeness = 20 Setting
+
+Next, we consider the setting where the informativeness is 0.20.
+
+## Data Simulation
+
+```{r info20-parameters}
+pi0 <- pi0_varyinfo80(0.20)             # numeric: proportion of null hypotheses
+seed <- 1201
+```
+
+We next run the simulations.
+
+```{r info20-run-simulation}
+if (file.exists(info20_file)) {
+    res <- readRDS(info20_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info20_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info20-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info20-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info20-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info20-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info20-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info20-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info20-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Informativeness = 40 Setting
+
+Next, we consider the setting where the informativeness is 0.40.
+
+## Data Simulation
+
+```{r info40-parameters}
+pi0 <- pi0_varyinfo80(0.40)             # numeric: proportion of null hypotheses
+seed <- 51
+```
+
+We next run the simulations.
+
+```{r info40-run-simulation}
+if (file.exists(info40_file)) {
+    res <- readRDS(info40_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info40_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info40-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info40-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info40-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info40-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info40-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info40-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info40-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Informativeness = 60 Setting
+
+Next, we consider the setting where the informativeness is 0.60.
+
+## Data Simulation
+
+```{r info60-parameters}
+pi0 <- pi0_varyinfo80(0.60)             # numeric: proportion of null hypotheses
+seed <- 500
+```
+
+We next run the simulations.
+
+```{r info60-run-simulation}
+if (file.exists(info60_file)) {
+    res <- readRDS(info60_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info60_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info60-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info60-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info60-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info60-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info60-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info60-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info60-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Informativeness = 80 Setting
+
+Next, we consider the setting where the informativeness is 0.80.
+
+## Data Simulation
+
+```{r info80-parameters}
+pi0 <- pi0_varyinfo80(0.80)             # numeric: proportion of null hypotheses
+seed <- 608
+```
+
+We next run the simulations.
+
+```{r info80-run-simulation}
+if (file.exists(info80_file)) {
+    res <- readRDS(info80_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info80_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info80-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info80-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info80-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info80-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info80-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info80-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info80-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Informativeness = 100 Setting
+
+Finally, we consider the setting where the informativeness is 1.00.
+
+## Data Simulation
+
+```{r info100-parameters}
+pi0 <- pi0_varyinfo80(1.00)             # numeric: proportion of null hypotheses
+seed <- 808
+```
+
+We next run the simulations.
+
+```{r info100-run-simulation}
+if (file.exists(info100_file)) {
+    res <- readRDS(info100_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = info100_file)
+}
+res_i <- lapply(res, `[[`, "informative")
+res_u <- lapply(res, `[[`, "uninformative")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment.
+
+```{r info100-one-simulation}
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
+```
+
+```{r, info100-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, info100-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r info100-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r info100-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r info100-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without an informative covariate. 
+
+```{r info100-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".info", ".uninfo"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

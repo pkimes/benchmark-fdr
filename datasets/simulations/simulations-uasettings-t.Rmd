@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Informativeness"
+title: "Simulation Study: Unimodal Settings (t test statistics)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -13,17 +13,11 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with varying levels of informativeness of an informative covariate. The
-covariate is sampled uniformly from the interval [0, 1], and the conditional
-probability of a test being non-null is a step function of the covariate with
-two levels (over the intervals [0, 4/5], (4/5, 1]) where the size of the step
-is used to indicate the informativeness of the covariate.
-
-For all settings, the marginal proportion of null hypotheses is set to 80%.
-A tuning parameter is used to modify the informativeness of the covariate
-such that 0 corresponds to an uninformative covariate, and 1 corresponds to a
-fully informative covariate (i.e. all tests with covariate values in [0, 4/5]
-are null and all tests in (4/5, 1] are non-null).
+tests with varying distribution of effect sizes under the non-null (alternative)
+setting. An informative covariate is included in the setting as described in
+`simulations-informative-cubic.Rmd`. This set of simulations is similar to those
+presented in `simulations-varyingeffectsize.Rmd`, however, t-distributed test
+statistics are used.
 
 # Workspace Setup
 
@@ -43,12 +37,10 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-info00_file <- file.path(resdir, "varyinginfo-benchmark-level00.rds")
-info20_file <- file.path(resdir, "varyinginfo-benchmark-level20.rds")
-info40_file <- file.path(resdir, "varyinginfo-benchmark-level40.rds")
-info60_file <- file.path(resdir, "varyinginfo-benchmark-level60.rds")
-info80_file <- file.path(resdir, "varyinginfo-benchmark-level80.rds")
-info100_file <- file.path(resdir, "varyinginfo-benchmark-level100.rds")
+spiky_file <- file.path(resdir, "uasettings-t-benchmark-spiky.rds")
+flattop_file <- file.path(resdir, "uasettings-t-benchmark-flattop.rds")
+skew_file <- file.path(resdir, "uasettings-t-benchmark-skew.rds")
+bimodal_file <- file.path(resdir, "uasettings-t-benchmark-bimodal.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -59,10 +51,10 @@ bd <- initializeBenchDesign()
 ```
 
 As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
-for simulations with Gaussian test statistics. Again, we include both
+for simulations with Gaussian or t-distributed test statistics. Again, we include both
 `nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
-series of simulations use test statistics simulated with Gaussian test statistics, we include
-Scott's FDR Regression in all of the comparisons.
+series of simulations use t-distributed test statistics, we include Scott's FDR Regression
+in all of the comparisons.
 
 ```{r}
 bdplus <- bd
@@ -82,14 +74,22 @@ bdplus <- addBMethod(bdplus, "fdrreg-e",
                      control = list(lambda = 0.01))
 ```
 
+Since all simulation settings in this case study use t-distributed test statistics, we must specify
+the number of degrees of freedom for ASH. We add an additional parameter to the `ashq`
+method with the corresponding degrees of freedom of the test statistics.
+
+```{r}
+bdplus <- modifyBMethod(bdplus, "ashq", df = 11)
+```
+
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
-m <- 20000                        # integer: number of hypothesis tests
-es_dist <- rnorm_generator(2)       # functional: dist of alternative test stats
-ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
-null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
-icovariate <- runif               # functional: independent covariate
+m <- 20000                          # integer: number of hypothesis tests
+pi0 <- pi0_cubic(0.90)              # numeric: proportion of null hypotheses
+ts_dist <- rt_perturber(11)         # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)        # functional: dist to calc p-values
+icovariate <- runif                 # functional: independent covariate
 ```
 
 Simulation results will be presented excluding a subset of methods, and
@@ -100,76 +100,30 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 ualpha <- 0.05
 ```
 
-First, we show the form of the relationship between the informative covariate and null
-proportion, pi0, across varying levels of "informativeness."
+# Spiky Setting
 
-```{r plot-informativeness, fig.width = 9, fig.height = 2.5}
-xseq <- seq(0, 1, by = .01)
-pi0trends <- lapply(seq(0, 1, by = .2), function(i) {
-    tibble(info = i, x = xseq,
-           pi0 = pi0_varyinfo80(i)(xseq))
-})
-pi0trends <- bind_rows(pi0trends)
-
-ggplot(pi0trends, aes(x = x, y = pi0)) +
-    geom_line() +
-    geom_text(aes(label = round(pi0, 3), hjust = x, vjust = round(pi0)),
-              dplyr::filter(pi0trends, x == 0 | x == 1),
-              size = 3, color = 'blue') + 
-    theme_bw() +
-    scale_x_continuous("x (informative covariate)", breaks = 0:1) +
-    scale_y_continuous(labels = scales::percent) +
-    facet_grid(. ~ info, labeller = label_both) +
-    ggtitle("Covariate vs. pi0 for varying informativeness")
-```
-
-Alternatively, since the function is a step function, we can simply plot the levels
-of the two steps. 
-
-```{r, plot-informativeness-v2, fig.width = 6, fig.height = 5}
-xseq <- seq(0, 1, by = .01)
-pi0trends <- lapply(xseq, function(i) {
-    tibble(info = i, x = 0:1,
-           pi0 = pi0_varyinfo80(i)(0:1))
-})
-pi0trends <- bind_rows(pi0trends)
-pi0trends <- dplyr::mutate(pi0trends,
-                           x = factor(x, levels = 0:1,
-                                      labels = c("[0, .8]", "(.8, 1]")))
-
-ggplot(pi0trends, aes(x = info, y = pi0, group = x)) +
-    geom_line() +
-    geom_text(aes(label = x, vjust = round(pi0)),
-              dplyr::filter(pi0trends, info == 1),
-              hjust = 1, size = 3, color = 'blue') + 
-    theme_bw() +
-    scale_x_continuous("Informativeness", labels = scales::percent) +
-    scale_y_continuous(labels = scales::percent) +
-    ggtitle("null proportions for varying informativeness")
-```
-
-# Informativeness = 0 Setting
-
-First, we consider the setting where the informativeness is 0.
+First, we consider the setting where the effect sizes under the alternative are
+distributed according to a "spiky" unimodal distribution centered around zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r info00-parameters}
-pi0 <- pi0_varyinfo80(0.00)             # numeric: proportion of null hypotheses
-seed <- 1010
+```{r spiky-parameters}
+es_dist <- function(n) { 2*sampler_spiky(n) }       # functional: dist of alternative test stats
+seed <- 778
 ```
 
 We next run the simulations.
 
-```{r info00-run-simulation}
-if (file.exists(info00_file)) {
-    res <- readRDS(info00_file)
+```{r spiky-run-simulation}
+if (file.exists(spiky_file)) {
+    res <- readRDS(spiky_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info00_file)
+    saveRDS(res, file = spiky_file)
 }
 res_i <- lapply(res, `[[`, "informative")
 res_u <- lapply(res, `[[`, "uninformative")
@@ -180,16 +134,16 @@ res_u <- lapply(res, `[[`, "uninformative")
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info00-one-simulation}
+```{r spiky-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info00-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, spiky-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info00-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, spiky-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
@@ -197,7 +151,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ
 
 We plot the averaged results across `r B` replications.
 
-```{r info00-metrics-averages, results = "hide"}
+```{r spiky-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -216,7 +170,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info00-metrics-covlineplot, results = "hide"}
+```{r spiky-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
@@ -225,7 +179,7 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info00-metrics-upset, results = "hide"}
+```{r spiky-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -236,7 +190,7 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 
 We also compare the simulation results with and without an informative covariate. 
 
-```{r info00-metrics-differences, results = "hide"}
+```{r spiky-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
 resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
@@ -261,28 +215,30 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
-# Informativeness = 20 Setting
+# Flat-Top Setting
 
-Next, we consider the setting where the informativeness is 0.20.
+Next, we consider the setting where the effect sizes under the alternative are
+distributed according to a "flat top" unimodal distribution centered around zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r info20-parameters}
-pi0 <- pi0_varyinfo80(0.20)             # numeric: proportion of null hypotheses
-seed <- 1201
+```{r flattop-parameters}
+es_dist <- function(n) { 2*sampler_flat_top(n) }       # functional: dist of alternative test stats
+seed <- 980
 ```
 
 We next run the simulations.
 
-```{r info20-run-simulation}
-if (file.exists(info20_file)) {
-    res <- readRDS(info20_file)
+```{r flattop-run-simulation}
+if (file.exists(flattop_file)) {
+    res <- readRDS(flattop_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info20_file)
+    saveRDS(res, file = flattop_file)
 }
 res_i <- lapply(res, `[[`, "informative")
 res_u <- lapply(res, `[[`, "uninformative")
@@ -293,16 +249,16 @@ res_u <- lapply(res, `[[`, "uninformative")
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info20-one-simulation}
+```{r flattop-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info20-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, flattop-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info20-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, flattop-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
@@ -310,7 +266,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ
 
 We plot the averaged results across `r B` replications.
 
-```{r info20-metrics-averages, results = "hide"}
+```{r flattop-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -329,7 +285,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info20-metrics-covlineplot, results = "hide"}
+```{r flattop-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
@@ -338,7 +294,7 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info20-metrics-upset, results = "hide"}
+```{r flattop-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -349,7 +305,7 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 
 We also compare the simulation results with and without an informative covariate. 
 
-```{r info20-metrics-differences, results = "hide"}
+```{r flattop-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
 resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
@@ -374,28 +330,30 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
-# Informativeness = 40 Setting
+# Skewed Setting
 
-Next, we consider the setting where the informativeness is 0.40.
+Next, we consider the setting where the effect sizes under the alternative are
+distributed according to a skewed unimodal distribution not centered at zero, as
+defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r info40-parameters}
-pi0 <- pi0_varyinfo80(0.40)             # numeric: proportion of null hypotheses
-seed <- 51
+```{r skew-parameters}
+es_dist <- function(n) { 2*sampler_skew(n) }       # functional: dist of alternative test stats
+seed <- 206
 ```
 
 We next run the simulations.
 
-```{r info40-run-simulation}
-if (file.exists(info40_file)) {
-    res <- readRDS(info40_file)
+```{r skew-run-simulation}
+if (file.exists(skew_file)) {
+    res <- readRDS(skew_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info40_file)
+    saveRDS(res, file = skew_file)
 }
 res_i <- lapply(res, `[[`, "informative")
 res_u <- lapply(res, `[[`, "uninformative")
@@ -406,16 +364,16 @@ res_u <- lapply(res, `[[`, "uninformative")
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info40-one-simulation}
+```{r skew-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info40-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, skew-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info40-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, skew-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
@@ -423,7 +381,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ
 
 We plot the averaged results across `r B` replications.
 
-```{r info40-metrics-averages, results = "hide"}
+```{r skew-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -442,7 +400,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info40-metrics-covlineplot, results = "hide"}
+```{r skew-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
@@ -451,7 +409,7 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info40-metrics-upset, results = "hide"}
+```{r skew-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -462,7 +420,7 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 
 We also compare the simulation results with and without an informative covariate. 
 
-```{r info40-metrics-differences, results = "hide"}
+```{r skew-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
 resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
@@ -487,28 +445,30 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
 ```
 
-# Informativeness = 60 Setting
+# Bimodal Setting
 
-Next, we consider the setting where the informativeness is 0.60.
+Finally, we consider the setting where the effect sizes under the alternative are
+distributed according to a bimodal distribution (equal mixture of two normal distributions
+centered at -2, 2, with variance 1), again, as defined in the ASH simulations.
 
 ## Data Simulation
 
-```{r info60-parameters}
-pi0 <- pi0_varyinfo80(0.60)             # numeric: proportion of null hypotheses
-seed <- 500
+```{r bimodal-parameters}
+es_dist <- function(n) { 2*sampler_bimodal(n) }       # functional: dist of alternative test stats
+seed <- 913
 ```
 
 We next run the simulations.
 
-```{r info60-run-simulation}
-if (file.exists(info60_file)) {
-    res <- readRDS(info60_file)
+```{r bimodal-run-simulation}
+if (file.exists(bimodal_file)) {
+    res <- readRDS(bimodal_file)
 } else {
     res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
-    saveRDS(res, file = info60_file)
+    saveRDS(res, file = bimodal_file)
 }
 res_i <- lapply(res, `[[`, "informative")
 res_u <- lapply(res, `[[`, "uninformative")
@@ -519,16 +479,16 @@ res_u <- lapply(res, `[[`, "uninformative")
 Here, we show the relationship between the independent covariate and p-values for a
 single replication of the experiment.
 
-```{r info60-one-simulation}
+```{r bimodal-one-simulation}
 onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
-```{r, info60-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+```{r, bimodal-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
 rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
 ```
 
-```{r, info60-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
+```{r, bimodal-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
 strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
 ```
 
@@ -536,7 +496,7 @@ strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ
 
 We plot the averaged results across `r B` replications.
 
-```{r info60-metrics-averages, results = "hide"}
+```{r bimodal-metrics-averages, results = "hide"}
 resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(resdf, met="rejections", filter_set = excludeSet,
@@ -555,7 +515,7 @@ plotsim_average(resdf, met="TNR", filter_set = excludeSet,
 We also take a look at the distribution of rejects for each method as a function of
 the effect size and independent covariate.
 
-```{r info60-metrics-covlineplot, results = "hide"}
+```{r bimodal-metrics-covlineplot, results = "hide"}
 covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
 
 covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
@@ -564,7 +524,7 @@ covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
 Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
 the overlap of rejections between methods.
 
-```{r info60-metrics-upset, results = "hide"}
+```{r bimodal-metrics-upset, results = "hide"}
 if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
     aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
 } else {
@@ -575,233 +535,7 @@ if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 
 
 We also compare the simulation results with and without an informative covariate. 
 
-```{r info60-metrics-differences, results = "hide"}
-resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
-
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
-                                   performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key,
-                                   performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key",
-                                   "performanceMetric", "alpha"),
-                            suffix = c(".info", ".uninfo"))
-resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
-
-plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-```
-
-# Informativeness = 80 Setting
-
-Next, we consider the setting where the informativeness is 0.80.
-
-## Data Simulation
-
-```{r info80-parameters}
-pi0 <- pi0_varyinfo80(0.80)             # numeric: proportion of null hypotheses
-seed <- 608
-```
-
-We next run the simulations.
-
-```{r info80-run-simulation}
-if (file.exists(info80_file)) {
-    res <- readRDS(info80_file)
-} else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
-                    ts_dist = ts_dist, null_dist = null_dist,
-                    seed = seed, mc.cores = cores)
-    saveRDS(res, file = info80_file)
-}
-res_i <- lapply(res, `[[`, "informative")
-res_u <- lapply(res, `[[`, "uninformative")
-```
-
-## Covariate Diagnostics
-
-Here, we show the relationship between the independent covariate and p-values for a
-single replication of the experiment.
-
-```{r info80-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
-                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
-```
-
-```{r, info80-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
-rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
-```
-
-```{r, info80-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
-```
-
-## Benchmark Metrics
-
-We plot the averaged results across `r B` replications.
-
-```{r info80-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(resdf, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-```
-
-We also take a look at the distribution of rejects for each method as a function of
-the effect size and independent covariate.
-
-```{r info80-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
-
-covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
-```
-
-Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
-the overlap of rejections between methods.
-
-```{r info80-metrics-upset, results = "hide"}
-if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
-} else {
-    message("Not enough methods found rejections at alpha ", ualpha, 
-            "; skipping upset plot")
-}
-```
-
-We also compare the simulation results with and without an informative covariate. 
-
-```{r info80-metrics-differences, results = "hide"}
-resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
-
-resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
-                                   performanceMetric, alpha, value),
-                            select(resdfu, rep, blabel, param.alpha, key,
-                                   performanceMetric, alpha, value),
-                            by = c("rep", "blabel", "param.alpha", "key",
-                                   "performanceMetric", "alpha"),
-                            suffix = c(".info", ".uninfo"))
-resdfiu <- dplyr::mutate(resdfiu, value = value.info - value.uninfo)
-
-plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-
-plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE)
-```
-
-# Informativeness = 100 Setting
-
-Finally, we consider the setting where the informativeness is 1.00.
-
-## Data Simulation
-
-```{r info100-parameters}
-pi0 <- pi0_varyinfo80(1.00)             # numeric: proportion of null hypotheses
-seed <- 808
-```
-
-We next run the simulations.
-
-```{r info100-run-simulation}
-if (file.exists(info100_file)) {
-    res <- readRDS(info100_file)
-} else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
-                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
-                    ts_dist = ts_dist, null_dist = null_dist,
-                    seed = seed, mc.cores = cores)
-    saveRDS(res, file = info100_file)
-}
-res_i <- lapply(res, `[[`, "informative")
-res_u <- lapply(res, `[[`, "uninformative")
-```
-
-## Covariate Diagnostics
-
-Here, we show the relationship between the independent covariate and p-values for a
-single replication of the experiment.
-
-```{r info100-one-simulation}
-onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
-                       icovariate = icovariate, null_dist = null_dist, execute = FALSE)
-```
-
-```{r, info100-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
-rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
-```
-
-```{r, info100-diag-hist, results = "hide", fig.width=10, fig.height=3.2}
-strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 10, numQ = 3)
-```
-
-## Benchmark Metrics
-
-We plot the averaged results across `r B` replications.
-
-```{r info100-metrics-averages, results = "hide"}
-resdf <- plotsim_standardize(res_i, alpha = seq(0.01, 0.10, 0.01))
-
-plotsim_average(resdf, met="rejections", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="FDR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TPR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-
-plotsim_average(resdf, met="TNR", filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars = TRUE) 
-```
-
-We also take a look at the distribution of rejects for each method as a function of
-the effect size and independent covariate.
-
-```{r info100-metrics-covlineplot, results = "hide"}
-covariateLinePlot(res_i, alpha = ualpha, covname = "effect_size")
-
-covariateLinePlot(res_i, alpha = ualpha, covname = "ind_covariate")
-```
-
-Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
-the overlap of rejections between methods.
-
-```{r info100-metrics-upset, results = "hide"}
-if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
-    aggupset(res_i, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
-} else {
-    message("Not enough methods found rejections at alpha ", ualpha, 
-            "; skipping upset plot")
-}
-```
-
-We also compare the simulation results with and without an informative covariate. 
-
-```{r info100-metrics-differences, results = "hide"}
+```{r bimodal-metrics-differences, results = "hide"}
 resdfu <- plotsim_standardize(res_u, alpha = seq(0.01, 0.10, 0.01))
 
 resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,

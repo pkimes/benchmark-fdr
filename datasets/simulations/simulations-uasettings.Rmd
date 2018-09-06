@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Varying Effect Size (chisq-4)"
+title: "Simulation Study: Unimodal Settings"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -15,13 +15,8 @@ output:
 In this set of simulations, we consider settings with both null and non-null
 tests with varying distribution of effect sizes under the non-null (alternative)
 setting. An informative covariate is included in the setting as described in
-`simulations-informative-cubic.Rmd`. This set of simulations is similar to those
-presented in `simulations-varyingeffectsize.Rmd`, however, Chi-Squared
-distributed test statistics are used. Additionally, since the effect
-must be non-negative (to be a valid value for the non-centrality parameter
-of the a Chi-Squared distribution), the absolute value of all effect sizes
-are used. Note that this modification still maintains a unimodal distribution
-of the effect sizes for all settings except the "bimodal" case below.
+`simulations-informative-cubic.Rmd`. 
+
 
 # Workspace Setup
 
@@ -41,10 +36,10 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-spiky_file <- file.path(resdir, "varyinges-chisq-benchmark-spiky.rds")
-flattop_file <- file.path(resdir, "varyinges-chisq-benchmark-flattop.rds")
-skew_file <- file.path(resdir, "varyinges-chisq-benchmark-skew.rds")
-bimodal_file <- file.path(resdir, "varyinges-chisq-benchmark-bimodal.rds")
+spiky_file <- file.path(resdir, "uasettings-benchmark-spiky.rds")
+flattop_file <- file.path(resdir, "varyinges-benchmark-flattop.rds")
+skew_file <- file.path(resdir, "uasettings-benchmark-skew.rds")
+bimodal_file <- file.path(resdir, "uasettings-benchmark-bimodal.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -54,14 +49,28 @@ B <- 100
 bd <- initializeBenchDesign()
 ```
 
-For the chi-squared distributed noise setting, we must change the "mode" setting for ASH
-from the default of 0 to `"estimate"` since the mode of null and alternative test statistics
-are no longer centered at 0. While both approximate Normality and unimodality of effects are
-violated in this simulation setting, by allowing the mode to be estimated, rather than forced
-to 0, should return more comparable results.
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+for simulations with Gaussian or t-distributed test statistics. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
+series of simulations use Gaussian test statistics, we include Scott's FDR Regression
+in all of the comparisons.
 
 ```{r}
-bd <- modifyBMethod(bd, "ashq", mode = "empirical")
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "fdrreg-t",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
 ```
 
 All simulation settings will share the following parameters.
@@ -69,8 +78,8 @@ All simulation settings will share the following parameters.
 ```{r parameters-shared}
 m <- 20000                          # integer: number of hypothesis tests
 pi0 <- pi0_cubic(0.90)              # numeric: proportion of null hypotheses
-ts_dist <- rchisq_perturber(4)   # functional: sampling dist/noise for test stats
-null_dist <- rchisq_pvaluer(4)      # functional: dist to calc p-values
+ts_dist <- rnorm_perturber(1)       # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)      # functional: dist to calc p-values
 icovariate <- runif                 # functional: independent covariate
 ```
 
@@ -91,7 +100,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r spiky-parameters}
-es_dist <- function(n) { abs(sampler_spiky(n)) } # functional: dist of alternative test stats
+es_dist <- function(n) { 2*sampler_spiky(n) }       # functional: dist of alternative test stats
 seed <- 778
 ```
 
@@ -101,7 +110,7 @@ We next run the simulations.
 if (file.exists(spiky_file)) {
     res <- readRDS(spiky_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -117,7 +126,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r spiky-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -206,7 +215,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r flattop-parameters}
-es_dist <- function(n) { abs(sampler_flat_top(n)) }       # functional: dist of alternative test stats
+es_dist <- function(n) { 2*sampler_flat_top(n) }       # functional: dist of alternative test stats
 seed <- 980
 ```
 
@@ -216,7 +225,7 @@ We next run the simulations.
 if (file.exists(flattop_file)) {
     res <- readRDS(flattop_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -232,7 +241,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r flattop-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -321,7 +330,7 @@ defined in the ASH simulations.
 ## Data Simulation
 
 ```{r skew-parameters}
-es_dist <- function(n) { abs(sampler_skew(n)) }       # functional: dist of alternative test stats
+es_dist <- function(n) { 2*sampler_skew(n) }       # functional: dist of alternative test stats
 seed <- 206
 ```
 
@@ -331,7 +340,7 @@ We next run the simulations.
 if (file.exists(skew_file)) {
     res <- readRDS(skew_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -347,7 +356,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r skew-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -436,7 +445,7 @@ centered at -2, 2, with variance 1), again, as defined in the ASH simulations.
 ## Data Simulation
 
 ```{r bimodal-parameters}
-es_dist <- function(n) { abs(sampler_bimodal(n)) }       # functional: dist of alternative test stats
+es_dist <- function(n) { 2*sampler_bimodal(n) }        # functional: dist of alternative test stats
 seed <- 913
 ```
 
@@ -446,7 +455,7 @@ We next run the simulations.
 if (file.exists(bimodal_file)) {
     res <- readRDS(bimodal_file)
 } else {
-    res <- mclapply(X = 1:B, FUN = simIteration, bench = bd, m = m,
+    res <- mclapply(X = 1:B, FUN = simIteration, bench = bdplus, m = m,
                     pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
                     ts_dist = ts_dist, null_dist = null_dist,
                     seed = seed, mc.cores = cores)
@@ -462,7 +471,7 @@ Here, we show the relationship between the independent covariate and p-values fo
 single replication of the experiment.
 
 ```{r bimodal-one-simulation}
-onerun <- simIteration(bd, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+onerun <- simIteration(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                        icovariate = icovariate, null_dist = null_dist, execute = FALSE)
 ```
 
@@ -547,4 +556,3 @@ plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
 ```{r}
 sessionInfo()
 ```
-
