@@ -13,8 +13,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Running this
-
 ```{r load-workspace}
 ## Load packages and source benchmark FDR
 library(tidyverse)
