@@ -1051,7 +1051,6 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 plist <- vector("list", length(resfile))
 tab <- NULL
 for (l in seq_along(resfile)){
-  
   de5 <- readRDS(file=resfile[l])
   res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
   res5d$es_dist <- labs2[l]
@@ -1066,6 +1065,12 @@ FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
   ylim(0,0.3) 
 FigStrong
 
+FigStrongT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.88) +
+  facet_grid( ~ es_dist + pi0) 
+FigStrongT
 
 
 # weakly informative covariate (bottom panel)
@@ -1083,7 +1088,6 @@ excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
 plist <- vector("list", length(resfile))
 tab <- NULL
 for (l in seq_along(resfile)){
-  
   de5 <- readRDS(file=resfile[l])
   res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
   res5d$es_dist <- labs2[l]
@@ -1098,19 +1102,36 @@ FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
   facet_grid( ~ es_dist + pi0)
 FigWeak
 
+FigWeakT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.88) +
+  facet_grid( ~ es_dist + pi0)
+FigWeakT
+
 
 leg <- get_legend(FigStrong)
-Fig <- plot_grid(FigStrong + theme(legend.position="none") +  
+
+FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
-                 FigWeak + theme(legend.position="none") +  
+                  FigStrongT + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2)
+
+FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigWeakT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2)
+
+Fig <- plot_grid(FigA, FigB,
                  nrow = 2, 
                  labels = paste0(LETTERS[1:2], "       ",
                           c("Strongly informative covariate",
                             "Weakly informative covariate")),
                  hjust = 0)
 plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
-ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=6.5)
+ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=12)
 
 ```
 
