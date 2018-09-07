@@ -22,7 +22,7 @@ library(grid)
 library(SummarizedBenchmark)
 
 ## load helper functions
-for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files(file.path("..", "datasets", "R"), "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 
@@ -40,10 +40,10 @@ methodset <- c("bonf", "bh", "ihw", "qvalue", "bl-df03", "lfdr",
 We use the standardize candy color scheme and line types for the plots.
 
 ```{r}
-col <- as.character(candycols$col)
-names(col) <- as.character(candycols$Method)
-lty <- as.character(candycols$lty)
-names(lty) <- as.character(candycols$Method)
+col <- c(as.character(candycols$col), "darkgoldenrod3")
+names(col) <- c(as.character(candycols$Method), "adapt-withnull")
+lty <- c(as.character(candycols$lty), "dashed")
+names(lty) <- c(as.character(candycols$Method), "adapt-withnull")
 ```
 
 To generate the figures in this document, the simulation results must first be aggregated by running the code at `datasets/simulations/simulations-summary.Rmd`.
@@ -72,18 +72,22 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
         geom_errorbar(aes(ymin = !!ymean - !!yse, ymax = !!ymean + !!yse), width = ebw, alpha=0.5) +
         scale_linetype_manual(values = lty) + 
         scale_color_manual(values = col) +
-        scale_y_continuous(met, labels = scales::percent) +
         expand_limits(y = 0) +
         theme_classic() +
         theme(axis.title = element_text(face = "bold", size = 10),
               plot.title = element_text(face = "bold", size = 14))
     if (type == "diff") {
-        gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) 
-    } else if (met == "FDR") {
-        if (rlang::quo_name(cov) == "alpha") {
-            gp <- gp + geom_abline(lty = 2, color = "blue", alpha = 1/2) 
-        } else {
-            gp <- gp + geom_hline(yintercept = 0.05, lty = 2, color = "blue", alpha = 1/2) 
+        gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2)
+        gp <- gp + scale_y_continuous(bquote(atop(Mean ~ Delta ~ .(met), (informative-uninformative))),
+                                      labels = scales::percent)
+    } else {
+        gp <- gp + scale_y_continuous(met, labels = scales::percent)
+        if (met == "FDR") {
+            if (rlang::quo_name(cov) == "alpha") {
+                gp <- gp + geom_abline(lty = 2, color = "blue", alpha = 1/2) 
+            } else {
+                gp <- gp + geom_hline(yintercept = 0.05, lty = 2, color = "blue", alpha = 1/2) 
+            }
         }
     }
     gp
@@ -165,15 +169,24 @@ This is a faceted figure with results from the pure simulation studies showing t
 ## SFigure Sim1 A,B: FDR/TPR of methods across varying test statistics distribution
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
 ps1a <- genplot(res_noise, cov = alpha, met = "FDR") +
-    facet_grid(. ~ dist, labeller = label_parsed)
+    facet_grid(. ~ dist, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 ps1b <- genplot(res_noise, cov = alpha, met = "TPR") +
-    facet_grid(. ~ dist, labeller = label_parsed)
+    facet_grid(. ~ dist, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 
 ## SFigure Sim1 C,D: FDR/TPR difference of methods
 ps1c <- genplot(res_noise, cov = alpha, type = "diff", met = "FDR") +
-    facet_grid(. ~ dist, labeller = label_parsed)
+    facet_grid(. ~ dist, labeller = label_parsed) + 
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 ps1d <- genplot(res_noise, cov = alpha, type = "diff", met = "TPR") +
-    facet_grid(. ~ dist, labeller = label_parsed)
+    facet_grid(. ~ dist, labeller = label_parsed) + 
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
 ## create title for SFigure Sim1
 ps1Title <- ggdraw() +
@@ -202,15 +215,25 @@ res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", di
 
 ## SFigure Sim2 A,B: FDR/TPR of methods across unimodal effect size distribution
 ps2a <- genplot(res_ua, cov = alpha, met = "FDR") +
-    facet_grid(. ~ signal, labeller = label_parsed)
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 ps2b <- genplot(res_ua, cov = alpha, met = "TPR") +
-    facet_grid(. ~ signal, labeller = label_parsed)
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 
 ## SFigure Sim2 C,D: FDR/TPR difference of methods
 ps2c <- genplot(res_ua, cov = alpha, type = "diff", met = "FDR") +
-    facet_grid(. ~ signal, labeller = label_parsed)
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")))
 ps2d <- genplot(res_ua, cov = alpha, type = "diff", met = "TPR") +
-    facet_grid(. ~ signal, labeller = label_parsed)
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
 ## create title for SFigure Sim2
 ps2Title <- ggdraw() +
@@ -257,15 +280,25 @@ ps3a <- ggplot(pi0form, aes(x = x, y = pi0)) +
 
 ## SFigure Sim3 B,C: FDR/TPR of methods across varying relationships
 ps3b <- genplot(res_icov, cov = alpha, met = "FDR") +
-    facet_grid(. ~ relationship, labeller = label_parsed)
+    facet_grid(. ~ relationship, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")))
 ps3c <- genplot(res_icov, cov = alpha, met = "TPR") +
-    facet_grid(. ~ relationship, labeller = label_parsed)
+    facet_grid(. ~ relationship, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
 ## SFigure Sim3 D,E: FDR/TPR difference of methods
 ps3d <- genplot(res_icov, cov = alpha, type = "diff", met = "FDR") +
-    facet_grid(. ~ relationship, labeller = label_parsed)
+    facet_grid(. ~ relationship, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 ps3e <- genplot(res_icov, cov = alpha, type = "diff", met = "TPR") +
-    facet_grid(. ~ relationship, labeller = label_parsed)
+    facet_grid(. ~ relationship, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
 
 ## create title for SFigure Sim3
 ps3Title <- ggdraw() +
@@ -285,7 +318,88 @@ SFigS3
 ggsave(file.path(outdir, "SFigureSim3.pdf"), width=12, height=16)
 ```
 
+# Supplementary Figure (AdaPT with null model)
 
+This is a faceted figure with results from running the AdaPT method with non-default parameter settings. Based on communications with the authors of the methods, in addition to applying the method with parameter settings described in the accompanying package vignette, we attempted running the method with a non-default set of parameters. Namely, we run the method including a null relationship between the covariate and the null probability as one of the candidate "models", allowing the AdaPT method to ignore the specified covariate when it does not appear to be "informative enough". This model is denoted by `adapt-withnull`. The simulations were performed with the "step" informative covariate setting described above, under which the AdaPT method achieved lower TPR with the weakly informative covariate than with a completely uninformative covariate.
+
+Since these results are not included in the primary set of simulation results summarized in the `resmet` object, we recompute them from the output of the `supplementary/simulations-informative-step-nullAdaPT.Rmd` simulation case study.
+
+We only include a subset of methods in this plot because the primary focus is on the relative performance of AdaPT with default and modified parameters.
+
+```{r SFigureS4-parse-data}
+method_subset <- c("bonf", "bh", "qvalue", "adapt-glm", "adapt-withnull")
+
+nullAdapt <- readRDS(file.path("..", "datasets", "simulations", "supplementary", "results",
+                               "nullAdaPT-informative-step-benchmark-gaussian.rds"))
+
+nullAdapt_i <- lapply(nullAdapt, `[[`, "informative")
+nullAdapt_i <- plotsim_standardize(nullAdapt_i, alpha = seq(0.01, 0.10, 0.01))
+nullAdapt_i <- dplyr::select(nullAdapt_i, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+
+nullAdapt_u <- lapply(nullAdapt, `[[`, "uninformative")
+nullAdapt_u <- plotsim_standardize(nullAdapt_u, alpha = seq(0.01, 0.10, 0.01))
+nullAdapt_u <- dplyr::select(nullAdapt_u, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+
+nullAdapt <- dplyr::full_join(nullAdapt_i, nullAdapt_u,
+                              by = c("rep", "blabel", "param.alpha", "key", "performanceMetric", "alpha"),
+                              suffix = c(".info", ".uninfo"))
+
+nullAdapt <- dplyr::filter(nullAdapt, blabel %in% method_subset)
+
+nullAdapt <- dplyr::select(nullAdapt, -param.alpha, -key)
+nullAdapt <- dplyr::rename(nullAdapt, Method = blabel, key = performanceMetric)
+nullAdapt <- dplyr::mutate(nullAdapt, Method = factor(Method, levels = method_subset))
+
+adaptmet <- dplyr::mutate(nullAdapt,
+                          value.info = ifelse(is.na(value.info) & grepl("R$", key), 0, value.info),
+                          value.uninfo = ifelse(is.na(value.uninfo) & grepl("R$", key), 0, value.uninfo))
+
+adaptmet <- dplyr::group_by(adaptmet, Method, key, alpha)
+adaptmet <- dplyr::summarize(adaptmet,
+                             mean.info = mean(value.info, na.rm = TRUE),
+                             se.info = sd(value.info, na.rm = TRUE) / sqrt(sum(!is.na(value.info))),
+                             nNA.info = sum(is.na(value.info)),
+                             mean.diff = mean(value.info - value.uninfo, na.rm = TRUE),
+                             se.diff = sd(value.info - value.uninfo, na.rm = TRUE) /
+                                 sqrt(sum(!is.na(value.info - value.uninfo))))
+adaptmet <- dplyr::ungroup(adaptmet)
+```
+
+After computing the performance metrics, we now plot the results for AdaPT with default and modified parameter settings. Again, we plot the mean FDR and TPR at nominal FDR cutoffs of 0.01 to 0.10 across 100 replications, as well as the FDR and TPR differences with and without the informative covariate.
+
+```{r SFigureSim4, fig.width = 8, fig.height = 6}
+## SFigure Sim4 A,B: FDR/TPR of methods including adapt with null
+ps4a <- genplot(adaptmet, cov = alpha, met = "FDR") +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+ps4b <- genplot(adaptmet, cov = alpha, met = "TPR") +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+
+## SFigure Sim4 C,D: FDR/TPR difference of methods
+ps4c <- genplot(adaptmet, cov = alpha, type = "diff", met = "FDR") +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+ps4d <- genplot(adaptmet, cov = alpha, type = "diff", met = "TPR") +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+
+## create title for SFigure Sim4
+ps4Title <- ggdraw() +
+    draw_label("Simulation performance with modified AdaPT parameters",
+               fontface = 'bold', size = 10)
+
+## pull SFigure Sim4 together
+SFigS4 <- plot_grid(ps4a + guides(color = FALSE, linetype = FALSE),
+                    ps4b + guides(color = FALSE, linetype = FALSE),
+                    ps4c + guides(color = FALSE, linetype = FALSE),
+                    ps4d + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:4], ncol = 2)
+SFigS4 <- plot_grid(ps4Title, SFigS4, ncol = 1, rel_heights = c(0.06, 1))
+SFigS4 <- plot_grid(SFigS4, get_legend(ps4b), rel_widths = c(4.5, 1))
+SFigS4
+ggsave(file.path(outdir, "SFigureSim4.pdf"), width=8, height=6)
+```
 
 # Session information
 
