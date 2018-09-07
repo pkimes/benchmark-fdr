@@ -78,7 +78,7 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
               plot.title = element_text(face = "bold", size = 14))
     if (type == "diff") {
         gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2)
-        gp <- gp + scale_y_continuous(bquote(atop(Mean ~ Delta ~ .(met), (informative-uninformative))),
+        gp <- gp + scale_y_continuous(bquote(Delta ~ .(met) ~ (informative-uninformative)),
                                       labels = scales::percent)
     } else {
         gp <- gp + scale_y_continuous(met, labels = scales::percent)
@@ -379,10 +379,12 @@ ps4b <- genplot(adaptmet, cov = alpha, met = "TPR") +
 ## SFigure Sim4 C,D: FDR/TPR difference of methods
 ps4c <- genplot(adaptmet, cov = alpha, type = "diff", met = "FDR") +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
-    expand_limits(x = 0)
+    expand_limits(x = 0) +
+    theme(axis.title.y = element_text(face = "bold", size = 9))
 ps4d <- genplot(adaptmet, cov = alpha, type = "diff", met = "TPR") +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
-    expand_limits(x = 0)
+    expand_limits(x = 0) +
+    theme(axis.title.y = element_text(face = "bold", size = 9))
 
 ## create title for SFigure Sim4
 ps4Title <- ggdraw() +
