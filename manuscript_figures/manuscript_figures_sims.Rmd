@@ -130,7 +130,7 @@ p3cd <- plot_grid(p3c + guides(color = FALSE, linetype = FALSE),
                   p3d + guides(color = FALSE, linetype = FALSE),
                   labels = LETTERS[3:4], ncol = 2)
 p3cdTitle <- ggdraw() +
-    draw_label("Simulation performance across varying numbers of hypotheses",
+    draw_label("Simulation performance across varying number of hypotheses",
                fontface = 'bold')
 p3cd <- plot_grid(p3cdTitle, p3cd, ncol = 1, rel_heights = c(0.1, 1))
 
@@ -166,8 +166,9 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. We plot TPR and FDR across 100 replicates over nominal FDR cutoffs of 0.01 to 0.10. Additionally, we plot the differences in TPR and FDR for methods when using an informative or an uninformative covariate.
 
 ```{r SFigureSim1, fig.width = 14, fig.height = 16}
-## SFigure Sim1 A,B: FDR/TPR of methods across varying test statistics distribution
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
+
+## SFigure Sim1 A,B: FDR/TPR of methods across varying test statistics distribution
 ps1a <- genplot(res_noise, cov = alpha, met = "FDR") +
     facet_grid(. ~ dist, labeller = label_parsed) +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
@@ -209,27 +210,45 @@ ggsave(file.path(outdir, "SFigureSim1.pdf"), width=14, height=16)
 
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different sampling distributions of the effect size for non-null tests. The distributions of effect sizes used here were taken from the Stephens (Biostatistics, 2016) paper which originally introduced the ASH method. All effect size distributions are unimodal, with the exception of the appropriately named "bimodal" setting. The effect size distributions from the ASH manuscript have been doubled from their original implementations since TPRs were low (<10%) for all methods at their original magnitude. Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods.
 
-```{r SFigureSim2, fig.width = 10, fig.height = 14}
-res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", dist),
-                        signal != "bimodal")
+```{r SFigureSim2, fig.width = 12, fig.height = 16}
+res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", dist))
 
-## SFigure Sim2 A,B: FDR/TPR of methods across unimodal effect size distribution
-ps2a <- genplot(res_ua, cov = alpha, met = "FDR") +
+## SFigure Sim2 A: Distirbution of unimodal effect sizes (based on random samples)
+set.seed(100)
+uadists <- tibble(x = seq(-10, 10, .01))
+uadists <- dplyr::mutate(uadists,
+                         bimodal = density(2*sampler_bimodal(1e7), from = -10, to = 10, n = length(x))$y,
+                         flattop  = density(2*sampler_flat_top(1e7), from = -10, to = 10, n = length(x))$y,
+                         skew = density(2*sampler_skew(1e7), from = -10, to = 10, n = length(x))$y,
+                         spiky = density(2*sampler_spiky(1e7), from = -10, to = 10, n = length(x))$y)
+uadists <- tidyr::gather(uadists, signal, density, -x)
+
+ps2a <- ggplot(uadists, aes(x = x, y = density)) +
+    geom_line() +
+    theme_classic() +
+    xlab("non-null effect size") + 
+    scale_y_continuous(labels = function(x) sprintf("%.2f", x)) + 
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    facet_grid(. ~ signal)
+
+## SFigure Sim2 B,C: FDR/TPR of methods across unimodal effect size distribution
+ps2b <- genplot(res_ua, cov = alpha, met = "FDR") +
     facet_grid(. ~ signal, labeller = label_parsed) +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
     expand_limits(x = 0)
-ps2b <- genplot(res_ua, cov = alpha, met = "TPR") +
+ps2c <- genplot(res_ua, cov = alpha, met = "TPR") +
     facet_grid(. ~ signal, labeller = label_parsed) +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
     expand_limits(x = 0)
 
-## SFigure Sim2 C,D: FDR/TPR difference of methods
-ps2c <- genplot(res_ua, cov = alpha, type = "diff", met = "FDR") +
+## SFigure Sim2 D,E: FDR/TPR difference of methods
+ps2d <- genplot(res_ua, cov = alpha, type = "diff", met = "FDR") +
     facet_grid(. ~ signal, labeller = label_parsed) +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
     expand_limits(x = 0) +
     ylab(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")))
-ps2d <- genplot(res_ua, cov = alpha, type = "diff", met = "TPR") +
+ps2e <- genplot(res_ua, cov = alpha, type = "diff", met = "TPR") +
     facet_grid(. ~ signal, labeller = label_parsed) +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
     expand_limits(x = 0) +
@@ -245,11 +264,12 @@ SFigS2 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
                     ps2b + guides(color = FALSE, linetype = FALSE),
                     ps2c + guides(color = FALSE, linetype = FALSE),
                     ps2d + guides(color = FALSE, linetype = FALSE),
-                    labels = LETTERS[1:4], ncol = 1)
+                    ps2e + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
 SFigS2 <- plot_grid(ps2Title, SFigS2, ncol = 1, rel_heights = c(0.03, 1))
-SFigS2 <- plot_grid(SFigS2, get_legend(ps2a), rel_widths = c(6.5, 1))
+SFigS2 <- plot_grid(SFigS2, get_legend(ps2b), rel_widths = c(6.5, 1))
 SFigS2
-ggsave(file.path(outdir, "SFigureSim2.pdf"), width=10, height=14)
+ggsave(file.path(outdir, "SFigureSim2.pdf"), width=12, height=16)
 ```
 
 # Supplementary Figure (covariate relationship)
