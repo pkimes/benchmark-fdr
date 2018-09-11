@@ -783,8 +783,13 @@ rowOrder <- c("ihw", "bl", "adapt-glm", "lfdr", "fdrreg-e", "fdrreg-t")
 dftab <- left_join(inftab, uninftab, by = "id") %>%
   dplyr::mutate(diff_inf = nrejects - uninf) %>%
   dplyr::mutate(diff_inf_percent = diff_inf / uninf) %>%
+  dplyr::mutate(diff_inf_ratio = log2(nrejects / uninf)) %>%
   dplyr::mutate(diff_inf_percent = ifelse(uninf==0 & nrejects > 0, 1, 
                                           diff_inf_percent)) %>%
+  dplyr::mutate(diff_inf_ratio = ifelse(uninf==0 & nrejects > 0, 1, 
+                                        diff_inf_ratio)) %>%
+  dplyr::mutate(diff_inf_ratio = ifelse(uninf==0 & nrejects==0, 0, 
+                                        diff_inf_ratio)) %>%
   dplyr::mutate(method = factor(method, levels = rowOrder)) %>%
   dplyr::mutate(casestudy = factor(casestudy, levels = colOrder)) %>%
   dplyr::group_by(casestudy, cov) %>%
@@ -792,37 +797,45 @@ dftab <- left_join(inftab, uninftab, by = "id") %>%
 
 maxVals <- dftab %>% 
   group_by(dataset,cov) %>%
-  summarize(top = max(diff_inf_percent, na.rm=TRUE))
+  summarize(top = max(diff_inf_percent, na.rm=TRUE),
+            topR = max(diff_inf_ratio, na.rm =TRUE))
 
 dftab <- left_join(dftab, maxVals, by = c("dataset", "cov")) %>%
-  mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) 
+  dplyr::mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA),
+         topR = ifelse(diff_inf_ratio == topR, diff_inf_ratio, NA)) 
 
 # if no change, set diff_inf_percent to zero, even if no rejections in either case
 dftab <- dftab %>% 
-  mutate(diff_inf_percent = ifelse(nrejects == uninf, 0, diff_inf_percent))
+  dplyr::mutate(diff_inf_percent = ifelse(nrejects == uninf, 0, diff_inf_percent))
   
-trim_tails <- function(range = c(-Inf, Inf)) scales::trans_new("trim_tails", 
+# custom symmetric log scale for percent
+log_neg_percent <- function()
+              scales::trans_new("log_neg_percent", 
                 transform = function(x) {
-                  force(range)
-                  desired_breaks <- scales::extended_breaks(n = 7)(x[x >= range[1] & x <= range[2]])
-                  break_increment <- diff(desired_breaks)[1]
-                  x[x < range[1]] <- range[1] - break_increment
-                  x[x > range[2]] <- range[2] + break_increment
+                  x <- ifelse(x > 0, log(x + 1), -log(-x + 1))
                   x
                 },
-                inverse = function(x) x,
-
+                inverse = function(x) {
+                  x <- ifelse(x > 0, exp(x) - 1, -exp(-x) + 1)
+                  x
+                },
                 breaks = function(x) {
-                  force(range)
-                  scales::extended_breaks(n = 7)(x)
+                  if (max(x) > 200){
+                    c(-20, -5, 0, 5, 25, 100, 300)
+                  }else if (max(x) > 100){
+                    c(-20, -5, 0, 5, 25, 100, 200)
+                  }else{
+                    c(-20, -5, 0, 5, 25, 100)
+                  }
                 },
                 format = function(x) {
-                  force(range)
-                  x[1] <- paste("<", range[1])
-                  x[length(x)] <- paste(">", range[2])
                   paste0(x,"%")
                 })
 
+
+# log-scale color percent fill
+topRange <- max(dftab$diff_inf_percent, na.rm = TRUE)*100
+botRange <- min(dftab$diff_inf_percent, na.rm = TRUE)*100
 
 Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_percent*100)) + 
         geom_tile() + 
@@ -834,10 +847,9 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
                   color = "black", size = 2)+
         scale_fill_gradientn("% Change in\nrejections",
                              colors = c("darkblue","white","darkred"), 
-                             limits = c(-20, 100),
-                             values = scales::rescale(c(-20, 0, 100)), 
-                             trans = trim_tails(range = c(-20, 100)),
-                             oob = scales::squish) +
+                             limits = c(-20, topRange),
+                             values = scales::rescale(c(-transform(20), 0, transform(topRange))), 
+                             trans = log_neg_percent()) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
@@ -847,12 +859,45 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
               legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
-              legend.text = element_text(size = 7, angle=45, margin = margin(t=5)),
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=2)),
               legend.title = element_text(size = 9, margin=margin(t=-10)),
-              legend.margin = margin(t=2, r=10, b=-8, l=10))
-  
+              legend.margin = margin(t=2, r=10, b=-6, l=10))
+
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15.5, height = 4.25)
+
+  
+# log-scale color log2 ratio fill
+topRange <- max(dftab$diff_inf_ratio, na.rm = TRUE)
+botRange <- min(dftab$diff_inf_ratio, na.rm = TRUE)
+
+Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_ratio)) + 
+        geom_tile() + 
+        geom_text(aes(label = ifelse(is.na(topR), "", #adaptive text lab color
+                                     ifelse(topR > 1, signif(topR,2), ""))), 
+                  color = "white", size = 2) +
+        geom_text(aes(label = ifelse(is.na(topR), "", 
+                                     ifelse(topR <= 1, signif(topR,2), ""))), 
+                  color = "black", size = 2)+
+        scale_fill_gradientn("Fold Change\n(log2)",
+                             colors = c("darkblue","white","darkred"), 
+                             limits = c(-0.5, topRange), 
+                             values = scales::rescale(c(-0.5, 0, topRange))) +
+        theme_bw() +
+        xlab("Case Study") +
+        ylab("Method") +
+        facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
+        ggtitle("Impact of informative covariate on number of rejections") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=0)),
+              legend.title = element_text(size = 9, margin=margin(t=-10)),
+              legend.margin = margin(t=2, r=10, b=-2, l=10))
+
+Fig_impactofinfcov
+ggsave(file.path(outdir, "Figure_impactofinfcov_fc.pdf"), width = 15.5, height = 4.25)
 
 ```
 
@@ -862,30 +907,35 @@ Make the Figure above, but average over all datasets within a case study.
 dftab <- dftab %>%
   group_by(casestudy, method) %>%
   summarize(ndatasets = sum(!is.na(diff_inf_percent)),
-            diff_inf_percent = mean(diff_inf_percent, na.rm = TRUE))
+            diff_inf_percent = mean(diff_inf_percent, na.rm = TRUE), 
+            diff_inf_ratio = mean(diff_inf_ratio, na.rm = TRUE))
 
 maxVals <- dftab %>% 
   group_by(casestudy) %>%
   summarize(top = max(diff_inf_percent, na.rm=TRUE),
+            topR = max(diff_inf_ratio, na.rm=TRUE),
             maxd = max(ndatasets)) 
 
 dftab <- left_join(dftab, maxVals, by = c("casestudy")) %>%
   mutate(top = ifelse(diff_inf_percent == top, diff_inf_percent, NA)) %>%
+  mutate(topR = ifelse(diff_inf_ratio == topR, diff_inf_ratio, NA)) %>%
   ungroup() %>%
   mutate(casestudy = factor(casestudy, levels = colOrder)) %>%
   mutate(casestudyN = paste0(casestudy, "(", maxd, ")")) %>%
   mutate(casestudyN = factor(casestudyN, 
                              levels = unique(casestudyN)[unique(as.numeric(casestudy))]))
 
-  
+# log-scale color percent fill
+topRange <- max(dftab$diff_inf_percent, na.rm = TRUE)*100
+botRange <- min(dftab$diff_inf_percent, na.rm = TRUE)*100
+
 Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_percent*100)) + 
         geom_tile() + 
         scale_fill_gradientn("% Change in\nrejections",
                              colors = c("darkblue","white","darkred"), 
-                             limits = c(-20, 100),
-                             values = scales::rescale(c(-20, 0, 100)), 
-                             trans = trim_tails(range = c(-20, 100)),
-                             oob = scales::squish) +
+                             limits = c(-20, topRange),
+                             values = scales::rescale(c(-transform(20), 0, transform(topRange))), 
+                             trans = log_neg_percent()) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
@@ -901,12 +951,44 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
               legend.position = c(0.945, 0.94), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
-              legend.text = element_text(size = 7, angle=45, margin = margin(t=5)),
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=2)),
               legend.title = element_text(size = 9, margin=margin(t=-10)),
-              legend.margin = margin(t=2, r=10, b=-8, l=10))
+              legend.margin = margin(t=2, r=10, b=-6, l=10))
 
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5, height = 4)
+
+# log-scale color log2 ratio fill
+topRange <- max(dftab$diff_inf_ratio, na.rm = TRUE)
+botRange <- min(dftab$diff_inf_ratio, na.rm = TRUE)
+
+Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_ratio)) + 
+        geom_tile() + 
+        scale_fill_gradientn("Fold Change\n(log2)",
+                             colors = c("darkblue","white","darkred"), 
+                             limits = c(-0.5, topRange), 
+                             values = scales::rescale(c(-0.5, 0, topRange))) +
+        theme_bw() +
+        xlab("Case Study") +
+        ylab("Method") +
+        ggtitle("Impact of informative covariate") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
+        geom_text(aes(label = ifelse(is.na(topR), "", #adaptive text lab color
+                                     ifelse(topR > 1, signif(topR, 2), ""))), 
+                  color = "white", size = 2) +
+        geom_text(aes(label = ifelse(is.na(topR), "", 
+                                     ifelse(topR <= 1, signif(topR, 2), ""))), 
+                  color = "black", size = 2)  +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.945, 0.94), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7, angle=45, margin = margin(t=2)),
+              legend.title = element_text(size = 9, margin=margin(t=-10)),
+              legend.margin = margin(t=2, r=10, b=-6, l=10))
+
+Fig_impactofinfcov
+ggsave(file.path(outdir, "Figure_impactofinfcov_avg_fc.pdf"), width = 5, height = 4)
 
 
 ###################################
