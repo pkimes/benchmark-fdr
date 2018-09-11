@@ -58,6 +58,7 @@ library(DESeq2)
 library(tibble)
 library(ggthemes)
 library(R.utils)
+library(Hotelling)
 
 ## load helper functions
 for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
@@ -475,6 +476,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   truth <- rep(FALSE, nrow(dds_test))
   
   # make sure null comparison is truly null: if PC1 or PC2 sig different, 
+  # or if test of join means of PCs 1:4 is significant,  
   # reshuffle sample labels
   dds_test <- estimateSizeFactors(dds_test)
   x <- t(counts(dds_test, normalize=TRUE))
@@ -484,11 +486,13 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   b1 <- pc$x[colData(dds_test)$fake=="B",1] 
   a2 <- pc$x[colData(dds_test)$fake=="A",2]
   b2 <- pc$x[colData(dds_test)$fake=="B",2] 
-  p1 <- wilcox.test(a1, b1)$p.value
-  p2 <- wilcox.test(a2, b2)$p.value
+  p1 <- t.test(a1, b1)$p.value
+  p2 <- t.test(a2, b2)$p.value
+  p3 <- hotelling.test(pc$x[colData(dds_test)$fake == "A", 1:4],
+                       pc$x[colData(dds_test)$fake == "B", 1:4])$pval
   tries <- 0
   
-  while(p1 < 0.10 || p2 < 0.10 && tries < 5){
+  while(p1 < 0.20 || p2 < 0.20 || p3 < 0.20 && tries < 10){
     colData(dds_test)$fake <- sample(colData(dds_test)$fake, ncol(dds_test))
     x <- t(counts(dds_test, normalize=TRUE))
     pc <- prcomp(log(x + 0.5), scale.=TRUE)
@@ -499,6 +503,8 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     b2 <- pc$x[colData(dds_test)$fake=="B",2] 
     p1 <- t.test(a1, b1)$p.value
     p2 <- t.test(a2, b2)$p.value
+    p3 <- hotelling.test(pc$x[colData(dds_test)$fake == "A", 1:4],
+                         pc$x[colData(dds_test)$fake == "B", 1:4])$pval
     
     tries <- tries + 1
   }
