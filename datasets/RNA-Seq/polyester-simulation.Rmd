@@ -402,7 +402,7 @@ Plot results.
 # Check for missing results (if any methods threw an error for relevant metrics).
 rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -454,7 +454,7 @@ Plot results.
 # Check for missing results (if any methods threw an error for relevant metrics).
 rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -624,7 +624,7 @@ Plot results.
 # Check for missing results (if any methods threw an error for relevant metrics).
 rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.20, 0.01))
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
@@ -677,7 +677,7 @@ Plot results.
 # Check for missing results (if any methods threw an error for relevant metrics).
 rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.20, 0.01))
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
                 merge_ihw = TRUE, errorBars=TRUE) 
