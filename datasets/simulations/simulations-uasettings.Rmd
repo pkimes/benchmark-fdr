@@ -15,8 +15,9 @@ output:
 In this set of simulations, we consider settings with both null and non-null
 tests with varying distribution of effect sizes under the non-null (alternative)
 setting. An informative covariate is included in the setting as described in
-`simulations-informative-cubic.Rmd`. 
-
+`simulations-informative-cubic.Rmd`. The effect sizes for non-null tests are
+sampled from unimodal distributions composed of a mixture of normal distributions,
+as described in the original adaptive shrinkage (ASH) manuscript (Stephens, 2016).
 
 # Workspace Setup
 

@@ -1,5 +1,5 @@
 ---
-title: "Simulation Study: Unimodal Settings (t-11 test statistics)"
+title: "Simulation Study: Unimodal Settings (25% non-null)"
 author: "Patrick Kimes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -19,9 +19,11 @@ setting. An informative covariate is included in the setting as described in
 sampled from unimodal distributions composed of a mixture of normal distributions,
 as described in the original adaptive shrinkage (ASH) manuscript (Stephens, 2016).
 
-This set of simulations is similar to those presented in `simulations-uasettings.Rmd`.
-However, t-distributed test statistics with 11 degrees of freedom are considered
-rather than normally distributed test statistics.
+The simulation settings considered in this study are identical to those carried
+out in `simulations-uasettings.Rmd`, with the exception that the proportion of null
+hypotheses (pi0) is decreased from 90% to 75%. Here, we investigate the behavior of
+FDR-controlling methods under the unimodal setting when the proportion of non-null
+hypotheses is substantially larger (25%). 
 
 # Workspace Setup
 
@@ -32,7 +34,7 @@ library(SummarizedBenchmark)
 library(parallel)
 
 ## load helper functions
-for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
+for (f in list.files("../../R", "\\.(r|R)$", full.names = TRUE)) {
     source(f)
 }
 
@@ -41,10 +43,10 @@ resdir <- "results"
 dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
 
 ## intermediary files we create below
-spiky_file <- file.path(resdir, "uasettings-t-benchmark-spiky.rds")
-flattop_file <- file.path(resdir, "uasettings-t-benchmark-flattop.rds")
-skew_file <- file.path(resdir, "uasettings-t-benchmark-skew.rds")
-bimodal_file <- file.path(resdir, "uasettings-t-benchmark-bimodal.rds")
+spiky_file <- file.path(resdir, "uasettings-25-benchmark-spiky.rds")
+flattop_file <- file.path(resdir, "uasettings-25-benchmark-flattop.rds")
+skew_file <- file.path(resdir, "uasettings-25-benchmark-skew.rds")
+bimodal_file <- file.path(resdir, "uasettings-25-benchmark-bimodal.rds")
 
 ## number of cores for parallelization
 cores <- 20
@@ -57,7 +59,7 @@ bd <- initializeBenchDesign()
 As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
 for simulations with Gaussian or t-distributed test statistics. Again, we include both
 `nulltype = "empirical"` and `nulltype = "theoretical"`. Since all settings in this
-series of simulations use t-distributed test statistics, we include Scott's FDR Regression
+series of simulations use Gaussian test statistics, we include Scott's FDR Regression
 in all of the comparisons.
 
 ```{r}
@@ -78,21 +80,13 @@ bdplus <- addBMethod(bdplus, "fdrreg-e",
                      control = list(lambda = 0.01))
 ```
 
-Since all simulation settings in this case study use t-distributed test statistics, we must specify
-the number of degrees of freedom for ASH. We add an additional parameter to the `ashq`
-method with the corresponding degrees of freedom of the test statistics.
-
-```{r}
-bdplus <- modifyBMethod(bdplus, "ashq", df = 11)
-```
-
 All simulation settings will share the following parameters.
 
 ```{r parameters-shared}
 m <- 20000                          # integer: number of hypothesis tests
-pi0 <- pi0_cubic(0.90)              # numeric: proportion of null hypotheses
-ts_dist <- rt_perturber(11)         # functional: sampling dist/noise for test stats
-null_dist <- rt_2pvaluer(11)        # functional: dist to calc p-values
+pi0 <- pi0_cubic(0.75)              # numeric: proportion of null hypotheses
+ts_dist <- rnorm_perturber(1)       # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)      # functional: dist to calc p-values
 icovariate <- runif                 # functional: independent covariate
 ```
 
@@ -458,7 +452,7 @@ centered at -2, 2, with variance 1), again, as defined in the ASH simulations.
 ## Data Simulation
 
 ```{r bimodal-parameters}
-es_dist <- function(n) { 2*sampler_bimodal(n) }       # functional: dist of alternative test stats
+es_dist <- function(n) { 2*sampler_bimodal(n) }        # functional: dist of alternative test stats
 seed <- 913
 ```
 
