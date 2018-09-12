@@ -1165,8 +1165,8 @@ FigStrongT
 
 # weakly informative covariate (bottom panel)
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[(grepl("yeastU-", objects) | grepl("yeastHU-", objects) | 
-                    grepl("yeastIIU-", objects) | grepl("yeastIIHU-", objects)) & 
+resfile <- objects[(grepl("yeastW-", objects) | grepl("yeastHW-", objects) | 
+                    grepl("yeastIIW-", objects) | grepl("yeastIIHW-", objects)) & 
                    grepl("de5", objects) & 
                   !grepl("uninf", objects)] 
 labs <- rep("30% Non-null", length(resfile))

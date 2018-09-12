@@ -22,8 +22,7 @@ will allow us to (1) implement null comparisons on random subsets of samples wit
 one condition, and (2) start with a null comparison and add in artificial differences
 to a subset of genes to define 'true positives'. 
 
-We will investigate the overall mean expression as an informative and independent 
-(under the null hypothesis) covariate. 
+We will simulate a strongly informative and weakly informative independent covariate.
 We will also investigate the effects of an uninformative covariate by using a 
 randomly generated covariate.
 
@@ -58,7 +57,6 @@ library(DESeq2)
 library(tibble)
 library(ggthemes)
 library(R.utils)
-library(Hotelling)
 
 ## load helper functions
 for (f in list.files("../R", "\\.(r|R)$", full.names = TRUE)) {
@@ -76,15 +74,15 @@ resfile_n5 <- file.path(resdir, "yeast-results-null5.rds")
 resfile_n10 <- file.path(resdir, "yeast-results-null10.rds")
 resfile_d5 <- file.path(resdir, "yeast-results-de5.rds")
 resfile_d10 <- file.path(resdir, "yeast-results-de10.rds")
-resfile_d5_uw <- file.path(resdir, "yeastU-results-de5.rds")
-resfile_d10_uw <- file.path(resdir, "yeastU-results-de10.rds")
+resfile_d5_w <- file.path(resdir, "yeastW-results-de5.rds")
+resfile_d10_w <- file.path(resdir, "yeastW-results-de10.rds")
 
 resfile_n5_uninfCov <- file.path(resdir, "yeast-results-null5-uninfCov.rds")
 resfile_n10_uninfCov <- file.path(resdir, "yeast-results-null10-uninfCov.rds")
 resfile_d5_uninfCov <- file.path(resdir, "yeast-results-de5-uninfCov.rds")
 resfile_d10_uninfCov <- file.path(resdir, "yeast-results-de10-uninfCov.rds")
-resfile_d5_uninfCov_uw <- file.path(resdir, "yeastU-results-de5-uninfCov.rds")
-resfile_d10_uninfCov_uw <- file.path(resdir, "yeastU-results-de10-uninfCov.rds")
+resfile_d5_uninfCov_w <- file.path(resdir, "yeastW-results-de5-uninfCov.rds")
+resfile_d10_uninfCov_w <- file.path(resdir, "yeastW-results-de10-uninfCov.rds")
 
 # set up parallel backend
 library(parallel)
@@ -446,19 +444,19 @@ looped over many replications and results averaged over them.
 #' @param BPPARAM is the BiocParallel bpparam argument to pass to DESeq. Since
 #'  parallelization happens by forking multiple instances of this function, we 
 #'  will specify only one worker per DEseq intance.
-#' @param uninformativeCovariate logical indicating whether to replace overall mean 
-#'  independent covariate with a randomly generated (uninformative) covariate. 
+#' @param uninformativeCovariate logical indicating whether to replace the
+#'  informative covariate with a randomly generated (uninformative) covariate. 
 #'  Default is FALSE.
 #' @param pvalHists logical whether to return histograms of pvalues by covariate
 #'  instead of SB objects
 simulateOneSplit <- function(X, rseed, nDE, sampleSize,
                              bd, uninformativeCovariate = FALSE, pvalHists = FALSE,
-                             weightByCovariate = TRUE){
-  
-  uninf_covar <- rnorm(nrow(dds_full))
+                             strongCovariate = TRUE){
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
+  
+  covar <- abs(rnorm(nrow(dds_full)))
   
   # select a random subset of 20 WT samples
   dds_test <- dds_full[,sample(1:ncol(dds_full), sampleSize*2)]
@@ -471,7 +469,7 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   
   pzero = rowSums(counts(dds_test)==0)/ncol(counts(dds_test))
   dds_test <- dds_test[pzero < 0.5,]
-  uninf_covar <- uninf_covar[pzero < 0.5]
+  covar <- covar[pzero < 0.5]
   
   truth <- rep(FALSE, nrow(dds_test))
   
@@ -488,11 +486,9 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   b2 <- pc$x[colData(dds_test)$fake=="B",2] 
   p1 <- t.test(a1, b1)$p.value
   p2 <- t.test(a2, b2)$p.value
-  p3 <- hotelling.test(pc$x[colData(dds_test)$fake == "A", 1:4],
-                       pc$x[colData(dds_test)$fake == "B", 1:4])$pval
   tries <- 0
   
-  while(p1 < 0.20 || p2 < 0.20 || p3 < 0.20 && tries < 10){
+  while(p1 < 0.10 || p2 < 0.10  && tries < 10){
     colData(dds_test)$fake <- sample(colData(dds_test)$fake, ncol(dds_test))
     x <- t(counts(dds_test, normalize=TRUE))
     pc <- prcomp(log(x + 0.5), scale.=TRUE)
@@ -503,18 +499,15 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
     b2 <- pc$x[colData(dds_test)$fake=="B",2] 
     p1 <- t.test(a1, b1)$p.value
     p2 <- t.test(a2, b2)$p.value
-    p3 <- hotelling.test(pc$x[colData(dds_test)$fake == "A", 1:4],
-                         pc$x[colData(dds_test)$fake == "B", 1:4])$pval
-    
     tries <- tries + 1
   }
   
   if(nDE > 0){
     # pick random set of nDE genes to add signal to
-    if(weightByCovariate){
-      wts <- rowMeans(counts(dds_test, normalize = TRUE))
+    if(strongCovariate){
+      wts <- covar
     }else{
-      wts <- rep(1, nrow(dds_test))
+      wts <- abs(covar + rnorm(length(covar)))
     }
     DE <- sample(1:nrow(dds_test), nDE, prob = wts)
     truth[DE] <- TRUE
@@ -559,13 +552,13 @@ simulateOneSplit <- function(X, rseed, nDE, sampleSize,
   geneExp <- tbl_df(data.frame(geneName=rownames(resTEST), 
                                pval=resTEST$pvalue, 
                                SE=resTEST$lfcSE,                 
-                               ind_covariate = resTEST$baseMean,
+                               ind_covariate = covar,
                                effect_size = resTEST$log2FoldChange, 
                                test_statistic = resTEST$stat,
                                qvalue = truth))
   
   if (uninformativeCovariate)
-    geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
+    geneExp <- mutate(geneExp, ind_covariate = abs(rnorm(length(covar))))
   
   geneExp <-  geneExp %>% dplyr::filter(!is.na(pval))
   
@@ -869,10 +862,10 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 
 
-# Sim D5: Unweighted 5v5
+# Sim D5: 5v5 Weak Covariate
 
-Here we'll repeat the above, but not explicitly weighting the DE gene selection by
-the informative covariate.
+Here we'll repeat the above, but using a weaker informative covariate (that has noise
+added to it).
 
 ## Generate a list of SB results objects
 
@@ -881,13 +874,13 @@ rseed <- 445
 sampleSize <- 5
 nDE <- 2000
 
-if (!file.exists(resfile_d5_uw)){
+if (!file.exists(resfile_d5_w)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                   nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores,
-                  weightByCovariate = FALSE)
-  saveRDS(de5, file = resfile_d5_uw)
+                  strongCovariate = FALSE)
+  saveRDS(de5, file = resfile_d5_w)
 }else{
-  de5 <- readRDS(file = resfile_d5_uw)
+  de5 <- readRDS(file = resfile_d5_w)
 }
 ```
 
@@ -923,10 +916,10 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Sim D10: Unweighted 10v10
+# Sim D10: 10v10 Weak Covariate
 
-Here we'll repeat the above, but not explicitly weighting the DE gene selection by
-the informative covariate.
+Here we'll repeat the above, but using a weaker informative covariate (that has noise
+added to it).
 
 ## Generate a list of SB results objects
 
@@ -935,13 +928,13 @@ rseed <- 868
 sampleSize <- 10
 nDE <- 2000
 
-if(!file.exists(resfile_d10_uw)){
+if(!file.exists(resfile_d10_w)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                   nDE=nDE, sampleSize=sampleSize, bd=bd, mc.cores=nCores,
-                  weightByCovariate = FALSE)
-  saveRDS(de10, file = resfile_d10_uw)
+                  strongCovariate = FALSE)
+  saveRDS(de10, file = resfile_d10_w)
 }else{
-  de10 <- readRDS(file = resfile_d10_uw)
+  de10 <- readRDS(file = resfile_d10_w)
 }
 ```
 
@@ -979,8 +972,7 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 # Uninformative covariate
 
-Here we repeat the previous four sections, using an uninformative covariate 
-instead of the overall mean expression.
+Here we repeat the previous four sections, using an uninformative covariate. 
 
 ## Sim N5: Null Comparison 5v5
 
@@ -1196,10 +1188,10 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 ```
 
 
-## Sim D5: Unweighted 5v5
+## Sim D5: 5v5 Weak Covariate
 
-Here we'll repeat the above, but not explicitly weighting the DE gene selection by
-the informative covariate.
+Here we'll repeat the above, but using a weaker informative covariate (that has noise
+added to it).
 This will be done for 100 random splits. 
 
 ### Generate a list of SB results objects
@@ -1209,15 +1201,15 @@ rseed <- 445
 sampleSize <- 5
 nDE <- 2000
 
-if (!file.exists(resfile_d5_uninfCov_uw)){
+if (!file.exists(resfile_d5_uninfCov_w)){
   de5 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                   nDE=nDE, sampleSize=sampleSize, bd=bd,
                   uninformativeCovariate = TRUE, 
-                  weightByCovariate = FALSE,
+                  strongCovariate = FALSE,
                   mc.cores=nCores)
-  saveRDS(de5, file = resfile_d5_uninfCov_uw)
+  saveRDS(de5, file = resfile_d5_uninfCov_w)
 }else{
-  de5 <- readRDS(file = resfile_d5_uninfCov_uw)
+  de5 <- readRDS(file = resfile_d5_uninfCov_w)
 }
 ```
 
@@ -1253,10 +1245,10 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-## Sim D10: Unweighted 10v10
+## Sim D10: 10v10 Weak Covariate
 
-Here we'll repeat the above, but not explicitly weighting the DE gene selection by
-the informative covariate.
+Here we'll repeat the above, but using a weaker informative covariate (that has noise
+added to it).
 
 ### Generate a list of SB results objects
 
@@ -1265,15 +1257,15 @@ rseed <- 868
 sampleSize <- 10
 nDE <- 2000
 
-if(!file.exists(resfile_d10_uninfCov_uw)){
+if(!file.exists(resfile_d10_uninfCov_w)){
   de10 <- mclapply(X=1:B, FUN=simulateOneSplit, rseed=rseed, 
                    nDE=nDE, sampleSize=sampleSize, bd=bd,
                    uninformativeCovariate = TRUE, 
-                   weightByCovariate = FALSE,
+                   weakCovariate = FALSE,
                    mc.cores=nCores)
-  saveRDS(de10, file = resfile_d10_uninfCov_uw)
+  saveRDS(de10, file = resfile_d10_uninfCov_w)
 }else{
-  de10 <- readRDS(file = resfile_d10_uninfCov_uw)
+  de10 <- readRDS(file = resfile_d10_uninfCov_w)
 }
 ```
 
@@ -1310,12 +1302,12 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 # Simulation setting comparison
 
-Here we compare the method ranks for the different sample sizes, weighting, and
-covariate settings at alpha = 0.10.
+Here we compare the method ranks for the different sample sizes and informativeness
+settings at alpha = 0.10.
 
 ```{r, fig.width=18, fig.height=12}
-plotMethodRanks(c(resfile_d5, resfile_d5_uw, resfile_d10, resfile_d10_uw,
-                  resfile_d5_uninfCov, resfile_d5_uninfCov_uw, resfile_d10_uninfCov, resfile_d10_uninfCov_uw), 
+plotMethodRanks(c(resfile_d5, resfile_d5_w, resfile_d10, resfile_d10_w,
+                  resfile_d5_uninfCov, resfile_d5_uninfCov_w, resfile_d10_uninfCov, resfile_d10_uninfCov_w), 
                 colLabels = c("5", "5 UW", "10", "10 UW",
                               "5 UI", "5 UI UW", "10 UI", "10 UI UW"), 
                 alpha = 0.10, xlab = "Comparison", 
