@@ -33,7 +33,7 @@ resmet_file <- file.path("..", "datasets", "simulations", "results-summary", "re
 outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
-methodset <- c("bonf", "bh", "ihw", "qvalue", "bl-df03", "lfdr",
+methodset <- c("bonf", "bh", "ihw", "qvalue", "bl", "lfdr",
                "fdrreg-e", "fdrreg-t", "ashq", "adapt-glm")
 ```
 
@@ -466,6 +466,101 @@ SFigS4 <- plot_grid(ps4Title, SFigS4, ncol = 1, rel_heights = c(0.06, 1))
 SFigS4 <- plot_grid(SFigS4, get_legend(ps4b), rel_widths = c(4.5, 1))
 SFigS4
 ggsave(file.path(outdir, "SFigureSim4.pdf"), width=8, height=6)
+```
+
+# Supplementary Figure (unimodal assumption, 25% non-null)
+
+This is a faceted figure with results from the pure simulation studies investigating the behavior of methods acorss different sampling distributions of the effect size for non-null tests, similar to Supplementary Figure S2 above. However, in contrast to the above simulation settings where only 10% of the hypotheses were non-null, these simulations were performed with a higher percentage (25%) of non-null tests. Again, the distributions of effect sizes used were taken from the Stephens (Biostatistics, 2016) paper, with all effect sizes doubled. 
+
+As with the AdaPT simulations above, since these results are not included in the primary set of simulation results summarized in the `resmet` object, we recompute them from the output of the `supplementary/simulations-uasettings-nonnull25.Rmd` simulation case study.
+
+```{r SFigureS5-parse-data}
+ua25files <- list.files(file.path("..", "datasets", "simulations", "supplementary", "results"),
+                        "uasettings-25-benchmark", full.names = TRUE)
+
+ua25 <- lapply(ua25files, readRDS)
+
+ua25_i <- lapply(ua25, lapply, `[[`, "informative")
+ua25_i <- lapply(ua25_i, plotsim_standardize, alpha = seq(0.01, 0.10, 0.01))
+names(ua25_i) <- gsub("uasettings-25-benchmark-(.*?)\\.rds", "\\1", basename(ua25files))
+ua25_i <- bind_rows(ua25_i, .id = "signal")
+ua25_i <- dplyr::select(ua25_i, signal, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+
+ua25_u <- lapply(ua25, lapply, `[[`, "uninformative")
+ua25_u <- lapply(ua25_u, plotsim_standardize, alpha = seq(0.01, 0.10, 0.01))
+names(ua25_u) <- gsub("uasettings-25-benchmark-(.*?)\\.rds", "\\1", basename(ua25files))
+ua25_u <- bind_rows(ua25_u, .id = "signal")
+ua25_u <- dplyr::select(ua25_u, signal, rep, blabel, param.alpha, key, performanceMetric, alpha, value)
+
+ua25 <- dplyr::full_join(ua25_i, ua25_u,
+                              by = c("signal", "rep", "blabel", "param.alpha", "performanceMetric", "alpha"),
+                              suffix = c(".info", ".uninfo"))
+
+## clean up IHW methods
+ua25 <- dplyr::filter(ua25, !grepl("ihw-", blabel) | param.alpha == as.character(alpha))
+ua25 <- dplyr::mutate(ua25, blabel = ifelse(grepl("ihw-", blabel), "ihw", blabel))
+ua25 <- dplyr::mutate(ua25, blabel = ifelse(blabel == "bl-df03", "bl", blabel))
+ua25 <- dplyr::rename(ua25, Method = blabel, key = performanceMetric)
+ua25 <- dplyr::select(ua25, -param.alpha)
+ua25 <- dplyr::mutate(ua25, Method = factor(Method, levels = methodset))
+ua25 <- dplyr::filter(ua25, !is.na(Method))
+
+ua25met <- dplyr::mutate(ua25,
+                         value.info = ifelse(is.na(value.info) & grepl("R$", key), 0, value.info),
+                         value.uninfo = ifelse(is.na(value.uninfo) & grepl("R$", key), 0, value.uninfo))
+
+ua25met <- dplyr::group_by(ua25met, Method, signal, key, alpha)
+ua25met <- dplyr::summarize(ua25met,
+                            mean.info = mean(value.info, na.rm = TRUE),
+                            se.info = sd(value.info, na.rm = TRUE) / sqrt(sum(!is.na(value.info))),
+                            nNA.info = sum(is.na(value.info)),
+                            mean.diff = mean(value.info - value.uninfo, na.rm = TRUE),
+                            se.diff = sd(value.info - value.uninfo, na.rm = TRUE) /
+                                sqrt(sum(!is.na(value.info - value.uninfo))))
+ua25met <- dplyr::ungroup(ua25met)
+```
+
+After computing the performance metrics, we now plot the results for all methods. Again, we plot the mean FDR and TPR at nominal FDR cutoffs of 0.01 to 0.10 across 100 replications, as well as the FDR and TPR differences with and without the informative covariate.
+
+```{r SFigureSim5, fig.width = 8, fig.height = 6}
+## SFigure Sim5 B,C: FDR/TPR of methods across unimodal effect size distribution
+ps5b <- genplot(ua25met, cov = alpha, met = "FDR") +
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+ps5c <- genplot(ua25met, cov = alpha, met = "TPR") +
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0)
+
+## SFigure Sim5 D,E: FDR/TPR difference of methods
+ps5d <- genplot(ua25met, cov = alpha, type = "diff", met = "FDR") +
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")))
+ps5e <- genplot(ua25met, cov = alpha, type = "diff", met = "TPR") +
+    facet_grid(. ~ signal, labeller = label_parsed) +
+    scale_x_continuous(breaks = seq(0, .1, .02)) +
+    expand_limits(x = 0) +
+    ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
+
+## create title for SFigure Sim5
+ps5Title <- ggdraw() +
+    draw_label("Simulation performance across unimodal effect size distributions w/ 25% non-null",
+               fontface = 'bold', size = 15)
+
+## pull SFigure Sim5 together
+SFigS5 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
+                    ps5b + guides(color = FALSE, linetype = FALSE),
+                    ps5c + guides(color = FALSE, linetype = FALSE),
+                    ps5d + guides(color = FALSE, linetype = FALSE),
+                    ps5e + guides(color = FALSE, linetype = FALSE),
+                    labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
+SFigS5 <- plot_grid(ps5Title, SFigS5, ncol = 1, rel_heights = c(0.03, 1))
+SFigS5 <- plot_grid(SFigS5, get_legend(ps5b), rel_widths = c(6.5, 1))
+SFigS5
+ggsave(file.path(outdir, "SFigureSim5.pdf"), width=12, height=16)
 ```
 
 # Session information
