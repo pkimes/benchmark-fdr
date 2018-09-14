@@ -455,141 +455,6 @@ ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=8)
 
 # Supplementary Figures
 
-## Uninformative covariate impact on simulations
-
-Here we'll contrast the results of informative and uninformative covariates 
-on the yeast and polyester simulation (DE sample size 5). We'll plot
-differences in TPR and FDR due to informative covariate by alpha level.
-
-```{r, fig.width = 10, fig.height = 4}
-for (org in c("yeast-", "polyester")){
-  
-  objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-  resfile <- objects[grepl(org, objects) ] 
-  resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
-  
-  # regexp to construct master data table separating case study datasets, methods
-  # and covariates
-  obj.names <- str_split(resfile, pattern = "/")
-  casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-  filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
-  dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
-  inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
-  type <-  ifelse(grepl("null", resfile), "null", "de")
-  size <-  ifelse(grepl("10", resfile), "10", "5")
-  aseq <- seq(0.01, 0.10, by = 0.01)
-  
-  tab <- data.frame()
-  for (l in seq_along(resfile)){
-    x <- readRDS(resfile[l])
-    
-    tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                    fill =  "FDR", annotate = NULL, 
-                    alpha = aseq) %>%
-      mutate(fdr = nrejects) %>%
-      select(method, casestudy, replicate, fdr, alpha)
-    tmp3 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                    fill =  "TNR", annotate = NULL, 
-                    alpha = aseq) %>%
-      mutate(tnr = nrejects) %>%
-      select(method, casestudy, replicate, tnr, alpha)
-    
-    if (type[l] != "null"){
-      tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                      fill =  "TPR", annotate = NULL, 
-                      alpha = aseq) %>%
-        mutate(tpr = nrejects) %>%
-        select(method, casestudy, replicate, tpr, alpha)
-      
-      tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
-        left_join(tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
-        mutate(inform = inform[l],
-               type = type[l],
-               size = size[l])
-    }else{
-      tmp <- left_join(tmp2, tmp3, by = c("method", "casestudy", "replicate", "alpha")) %>%
-        mutate(inform = inform[l],
-               type = type[l],
-               size = size[l])
-    }
-    
-    tab <- bind_rows(tab, tmp)
-  }
-
-myspread <- function(df, key, value) {
-    # quote key
-    keyq <- rlang::enquo(key)
-    # break value vector into quotes
-    valueq <- rlang::enquo(value)
-    s <- rlang::quos(!!valueq)
-    df %>% gather(variable, value, !!!s) %>%
-        unite(temp, !!keyq, variable) %>%
-        spread(temp, value)
-}
-
-
-dftab <- tab %>%
-  select(-casestudy) %>%
-  myspread(inform, c(tpr, fdr, tnr))
-
-dftab <- dftab %>%
-  mutate(tpr_diff = inf_tpr - uninf_tpr,
-         fdr_diff = inf_fdr - uninf_fdr,
-         tnr_diff = inf_tnr - uninf_tnr) %>%
-  group_by(type, size, method, alpha) %>%
-  summarize(tpr_se = sd(tpr_diff)/n(),
-            fdr_se = sd(fdr_diff)/n(),
-            tnr_se = sd(tnr_diff)/n(),
-            tpr_diff = mean(tpr_diff),
-            fdr_diff = mean(fdr_diff),
-            tnr_diff = mean(tnr_diff))
-
-col <- as.character(candycols$col)
-names(col) <- as.character(candycols$Method)
-lty <- as.character(candycols$lty)
-names(lty) <- as.character(candycols$Method)
-  
-lineplot_fdr <- ggplot(dftab,
-                       aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
-                                ymax = fdr_diff + fdr_se)) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste("Mean ", Delta, "FDR (informative-uninformative)")), 
-                       breaks = seq(-1, 1, .005), labels = scales::percent) + 
-    ggtitle("FDR difference with informative covariate") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11, hjust = 0.8))
-  
-lineplot_tpr <- ggplot(dftab, aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
-                                ymax = tpr_diff + tpr_se)) +
-    geom_line(alpha = 0.85) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")), 
-                       labels = scales::percent) + 
-    ggtitle("TPR difference with informative covariate") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11))
-  
-  gp <- plot_grid(lineplot_fdr + guides(color = FALSE, linetype = FALSE),
-                  lineplot_tpr + guides(color = FALSE, linetype = FALSE),
-                  labels = LETTERS[1:2], nrow = 1)
-  gp <- plot_grid(gp, get_legend(lineplot_fdr), rel_widths = c(1, 1/8))
-  gp
-  ggsave(file.path(outdir, paste0("Figure_infCov_", gsub("-", "", org), ".pdf")), 
-                   height = 3.5, width = 8)
-}
-```
-
 
 ## Case study rankings
 
@@ -809,6 +674,11 @@ dftab <- dftab %>%
   dplyr::mutate(diff_inf_percent = ifelse(nrejects == uninf, 0, diff_inf_percent))
   
 # custom symmetric log scale for percent
+transform <- function(x) { 
+  x <- ifelse(x > 0, log(x + 1), -log(-x + 1))
+  x
+}
+
 log_neg_percent <- function()
               scales::trans_new("log_neg_percent", 
                 transform = function(x) {
@@ -854,7 +724,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
         xlab("Case Study") +
         ylab("Method") +
         facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
-        ggtitle("Impact of informative covariate on number of rejections") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
               legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
@@ -865,39 +734,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
 
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15.5, height = 4.25)
-
-  
-# log-scale color log2 ratio fill
-topRange <- max(dftab$diff_inf_ratio, na.rm = TRUE)
-botRange <- min(dftab$diff_inf_ratio, na.rm = TRUE)
-
-Fig_impactofinfcov_fc <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf_ratio)) + 
-        geom_tile() + 
-        geom_text(aes(label = ifelse(is.na(topR), "", #adaptive text lab color
-                                     ifelse(topR > 1, signif(topR,2), ""))), 
-                  color = "white", size = 2) +
-        geom_text(aes(label = ifelse(is.na(topR), "", 
-                                     ifelse(topR <= 1, signif(topR,2), ""))), 
-                  color = "black", size = 2)+
-        scale_fill_gradientn("Fold Change\n(log2)",
-                             colors = c("darkblue","white","darkred"), 
-                             limits = c(-0.5, topRange), 
-                             values = scales::rescale(c(-0.5, 0, topRange))) +
-        theme_bw() +
-        xlab("Case Study") +
-        ylab("Method") +
-        facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
-        ggtitle("Impact of informative covariate on number of rejections") +
-        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
-              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
-              legend.direction = "horizontal",
-              legend.text = element_text(size = 7, angle=45, margin = margin(t=0)),
-              legend.title = element_text(size = 9, margin=margin(t=-10)),
-              legend.margin = margin(t=2, r=10, b=-2, l=10))
-
-Fig_impactofinfcov_fc
-ggsave(file.path(outdir, "Figure_impactofinfcov_fc.pdf"), width = 15.5, height = 4.25)
 
 ```
 
@@ -939,7 +775,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
-        ggtitle("Impact of informative covariate") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
         geom_text(aes(label = ifelse(is.na(top), "", #adaptive text lab color
                                      ifelse(top > 0.7, scales::percent(top), ""))), 
@@ -957,39 +792,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
 
 Fig_impactofinfcov
 ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5, height = 4)
-
-# log-scale color log2 ratio fill
-topRange <- max(dftab$diff_inf_ratio, na.rm = TRUE)
-botRange <- min(dftab$diff_inf_ratio, na.rm = TRUE)
-
-Fig_impactofinfcov_fc <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_inf_ratio)) + 
-        geom_tile() + 
-        scale_fill_gradientn("Fold Change\n(log2)",
-                             colors = c("darkblue","white","darkred"), 
-                             limits = c(-0.5, topRange), 
-                             values = scales::rescale(c(-0.5, 0, topRange))) +
-        theme_bw() +
-        xlab("Case Study") +
-        ylab("Method") +
-        ggtitle("Impact of informative covariate") +
-        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1)) +
-        geom_text(aes(label = ifelse(is.na(topR), "", #adaptive text lab color
-                                     ifelse(topR > 1, signif(topR, 2), ""))), 
-                  color = "white", size = 2) +
-        geom_text(aes(label = ifelse(is.na(topR), "", 
-                                     ifelse(topR <= 1, signif(topR, 2), ""))), 
-                  color = "black", size = 2)  +
-        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.945, 0.94), legend.justification = c(1, 1),
-              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
-              legend.direction = "horizontal",
-              legend.text = element_text(size = 7, angle=45, margin = margin(t=2)),
-              legend.title = element_text(size = 9, margin=margin(t=-10)),
-              legend.margin = margin(t=2, r=10, b=-6, l=10))
-
-Fig_impactofinfcov_fc
-ggsave(file.path(outdir, "Figure_impactofinfcov_avg_fc.pdf"), width = 5, height = 4)
-
 
 ###################################
 # Add average simulation results 
@@ -1111,15 +913,6 @@ ggdraw() +
   draw_plot_label("Simulation", 0.71, 0.06, size =11, fontface = "plain")
 ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim.pdf"), width=9.5, height=5)
 
-ggdraw() +
-  draw_plot(pfdr, 0.53, 0.025, 0.24, 0.93) +
-  draw_plot(ptpr, 0.77, 0.025, 0.24, 0.93) +
-  draw_plot(Fig_impactofinfcov_fc, 0, 0, 0.52, 1) +
-  draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
-  draw_plot_label("Simulation", 0.71, 0.06, size =11, fontface = "plain")
-ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim_fc.pdf"), width=9.5, height=5)
-
-
 ```
 
 
@@ -1152,13 +945,13 @@ FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
                 ggtitle("") +
   facet_grid( ~ es_dist + pi0) +
-  ylim(0,0.3) 
+  ylim(0,0.17) 
 FigStrong
 
 FigStrongT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
                 ggtitle("") +
-  ylim(0,0.88) +
+  ylim(0,0.72) +
   facet_grid( ~ es_dist + pi0) 
 FigStrongT
 
@@ -1188,14 +981,14 @@ for (l in seq_along(resfile)){
 FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
                 ggtitle("") +
-  ylim(0,0.3) +
+  ylim(0,0.17) +
   facet_grid( ~ es_dist + pi0)
 FigWeak
 
 FigWeakT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
                 ggtitle("") +
-  ylim(0,0.88) +
+  ylim(0,0.72) +
   facet_grid( ~ es_dist + pi0)
 FigWeakT
 
@@ -1224,6 +1017,205 @@ plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
 ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=12)
 
 ```
+
+
+## Uninformative covariate impact on simulations
+
+Here we'll contrast the results of informative and uninformative covariates 
+on the yeast and polyester simulation (DE sample size 5). We'll plot
+differences in TPR and FDR due to informative covariate by alpha level.
+
+```{r, fig.width = 10, fig.height = 4}
+org <- "yeast"
+  
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl(org, objects) ] 
+resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
+
+# regexp to construct master data table separating case study datasets, methods
+# and covariates
+obj.names <- str_split(resfile, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
+inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
+type <-  ifelse(grepl("null", resfile), "null", "de")
+size <-  ifelse(grepl("10", resfile), "10", "5")
+mode <-  ifelse(grepl("II", resfile), "Bimodal effect Size", "Unimodal Effect Size")
+pi0 <-  ifelse(grepl("H", resfile), "7.5% Non-null", "30% Non-null")
+strength <- ifelse(grepl("W", resfile), "Weakly informative", "Strongly informative")
+strength <- ifelse(grepl("uninf", resfile), "Uninformative", strength)
+aseq <- seq(0.01, 0.10, by = 0.01)
+
+tab <- data.frame()
+for (l in seq_along(resfile)){
+  x <- readRDS(resfile[l])
+  
+  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                  fill =  "FDR", annotate = NULL, 
+                  alpha = aseq) %>%
+    mutate(fdr = nrejects) %>%
+    select(method, casestudy, replicate, fdr, alpha)
+  
+  if (type[l] != "null"){
+    tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "TPR", annotate = NULL, 
+                    alpha = aseq) %>%
+      mutate(tpr = nrejects) %>%
+      select(method, casestudy, replicate, tpr, alpha)
+    
+    tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
+      mutate(inform = inform[l],
+             type = type[l],
+             size = size[l],
+             mode = mode[l],
+             pi0 = pi0[l],
+             strength = strength[l])
+  }else{
+    tmp <- tmp2  %>%
+      mutate(inform = inform[l],
+             type = type[l],
+             size = size[l],
+             mode = mode[l],
+             pi0 = pi0[l],
+             strength = strength[l])
+  }
+  
+  tab <- bind_rows(tab, tmp)
+}
+
+tab <- tab %>% select(-c(type, size))
+dftab <- tab %>% filter(inform == "inf") %>%
+  select(-inform) %>%
+  rename(fdr = "inf_fdr",
+         tpr = "inf_tpr")
+uninftab <- tab %>% filter(inform == "uninf") %>%
+  select(-c(strength, inform, casestudy)) %>%
+  rename(fdr = "uninf_fdr",
+         tpr = "uninf_tpr")
+
+dftab <- left_join(dftab, uninftab, 
+                   by = c("method", "replicate", 
+                          "mode", "pi0", "alpha"))
+
+dftab <- dftab %>%
+  mutate(tpr_diff = inf_tpr - uninf_tpr,
+         fdr_diff = inf_fdr - uninf_fdr) %>%
+  group_by(method, alpha, mode, pi0, strength) %>%
+  summarize(tpr_se = sd(tpr_diff)/n(),
+            fdr_se = sd(fdr_diff)/n(),
+            tpr_diff = mean(tpr_diff),
+            fdr_diff = mean(fdr_diff))
+
+col <- as.character(candycols$col)
+names(col) <- as.character(candycols$Method)
+lty <- as.character(candycols$lty)
+names(lty) <- as.character(candycols$Method)
+
+
+FigWeak <- dftab %>% filter(strength == "Weakly informative") %>%
+  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_line(alpha = 0.85) +
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
+                                ymax = fdr_diff + fdr_se)) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
+                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
+                       limits = c(-0.008, 0.004)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
+  facet_grid( ~ mode + pi0)
+FigWeak
+
+FigWeakT <- dftab %>% filter(strength == "Weakly informative") %>%
+  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
+                                ymax = tpr_diff + tpr_se)) +
+    geom_line(alpha = 0.85) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
+                       labels = scales::percent, limits=c(-0.02, 0.07),
+                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11)) +
+  facet_grid( ~ mode + pi0)
+FigWeakT
+
+
+FigStrong <- dftab %>% filter(strength == "Strongly informative") %>%
+  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_line(alpha = 0.85) +
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
+                                ymax = fdr_diff + fdr_se)) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
+                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
+                       limits = c(-0.008, 0.004)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
+  facet_grid( ~ mode + pi0)
+FigStrong
+
+FigStrongT <- dftab %>% filter(strength == "Strongly informative") %>%
+  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
+                                ymax = tpr_diff + tpr_se)) +
+    geom_line(alpha = 0.85) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
+                       labels = scales::percent, limits=c(-0.02, 0.07),
+                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11)) +
+  facet_grid( ~ mode + pi0)
+FigStrongT
+
+leg <- get_legend(FigStrong)
+
+FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigStrongT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, axis = "rlbt")
+
+FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigWeakT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, axis = "rlbt")
+
+Fig <- plot_grid(FigA, FigB,
+                 nrow = 2, 
+                 labels = paste0(LETTERS[1:2], "       ",
+                          c("Strongly informative covariate",
+                            "Weakly informative covariate")),
+                 hjust = 0, axis = "rlbt")
+plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
+ggsave(file.path(outdir, "Figure_infCov_yeast.pdf"), width=10, height=12)
+
+
+```
+
 
 # Session information
 
