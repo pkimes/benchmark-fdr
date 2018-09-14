@@ -875,7 +875,7 @@ informative covariate (that has noise added to it).
 ### Generate a list of SB results objects
 
 ```{r d5-uw, results='hide', message=FALSE}
-rseed <- 445
+rseed <- 198
 sampleSize <- 5
 nDE <- 2000
 
@@ -929,7 +929,7 @@ added to it).
 ### Generate a list of SB results objects
 
 ```{r d10-uw, results='hide', message=FALSE}
-rseed <- 868
+rseed <- 961
 sampleSize <- 10
 nDE <- 2000
 
