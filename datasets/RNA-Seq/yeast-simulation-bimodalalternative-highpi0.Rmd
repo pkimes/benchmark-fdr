@@ -714,8 +714,6 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Non-null Comparisons with Strongly Informative Covariate
-
 ## D10S: DE 10v10 Strong
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 Snf2 samples,
@@ -781,6 +779,7 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 }
 
 ```
+
 # Non-null Comparisons with Weakly Informative Covariate
 
 ## D5W: DE 5v5 Weak

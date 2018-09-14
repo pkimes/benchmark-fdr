@@ -784,7 +784,7 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Non-null Comparisons with Strongly Informative Covariate
+# Non-null Comparisons with Weakly Informative Covariate
 
 ## D5S: DE 5v5 Weak
 
