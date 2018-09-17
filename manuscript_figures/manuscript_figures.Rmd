@@ -906,8 +906,8 @@ ptpr <- ggplot(dftab, aes(x = size, y = method, fill = tpr_diff)) +
               legend.margin = margin(1, 1, 1, 1))
 
 ggdraw() +
-  draw_plot(pfdr, 0.53, 0.025, 0.24, 0.93) +
-  draw_plot(ptpr, 0.77, 0.025, 0.24, 0.93) +
+  draw_plot(pfdr, 0.53, 0.03, 0.24, 0.97) +
+  draw_plot(ptpr, 0.77, 0.03, 0.24, 0.97) +
   draw_plot(Fig_impactofinfcov, 0, 0, 0.52, 1) +
   draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
   draw_plot_label("Simulation", 0.71, 0.06, size =11, fontface = "plain")
