@@ -165,7 +165,7 @@ ggsave(file.path(outdir, "Figure3.pdf"), width=10, height=12)
 
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different test statistic distributions. Test statistics were simulated from Normal, t with 11 degrees of freedom, t with 5 degrees of freedom, and Chi-squared with 4 degrees of freedom. We plot TPR and FDR across 100 replicates over nominal FDR cutoffs of 0.01 to 0.10. Additionally, we plot the differences in TPR and FDR for methods when using an informative or an uninformative covariate.
 
-```{r SFigureSim1, fig.width = 12, fig.height = 16}
+```{r SFigureSim1, fig.width = 12, fig.height = 15}
 res_noise <- dplyr::filter(resmet, setting == "informative-cubic")
 
 ## SFigure Sim2 A: Distirbution of unimodal effect sizes (based on random samples)
@@ -233,10 +233,10 @@ ps1e <- genplot(res_noise, cov = alpha, type = "diff", met = "TPR") +
     expand_limits(x = 0) +
     ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
-## create title for SFigure Sim1
-ps1Title <- ggdraw() +
-    draw_label("Simulation performance across test statistic distributions",
-               fontface = 'bold', size = 20)
+## ## create title for SFigure Sim1
+## ps1Title <- ggdraw() +
+##     draw_label("Simulation performance across test statistic distributions",
+##                fontface = 'bold', size = 20)
 
 ## pull SFigure Sim1 together
 SFigS1 <- plot_grid(ps1a,
@@ -245,17 +245,17 @@ SFigS1 <- plot_grid(ps1a,
                     ps1d + guides(color = FALSE, linetype = FALSE),
                     ps1e + guides(color = FALSE, linetype = FALSE),
                     labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
-SFigS1 <- plot_grid(ps1Title, SFigS1, ncol = 1, rel_heights = c(0.03, 1))
+## SFigS1 <- plot_grid(ps1Title, SFigS1, ncol = 1, rel_heights = c(0.03, 1))
 SFigS1 <- plot_grid(SFigS1, get_legend(ps1b), rel_widths = c(6.5, 1))
 SFigS1
-ggsave(file.path(outdir, "SFigureSim1.pdf"), width=12, height=16)
+ggsave(file.path(outdir, "SFigureSim1.pdf"), width = 12, height = 15)
 ```
 
 # Supplementary Figure (unimodal assumption)
 
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different sampling distributions of the effect size for non-null tests. The distributions of effect sizes used here were taken from the Stephens (Biostatistics, 2016) paper which originally introduced the ASH method. All effect size distributions are unimodal, with the exception of the appropriately named "bimodal" setting. The effect size distributions from the ASH manuscript have been doubled from their original implementations since TPRs were low (<10%) for all methods at their original magnitude. Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods.
 
-```{r SFigureSim2, fig.width = 12, fig.height = 16}
+```{r SFigureSim2, fig.width = 12, fig.height = 15}
 res_ua <- dplyr::filter(resmet, setting == "uasettings", grepl("N\\(0, 1\\)", dist))
 
 ## SFigure Sim2 A: Distirbution of unimodal effect sizes (based on random samples)
@@ -299,10 +299,10 @@ ps2e <- genplot(res_ua, cov = alpha, type = "diff", met = "TPR") +
     expand_limits(x = 0) +
     ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
-## create title for SFigure Sim2
-ps2Title <- ggdraw() +
-    draw_label("Simulation performance across unimodal effect size distributions",
-               fontface = 'bold', size = 20)
+## ## create title for SFigure Sim2
+## ps2Title <- ggdraw() +
+##     draw_label("Simulation performance across unimodal effect size distributions",
+##                fontface = 'bold', size = 20)
 
 ## pull SFigure Sim2 together
 SFigS2 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
@@ -311,17 +311,17 @@ SFigS2 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
                     ps2d + guides(color = FALSE, linetype = FALSE),
                     ps2e + guides(color = FALSE, linetype = FALSE),
                     labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
-SFigS2 <- plot_grid(ps2Title, SFigS2, ncol = 1, rel_heights = c(0.03, 1))
+## SFigS2 <- plot_grid(ps2Title, SFigS2, ncol = 1, rel_heights = c(0.03, 1))
 SFigS2 <- plot_grid(SFigS2, get_legend(ps2b), rel_widths = c(6.5, 1))
 SFigS2
-ggsave(file.path(outdir, "SFigureSim2.pdf"), width=12, height=16)
+ggsave(file.path(outdir, "SFigureSim2.pdf"), width = 12, height = 15)
 ```
 
 # Supplementary Figure (covariate relationship)
 
 This is a faceted figure with results from the pure simulation studies showing the behavior of methods across different function relationships between the informative covariate and null probability (pi0) of a test. In addition to the more deliberately designed sequence of informative covariates studied in the "informativeness" set of simulations described above, we also considered four functional relationships between the covariate and pi0, named "step", "sine", "cosine", and "cubic". Again, the FDR and TPR as well as FDR and TPR differences are plotted for all methods. The relationship between the covariate (sampled from the interval between 0 and 1) and pi0 is plotted for each setting as well.
 
-```{r SFigureSim3, fig.width = 12, fig.height = 16}
+```{r SFigureSim3, fig.width = 12, fig.height = 15}
 res_icov <- dplyr::filter(resmet, grepl("^informative", setting), grepl("N\\(0, 1\\)", dist))
 res_icov <- dplyr::mutate(res_icov, relationship = gsub("informative-", "", setting))
 
@@ -365,10 +365,10 @@ ps3e <- genplot(res_icov, cov = alpha, type = "diff", met = "TPR") +
     scale_x_continuous(breaks = seq(0, .1, .02)) +
     expand_limits(x = 0)
 
-## create title for SFigure Sim3
-ps3Title <- ggdraw() +
-    draw_label("Simulation performance across informative covariate relationship",
-               fontface = 'bold', size = 20)
+## ## create title for SFigure Sim3
+## ps3Title <- ggdraw() +
+##     draw_label("Simulation performance across informative covariate relationship",
+##                fontface = 'bold', size = 20)
 
 ## pull SFigure Sim3 together
 SFigS3 <- plot_grid(ps3a + guides(color = FALSE, linetype = FALSE),
@@ -377,10 +377,10 @@ SFigS3 <- plot_grid(ps3a + guides(color = FALSE, linetype = FALSE),
                     ps3d + guides(color = FALSE, linetype = FALSE),
                     ps3e + guides(color = FALSE, linetype = FALSE),
                     labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
-SFigS3 <- plot_grid(ps3Title, SFigS3, ncol = 1, rel_heights = c(0.03, 1))
+## SFigS3 <- plot_grid(ps3Title, SFigS3, ncol = 1, rel_heights = c(0.03, 1))
 SFigS3 <- plot_grid(SFigS3, get_legend(ps3b), rel_widths = c(6.5, 1))
 SFigS3
-ggsave(file.path(outdir, "SFigureSim3.pdf"), width=12, height=16)
+ggsave(file.path(outdir, "SFigureSim3.pdf"), width = 12, height = 15)
 ```
 
 # Supplementary Figure (AdaPT with null model)
@@ -451,10 +451,10 @@ ps4d <- genplot(adaptmet, cov = alpha, type = "diff", met = "TPR") +
     expand_limits(x = 0) +
     theme(axis.title.y = element_text(face = "bold", size = 9))
 
-## create title for SFigure Sim4
-ps4Title <- ggdraw() +
-    draw_label("Simulation performance with modified AdaPT parameters",
-               fontface = 'bold', size = 10)
+## ## create title for SFigure Sim4
+## ps4Title <- ggdraw() +
+##     draw_label("Simulation performance with modified AdaPT parameters",
+##                fontface = 'bold', size = 10)
 
 ## pull SFigure Sim4 together
 SFigS4 <- plot_grid(ps4a + guides(color = FALSE, linetype = FALSE),
@@ -462,10 +462,10 @@ SFigS4 <- plot_grid(ps4a + guides(color = FALSE, linetype = FALSE),
                     ps4c + guides(color = FALSE, linetype = FALSE),
                     ps4d + guides(color = FALSE, linetype = FALSE),
                     labels = LETTERS[1:4], ncol = 2)
-SFigS4 <- plot_grid(ps4Title, SFigS4, ncol = 1, rel_heights = c(0.06, 1))
+## SFigS4 <- plot_grid(ps4Title, SFigS4, ncol = 1, rel_heights = c(0.06, 1))
 SFigS4 <- plot_grid(SFigS4, get_legend(ps4b), rel_widths = c(4.5, 1))
 SFigS4
-ggsave(file.path(outdir, "SFigureSim4.pdf"), width=8, height=6)
+ggsave(file.path(outdir, "SFigureSim4.pdf"), width = 8, height = 6)
 ```
 
 # Supplementary Figure (unimodal assumption, 25% non-null)
@@ -545,10 +545,10 @@ ps5e <- genplot(ua25met, cov = alpha, type = "diff", met = "TPR") +
     expand_limits(x = 0) +
     ylab(expression(paste("Mean ", Delta, "TPR (informative-uninformative)")))
 
-## create title for SFigure Sim5
-ps5Title <- ggdraw() +
-    draw_label("Simulation performance across unimodal effect size distributions w/ 25% non-null",
-               fontface = 'bold', size = 15)
+## ## create title for SFigure Sim5
+## ps5Title <- ggdraw() +
+##     draw_label("Simulation performance across unimodal effect size distributions w/ 25% non-null",
+##                fontface = 'bold', size = 15)
 
 ## pull SFigure Sim5 together
 SFigS5 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
@@ -557,10 +557,10 @@ SFigS5 <- plot_grid(ps2a + guides(color = FALSE, linetype = FALSE),
                     ps5d + guides(color = FALSE, linetype = FALSE),
                     ps5e + guides(color = FALSE, linetype = FALSE),
                     labels = LETTERS[1:5], ncol = 1, rel_heights = c(.6, rep(1, 4)))
-SFigS5 <- plot_grid(ps5Title, SFigS5, ncol = 1, rel_heights = c(0.03, 1))
+## SFigS5 <- plot_grid(ps5Title, SFigS5, ncol = 1, rel_heights = c(0.03, 1))
 SFigS5 <- plot_grid(SFigS5, get_legend(ps5b), rel_widths = c(6.5, 1))
 SFigS5
-ggsave(file.path(outdir, "SFigureSim5.pdf"), width=12, height=16)
+ggsave(file.path(outdir, "SFigureSim5.pdf"), width = 12, height = 15)
 ```
 
 # Session information
