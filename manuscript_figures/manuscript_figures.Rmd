@@ -67,14 +67,14 @@ res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +  
-      ggtitle("Mean FDR (100 replications)") +
+      ggtitle("FDR by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2B: TPR of methods across nominal alpha level
 p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none")  +  
-      ggtitle("Mean TPR (100 replications)") +
+      ggtitle("TPR by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2C: Total number of discoveries varied across method
@@ -82,7 +82,7 @@ p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +
       ylab("Number of Rejections") +
-      ggtitle("Mean Rejections (100 replications)") +
+      ggtitle("Rejections by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
@@ -99,7 +99,7 @@ p4 <- p4 +
 pdf(file.path(outdir, "Figure2E.pdf"), width = 8, height = 4, onefile=FALSE)
 aggupset(de5, alpha=alpha, supplementary = FALSE, 
                        return_list = FALSE, nintersects = 12)
-grid.text("Mean overlap Over 100 Replications", x = 0.65, y = 0.97, 
+grid.text("Mean overlap of rejection sets", x = 0.65, y = 0.97, 
           gp = gpar(fontsize = 14, fontface = "bold"))
 grid.text("E", x = 0.01, y = 0.97, 
           gp = gpar(fontsize = 22, fontface = "bold")) 
@@ -999,13 +999,13 @@ FigA <- plot_grid(FigStrong + theme(legend.position="none") +
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
                   FigStrongT + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2)
+                 nrow = 2, align = "hv")
 
 FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
                   FigWeakT + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2)
+                 nrow = 2, align = "hv")
 
 Fig <- plot_grid(FigA, FigB,
                  nrow = 2, 
@@ -1196,13 +1196,13 @@ FigA <- plot_grid(FigStrong + theme(legend.position="none") +
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
                   FigStrongT + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, axis = "rlbt")
+                 nrow = 2, align = "hv")
 
 FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
                   FigWeakT + theme(legend.position="none") +  
                    scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, axis = "rlbt")
+                 nrow = 2, align = "hv")
 
 Fig <- plot_grid(FigA, FigB,
                  nrow = 2, 
