@@ -54,13 +54,19 @@ dir.create(datdir, showWarnings = FALSE)
 dir.create(resdir, showWarnings = FALSE)
 
 # results files that will be generated below
+# null
 resfile_n5 <- file.path(resdir, "polyester-results-null5.rds")
 resfile_n10 <- file.path(resdir, "polyester-results-null10.rds")
+
+# strong covariate
 resfile_d5 <- file.path(resdir, "polyester-results-de5.rds")
 resfile_d10 <- file.path(resdir, "polyester-results-de10.rds")
 
-resfile_n5_uninfCov <- file.path(resdir, "polyester-results-null5-uninfCov.rds")
-resfile_n10_uninfCov <- file.path(resdir, "polyester-results-null10-uninfCov.rds")
+# weak covariate 
+resfile_d5_w <- file.path(resdir, "polyesterW-results-de5.rds")
+resfile_d10_w <- file.path(resdir, "polyesterW-results-de10.rds")
+
+# uninformative covariate
 resfile_d5_uninfCov <- file.path(resdir, "polyester-results-de5-uninfCov.rds")
 resfile_d10_uninfCov <- file.path(resdir, "polyester-results-de10-uninfCov.rds")
 
@@ -72,7 +78,10 @@ nCores <- 20
 
 ## Set up Polyester
 
-We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) Bioconductor package to simulate RNA-Seq reads. The package requires a count matrix as input which estimates the mean variance relationship. Here we start with the yeast data with 48 biological replicates in each of 
+We use the [polyester](https://bioconductor.org/packages/release/bioc/html/polyester.html) 
+Bioconductor package to simulate RNA-Seq reads. The package requires a count matrix
+as input which estimates the mean variance relationship. Here we start with the 
+yeast data with 48 biological replicates in each of 
 two conditions (analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/)). 
 We'll use the samples passing QC in the original study that belong to the WT group to 
 estimate mean and variance relationship. We assume the data has already been downloaded
@@ -121,9 +130,10 @@ looped over many replications and results averaged over them.
 #' @param sampleSize is the number of samples in each condition
 #' @param nDE is the number of DE genes
 #' @param bd is the bench design object
-#' @param uninformativeCovariate logical indicating whether to replace overall mean 
-#'  independent covariate with a randomly generated (uninformative) covariate. 
-#'  Default is FALSE.
+#' @param uninformativeCovariate logical indicating whether to use an uninformative
+#'  covariate (default is FALSE)
+#' @param strongCovariate logical indicating whether to use a strongly informative
+#'  covariate (default is TRUE)
 #' @param rseed random seed
 #' @param ngenes the number of genes to simulate. If this number is greater than 
 #'  the number of genes in the count matrix, then the polyester parameters will be
@@ -131,11 +141,13 @@ looped over many replications and results averaged over them.
 #'  number of genes.
 simulateOneSplit <- function(X, rseed, 
                              nDE, sampleSize, bd, uninformativeCovariate = FALSE,
-                             ngenes = nrow(counts)){
-  uninf_covar <- rnorm(ngenes)
+                             ngenes = nrow(counts),
+                             strongCovariate = TRUE){
   
   # set random seed
   set.seed(as.numeric(X)*as.numeric(rseed))
+  
+  covar <- 1 / (1+exp(-runif(nrow(counts), 0, 10) + 5))
   
   # things needed to simulate with Polyester
   groupPolyester = rep(c(0,1),each=sampleSize)
@@ -163,12 +175,11 @@ simulateOneSplit <- function(X, rseed,
   log2FC <- log2FC[pzero < 0.5]
   mu <- mu[pzero < 0.5]
   p0 <- p0[pzero < 0.5]
-  uninf_covar <- uninf_covar[pzero < 0.5]
+  covar <- covar[pzero < 0.5]
     
   # DE simulation
   if(nDE > 0){
-    wts <- rowMeans(dat_alt)
-    DE <- sample(1:nrow(dat_alt), nDE, prob = wts)
+    DE <- sample(1:nrow(dat_alt), nDE, prob = covar)
     truth[DE] <- TRUE
     
     # randomly sample a log2FC from N(0,1) 
@@ -187,12 +198,15 @@ simulateOneSplit <- function(X, rseed,
   res_alt <- results(dds_alt, independentFiltering = F)
   
   geneExp <- tbl_df(data.frame(pval=res_alt$pvalue, SE=res_alt$lfcSE, 
-                               ind_covariate = res_alt$baseMean, 
+                               ind_covariate = covar, 
                                effect_size=res_alt$log2FoldChange, 
                                test_statistic=res_alt$stat, qvalue=truth))
   
-  if (uninformativeCovariate)
-    geneExp <- mutate(geneExp, ind_covariate = uninf_covar)
+  if (uninformativeCovariate){
+    geneExp <- mutate(geneExp, ind_covariate = runif(length(covar)))
+  }else if(!strongCovariate){
+    geneExp <- mutate(geneExp, ind_covariate = pmin(1, abs(covar + rnorm(length(covar), 0, 0.25))))
+  }
   
   # filter NAs 
   geneExp <- geneExp %>% na.omit() 
@@ -269,13 +283,14 @@ numberMethodsReject <- function(res, alphacutoff, filterSet){
 }
 ```
 
+# Null Comparisons
 
-# Sim N5: Null Comparison 5v5
+## N5: Null 5v5
 
 Here we run a null comparison 5 versus 5 RNA-Seq samples. 
 This will be done for 100 simulations.
 
-## Generate a list of SB results objects
+### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
@@ -291,7 +306,7 @@ if (!file.exists(resfile_n5)){
 }
 ```
 
-## Plot average results over replications
+### Plot average results over replications
 
 Plot results. 
 
@@ -322,14 +337,12 @@ if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 ```
 
 
-
-
-# Sim N10: Null Comparison 10v10
+## N10: Null 10v10
 
 Here we'll repeat the above, but for a null comparison 10 versus 10 samples. 
 This will be done for 100 simulations.
 
-## Generate a list of SB results objects
+### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
@@ -345,7 +358,7 @@ if (!file.exists(resfile_n10)){
 }
 ```
 
-## Plot average results over replications
+### Plot average results over replications
 
 Plot results.
 
@@ -373,12 +386,15 @@ if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Sim D5: DE Comparison 5v5
+
+# Non-null Comparisons with Strongly Informative Covariate
+
+## D5S: DE 5v5 Strong 
 
 Here we'll repeat the above, but for a DE comparison 5 versus 5 samples
 and 2000 DE genes are added. This will be done for 100 simulations.
 
-## Generate a list of SB results objects
+### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
@@ -394,7 +410,7 @@ if (!file.exists(resfile_d5)){
 }
 ```
 
-## Plot average results over replications
+### Plot average results over replications
 
 Plot results. 
 
@@ -424,12 +440,12 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-# Sim D10: DE Comparison 10v10
+## D10S: DE 10v10 Strong 
 
 Here we'll repeat the above, but for a DE comparison 10 versus 10 samples
 and 2000 DE genes are added. This will be done for 100 simulations.
 
-## Generate a list of SB results objects
+### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
@@ -446,7 +462,7 @@ if (!file.exists(resfile_d10)){
 
 ```
 
-## Plot average results over replications
+### Plot average results over replications
 
 Plot results.
 
@@ -475,39 +491,27 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 }
 ```
 
-# Sample size comparison
 
-Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+# Non-null Comparisons with Weakly Informative Covariate
 
-```{r}
-plotMethodRanks(c(resfile_d5, resfile_d10), 
-                colLabels = c("DE 5", "DE 10"), 
-                alpha = 0.10, xlab = "Comparison",
-                excludeMethods = NULL)
-```
+## D5W: DE 5v5 Weak 
 
-
-# Uninformative Covariate
-
-## Sim N5: Null Comparison 5v5
-
-Here we run a null comparison 5 versus 5 RNA-Seq samples. 
-This will be done for 100 simulations.
+Here we'll repeat the above, but using a weakly informative covariate.
 
 ### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 5
-nDE <- 0
-rseed <- 225
+nDE <- 2000
+rseed <- 198
 
-if (!file.exists(resfile_n5_uninfCov)){
-  null5 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
-                    nDE=nDE, sampleSize=sampleSize, 
-                   bd=bd, uninformativeCovariate = TRUE, mc.cores=nCores)
-  saveRDS(null5, file=resfile_n5_uninfCov)
+if (!file.exists(resfile_d5_w)){
+  de5 <- mclapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
+                  nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                  strongCovariate = FALSE, mc.cores=nCores)
+  saveRDS(de5, file=resfile_d5_w)
 } else {
-  null5 <- readRDS(file=resfile_n5_uninfCov)
+  de5 <- readRDS(file=resfile_d5_w)
 }
 ```
 
@@ -517,53 +521,51 @@ Plot results.
 
 ```{r}
 # Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+rowSums(sapply(de5, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
+res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
-# metrics = ""TPR"   "FPR"   "TNR"   "FNR"   "rejections"  "FWER"   "rejectprop"
-plotsim_average(res5, met="rejections",filter_set = excludeSet,
+plotsim_average(res5d, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res5, met="TNR",filter_set = excludeSet,
+plotsim_average(res5d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateLinePlot(null5, alpha=0.05, covname="log2FC", nbins=25, 
+covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
-covariateLinePlot(null5, alpha=0.05, covname="ind_covariate", nbins=25, 
+covariateLinePlot(de5, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res5, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de5, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 } else {
-  message("Not enough methods found rejections at alpha ", ualpha, 
-          "; skipping upset plot")
+  message("Not enough methods found rejections at alpha ", ualpha, "; skipping upset plot")
 }
 
 ```
 
+## D10W: DE 10v10 Weak 
 
-
-
-## Sim N10: Null Comparison 10v10
-
-Here we'll repeat the above, but for a null comparison 10 versus 10 samples. 
-This will be done for 100 simulations.
+Here we'll repeat the above, but for a DE comparison 10 versus 10 samples.
 
 ### Generate a list of SB results objects
 
 ```{r, results='hide', message=FALSE}
 sampleSize <- 10
-nDE <- 0
-rseed <- 837
+nDE <- 2000
+rseed <- 961
 
-if (!file.exists(resfile_n10_uninfCov)){
-  null10 <- mclapply(X=1:B, rseed=rseed, FUN=simulateOneSplit, 
-                     nDE=nDE, sampleSize=sampleSize, 
-                   bd=bd, uninformativeCovariate = TRUE, mc.cores=nCores)
-  saveRDS(null10, file=resfile_n10_uninfCov)
+if (!file.exists(resfile_d10_w)){
+  de10 <- mclapply(X=1:B, rseed = rseed, FUN=simulateOneSplit, 
+                   nDE=nDE, sampleSize=sampleSize, bd=bd, 
+                   strongCovariate = FALSE,
+                   mc.cores = nCores)
+  saveRDS(de10, file=resfile_d10_w)
 } else {
-  null10 <- readRDS(file=resfile_n10_uninfCov)
+  de10 <- readRDS(file=resfile_d10_w)
 }
+
 ```
 
 ### Plot average results over replications
@@ -572,32 +574,35 @@ Plot results.
 
 ```{r}
 # Check for missing results (if any methods threw an error for relevant metrics).
-rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
+rowSums(sapply(de10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 
-res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
+res10d <- plotsim_standardize(de10, alpha = seq(0.01, 0.10, 0.01))
 
-plotsim_average(res10, met="rejections",filter_set = excludeSet,
+plotsim_average(res10d, met="rejections",filter_set = excludeSet, 
                 merge_ihw = TRUE, errorBars=TRUE) 
-plotsim_average(res10, met="TNR",filter_set = excludeSet,
+plotsim_average(res10d, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
-covariateLinePlot(null10, alpha=0.05, covname="log2FC", nbins=25, 
+covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
-covariateLinePlot(null10, alpha=0.05, covname="ind_covariate", nbins=25, 
+covariateLinePlot(de10, alpha=0.05, covname="ind_covariate", nbins=25, 
                  trans="log1p")
 
-if (numberMethodsReject(res10, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
-  aggupset(null10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
+if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
+  aggupset(de10, alpha=ualpha, supplementary = FALSE, return_list = FALSE) 
 } else {
   message("Not enough methods found rejections at alpha ", ualpha, "; skipping upset plot")
 }
-
 ```
 
-## Sim D5: DE Comparison 5v5
 
-Here we'll repeat the above, but for a DE comparison 5 versus 5 samples
-and 2000 DE genes are added. This will be done for 100 simulations.
+# Non-null Comparisons with Uninformative Covariate
+
+## D5U: DE 5v5 Uninformative
+
+Here we'll repeat the above, but using a completely uninformative covariate. 
 
 ### Generate a list of SB results objects
 
@@ -646,10 +651,9 @@ if (numberMethodsReject(res5d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 
 ```
 
-## Sim D10: DE Comparison 10v10
+## D10U: DE 10v10 Uninformative
 
-Here we'll repeat the above, but for a DE comparison 10 versus 10 samples
-and 2000 DE genes are added. This will be done for 100 simulations.
+Here we'll repeat the above, but for a DE comparison 10 versus 10 samples.
 
 ### Generate a list of SB results objects
 
@@ -699,14 +703,15 @@ if (numberMethodsReject(res10d, alphacutoff=ualpha, filterSet=excludeSet) >= 2){
 ```
 
 
-## Sample size comparison
+# Sample size comparison
 
-Here we compare the method ranks for the different sample sizes at alpha = 0.10.
+Here we compare the method ranks for the different sample sizes and informative
+covariate settings at alpha = 0.10.
 
 ```{r}
-# uninformative covariate
-plotMethodRanks(c(resfile_d5_uninfCov, resfile_d10_uninfCov), 
-                colLabels = c("DE 5", "DE 10"), 
+plotMethodRanks(c(resfile_d5, resfile_d5_w, resfile_d5_uninfCov,
+                  resfile_d10, resfile_d10_w, resfile_d10_uninfCov), 
+                colLabels = c("DE5 S", "DE5 W", "DE5 U", "DE10 S", "DE10 W", "DE10 U"), 
                 alpha = 0.10, xlab = "Comparison",
                 excludeMethods = NULL)
 ```
