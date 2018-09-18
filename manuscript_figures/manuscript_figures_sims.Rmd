@@ -563,6 +563,52 @@ SFigS5
 ggsave(file.path(outdir, "SFigureSim5.pdf"), width = 12, height = 15)
 ```
 
+
+# Supplementary Figure (informativeness covariates)
+
+This is a faceted figure illustrating the functional relationship between the informative covariate and the the null proportion, pi0, when using either the continuous or discrete "informativeness" functions. The relationship is shown over a range of informativeness values for the two settings. These functions were used to investigate the impact of increasing/descreasing informativeness of the covariates while fixing other simulation conditions.
+
+```{r SFigureSim6, fig.width = 12, fig.height = 4}
+## SFigure Sim6 A: Informativeness covariate relationships (continuous)
+cinfovar <- tibble(informativeness = seq(0, 1, by = 0.2))
+cinfovar <- dplyr::mutate(cinfovar, x = list(seq(0, 1, .01)))
+cinfovar <- dplyr::mutate(cinfovar, pi0 = lapply(informativeness, function(zz) pi0_varyinfo80l(zz)(x[[1]])))
+cinfovar <- dplyr::mutate(cinfovar, informativeness = informativeness * 100)
+cinfovar <- tidyr::unnest(cinfovar)
+
+ps6a <- ggplot(cinfovar, aes(x = x, y = pi0)) +
+    geom_line() +
+    expand_limits(y = c(0.5, 1)) + 
+    theme_classic() +
+    scale_x_continuous(breaks = seq(0, 1, .2)) + 
+    scale_y_continuous(labels = scales::percent) + 
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    facet_grid(. ~ informativeness, labeller = label_both)
+
+## SFigure Sim6 B: Informativeness covariate relationships (discrete)
+dinfovar <- tibble(informativeness = seq(0, 1, by = 0.2))
+dinfovar <- dplyr::mutate(dinfovar, x = list(seq(0, 1, .01)))
+dinfovar <- dplyr::mutate(dinfovar, pi0 = lapply(informativeness, function(zz) pi0_varyinfo80(zz)(x[[1]])))
+dinfovar <- dplyr::mutate(dinfovar, informativeness = informativeness * 100)
+dinfovar <- tidyr::unnest(dinfovar)
+
+ps6b <- ggplot(dinfovar, aes(x = x, y = pi0)) +
+    geom_line() +
+    expand_limits(y = c(0.5, 1)) + 
+    theme_classic() +
+    scale_x_continuous(breaks = seq(0, 1, .2)) + 
+    scale_y_continuous(labels = scales::percent) + 
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    facet_grid(. ~ informativeness, labeller = label_both)
+
+## pull SFigure Sim6 together
+SFigS6 <- plot_grid(ps6a, ps6b, labels = LETTERS[1:2], ncol = 1)
+SFigS6
+ggsave(file.path(outdir, "SFigureSim6.pdf"), width = 12, height = 4)
+```
+
 # Session information
 
 ```{r}
