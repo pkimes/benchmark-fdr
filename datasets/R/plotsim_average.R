@@ -6,8 +6,10 @@
 #' 
 #' @param tsb standardized metric data.frame generated using
 #'        standardize_results.
-#' @param met name of metric to plot - must be one of the performance
-#'        metrics added by default with "addDefaultMetrics" or FWER.
+#' @param met name(s) of metric to plot - must be one of the performance
+#'        metrics added by default with "addDefaultMetrics" or FWER or FPR.
+#'        May be a vector of names of length 2 - in this case the first will
+#'        be used for the x-axis and the second for the y-axis. 
 #' @param filter_set character vector of "blabel" IDs of methods which
 #'        shouldn't be included in the plot. Alternatively, a subset of
 #'        methods can be chosen by filtering the data.table before passing
@@ -38,7 +40,9 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                             clean_names = FALSE, errorBars=FALSE,
                             palette = candycols, facetMethodType = FALSE,
                             diffplot = FALSE, grpVars = NULL){
-
+   if (length(met)>2)
+     stop("Can only plot 2 metrics at a time")
+  
     ## cacluate mean per replication
     if(!is.null(grpVars)){
       tsba <- tsb %>%
@@ -69,10 +73,21 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         tsba$blabel[grepl("^ihw-", tsba$blabel)] <- "ihw"
     }
     
-    # filter by performance metric 
-    tsba <- tsba %>% 
-      filter(performanceMetric == met) %>%
-      dplyr::mutate(Method = gsub("-df03", "", blabel)) 
+    # filter by performance metric
+    tsba_m <- NULL 
+    for (m in seq_along(met)){
+      tmp <- tsba %>% 
+        filter(performanceMetric == met[m]) %>%
+        dplyr::mutate(Method = gsub("-df03", "", blabel)) 
+      if (m > 1){
+        tsba_m <- left_join(tsba_m, tmp, 
+                            by = c("Method", "alpha", "n", 
+                                   "param.alpha", "blabel"))
+      }else{
+        tsba_m <- tmp
+      }
+    }
+    tsba <- tsba_m
            
     if (clean_names) {
         ulabs <- unique(tsba$blabel)
@@ -107,8 +122,8 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
     tsba <- tsba %>%
       mutate(Type = ifelse(Method %in% c("unadjusted", "bonf", "bh", "qvalue"),
                            "Univariate (p-value only)", "Multivariate"))
-    
-    gp <- tsba %>%
+    if(length(met)==1){
+      gp <- tsba %>%
         ggplot(aes(x = alpha, y = value, color = Method)) +
         geom_line(alpha = 0.85, aes(linetype=Method)) +
         theme_classic() +
@@ -121,23 +136,44 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
                        paste0("Mean Difference ", met, " Over ", max(tsba$n), " Replications"),
                        paste0("Mean ", met, " Over ", max(tsba$n), " Replications"))) +
         scale_color_manual(values = col) +
-        scale_linetype_manual(values = lty) 
+        scale_linetype_manual(values = lty)
+    }else{
+      gp <- tsba %>% 
+        ggplot(aes(x = value.x, y = value.y, color = Method)) +
+        geom_line(alpha = 0.85, aes(linetype=Method)) +
+        theme_classic() +
+        theme(axis.title = element_text(face="bold"),
+              plot.title = element_text(face="bold")) +
+        expand_limits(x = 0) +
+        scale_x_continuous(breaks=seq(0, 1, by=0.01)) +
+        ylab(met[2]) +
+        xlab(met[1]) +
+        ggtitle("Mean ROC Curve over 100 Replications") +
+        scale_color_manual(values = col) +
+        scale_linetype_manual(values = lty)
+    }
     
     if(facetMethodType){
       gp <- gp +
         facet_wrap( ~ Type)
     }
         
-    if(errorBars){
+    if(errorBars & length(met)==1){
       gp <- gp + geom_errorbar(width=0.0025, alpha=0.5,
                                aes(ymin=value-se, ymax=value+se))
     }
 
     ## use percentage on y-axis labels when appropriate
-    if (met %in% c("FDR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) {
+    if (sum(met %in% c("FDR", "FNR", "TPR", "TNR", "FWER", "rejectprop")) > 0){
+      if (length(met)==1){
         gp <- gp +
             scale_y_continuous(ifelse(diffplot, paste(met, "(informative - uninformative)"), met),
                                labels=scales::percent)
+      }else{
+        gp <- gp +
+          scale_x_continuous(met[1], labels=scales::percent) +
+          scale_y_continuous(met[2], labels=scales::percent) 
+      }
     } else if (diffplot) {
         gp <- gp + ylab(paste(met, "(informative - uninformative)")) 
     }
@@ -148,15 +184,18 @@ plotsim_average <- function(tsb, met, filter_set = NULL, merge_ihw = TRUE,
         gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2)
     } else {
         ## include 0% or 100% in plotting range depending on metric
-        if (met %in% c("FDR", "FNR", "FWER", "rejectprop")) {
+        if (sum(met %in% c("FDR", "FNR", "FWER", "rejectprop")) > 0){
+          if (length(met)==1)
             gp <- gp + expand_limits(y = 0)
         }
-        if (met %in% c("TNR")) {
+        if (sum(met %in% c("TNR")) > 0){
+          if (length(met)==1)
             gp <- gp + expand_limits(y = 1)
         }
 
         ## add identity line for FPR/FDR plotting
-        if (met == "FDR") {
+        if (sum(met == "FDR")>0) {
+          if (length(met)==1)
             gp <- gp +
                 geom_abline(intercept = 0, slope = 1, lty = 2, color = "blue", alpha = 1/2)
         }
