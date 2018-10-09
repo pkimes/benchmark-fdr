@@ -715,7 +715,9 @@ plotsim_average(res5d, met="rejections",filter_set = excludeSet,
 plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE) 
+                merge_ihw = TRUE, errorBars=TRUE)
+plotsim_average(res5d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
@@ -783,6 +785,8 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
@@ -838,6 +842,8 @@ plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
@@ -892,6 +898,8 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
@@ -952,6 +960,8 @@ plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de5, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
@@ -1007,6 +1017,8 @@ plotsim_average(res10d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10d, met=c("FPR", "TPR"), filter_set = excludeSet,
+                merge_ihw = TRUE) 
 
 covariateLinePlot(de10, alpha=0.05, covname="log2FC", nbins=25, 
                  trans="log1p")
