@@ -29,6 +29,16 @@ plotsim_standardize <- function(res, alpha = seq(0.01, 0.10, 0.01)) {
                       function( query, truth, alpha = 0.1) {
                           mean(query < alpha, na.rm = TRUE)
                       })
+    
+    # add FPR metric for ROC curve
+    sbl <- lapply(sbl, addPerformanceMetric,
+                  assay="qvalue", evalMetric="FPR",
+                  evalFunction = 
+                    function( query, truth, alpha=0.1 ){
+                    sum( query <= alpha & truth == 0, na.rm = TRUE ) / 
+                         sum( truth == 0, na.rm = TRUE )
+                    })
+    
     # override default FDR perf. metric st fdr is zero (instead of NA) when
     # there are zero rejections
     sbl <- lapply(sbl, addPerformanceMetric,
