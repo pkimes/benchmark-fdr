@@ -1,6 +1,6 @@
 ---
 title: "Polyester RNA-seq simulation study"
-author: "Stephanie Hicks"
+author: "Stephanie Hicks & Keegan Korthauer"
 output: 
     html_document:
         toc: true
