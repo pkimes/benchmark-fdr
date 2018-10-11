@@ -60,7 +60,7 @@ resfile <- objects[grepl("yeast-", objects) &
                   !grepl("uninf", objects)] 
 
 de5 <- readRDS(file=resfile)
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05", "bonf", "fdrreg-e")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
 # Figure 2A: Not all methods control FDR at nominal alpha level
@@ -77,12 +77,12 @@ p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
       ggtitle("TPR by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
-# Figure 2C: Total number of discoveries varied across method
-p3 <- plotsim_average(res5d, met="rejections",filter_set = excludeSet,
+# Figure 2C: ROC curve
+p3 <- plotsim_average(res5d, met=c("FPR", "TPR"),filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +
-      ylab("Number of Rejections") +
-      ggtitle("Rejections by alpha level") +
+      #ylab("Number of Rejections") +
+      ggtitle("ROC (FPR vs TPR)") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
