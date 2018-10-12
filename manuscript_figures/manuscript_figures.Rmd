@@ -81,9 +81,8 @@ p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
 p3 <- plotsim_average(res5d, met=c("FPR", "TPR"),filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +
-      #ylab("Number of Rejections") +
       ggtitle("ROC (FPR vs TPR)") +
-      scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
+      scale_x_continuous("FPR", breaks=seq(0, 1, by=0.01))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
 p4 <- covariateLinePlot(de5, alpha=alpha, covname="log2FC", trans="log1p",
