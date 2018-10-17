@@ -99,7 +99,7 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
         scale_color_manual(values = col) +
         expand_limits(y = 0) +
         theme_classic() +
-        theme(axis.title = element_text(face = "bold", size = 10),
+        theme(axis.title = element_text(face = "bold", size = 11),
               plot.title = element_text(face = "bold", size = 12))
     if (type == "diff") {
         gp <- gp + geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2)
@@ -124,21 +124,16 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
 
 This figure contains the main FDR results for the simulations and *in silico* 
 experiments. Panel (A) contains the FDR results for a representative setting of
-the yeast *in silico* experiments, showing that all methods control FDR. 
-Panels (B) and (C) contain the FDR results for simulations that vary the number
-of hypotheses and the proportion of null hypotheses, respectively. These results
-show that some methods fail to control FDR under certain settings. We restrict
-this plot to have the same y-axes.
+the yeast *in silico* experiments, showing that all methods control FDR. Panel 
+(B) contains the FDR results for the polyester read count simulation, showing that
+most methods control the FDR, with the exception of lfdr and ash, which have slightly
+inflated FDR. Panels (C) and (D) contain the FDR results for simulations that 
+vary the number of hypotheses and the proportion of null hypotheses, respectively. 
+These results show that ash and lfdr fail to control FDR under certain settings. 
 
-Instead of three separate panels showing disjoint experiments/settings, this result
-may be better shown by making a heat map with one column per experiment/setting, 
-and one row per method, where the color shading indicates whether FDR is controlled
-at the target level (for a fixed alpha level, say 0.05). The color scale could be 
-divergent, such that points that lose FDR control are highlighted, and points that
-are overly conservative are also identifiable. 
-
-```{r Figure3, fig.width = 10, fig.height = 12}
-## Figure 1A: FDR of methods in representative yeast setting at alpha.thresh
+```{r Figure1, fig.width = 7.5, fig.height = 6.5}
+# FDR in in silico experiments across alpha values 
+## Figure 1A: FDR of methods in representative yeast setting at varying alpha levels
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast-", objects) & 
                    grepl("de5", objects) & 
@@ -148,48 +143,162 @@ res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01)) %>%
   filter(blabel %in% methodset)
 p1a <- plotsim_average(res5d, met="FDR",
                 merge_ihw = TRUE, errorBars=TRUE) +
-      #ggtitle(expression(paste(bold("Yeast "), bolditalic("in silico"), bold(" experiment")))) +
-      ggtitle("FDR control in yeast") +
-      scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)) +
-      expand_limits(y=0.12) +
-      theme(plot.title = element_text(face = "bold", size = 12))
+      ggtitle("Resampling with spike-ins") +
+      scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
+                         breaks=seq(0, 1, by=0.02)) +
+      scale_y_continuous("FDR", labels=scales::percent, breaks=seq(0, 1, by=0.02)) +
+      expand_limits(y=0.11) +
+      theme(plot.title = element_text(face = "bold", size = 12)) 
 
-## Figure 1B: FDR of methods across varying number of tests at alpha.thresh
+## Figure 1B: FDR of methods in representative polyester setting at varying alpha levels
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+resfile <- objects[grepl("polyester-", objects) & 
+                   grepl("de5", objects) & 
+                  !grepl("uninf", objects)] 
+de5 <- readRDS(file=resfile)
+res5dp <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01)) %>% 
+  filter(blabel %in% methodset)
+p1b <- plotsim_average(res5dp, met="FDR",
+                merge_ihw = TRUE, errorBars=TRUE) +
+      ggtitle("Polyester count simulation") +
+      scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
+                         breaks=seq(0, 1, by=0.02)) +
+      scale_y_continuous("", labels=scales::percent, breaks=seq(0, 1, by=0.02)) +
+      expand_limits(y=0.11) +
+      theme(plot.title = element_text(face = "bold", size = 12)) + 
+  theme(legend.position="none") 
+
+p1abTitle <- ggdraw() +
+    draw_label(expression(paste(bold("FDR control in RNA-seq "), 
+                                bolditalic("in silico"), bold(" experiments"))))
+
+# Panels C and D -> FDR in sims across settings at a single specified alpha
+## Figure 1C: FDR of methods across varying number of tests at alpha.thresh
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
                             alpha == alpha.thresh, Method %in% methodset)
-p1b <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.05) +
-    scale_x_continuous("Number of Tests", trans = "log10",
-                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4)) +
+p1c <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.1) +
+    scale_x_continuous("Number of tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
+                       labels = c("100", "500", "1000", "5000", "1e4", "5e4")) +
     guides(color = FALSE, linetype = FALSE) +
+    scale_y_continuous("FDR", labels = scales::percent, breaks=seq(0,1,by=0.02), 
+                       limits=c(0,.12)) +
     ggtitle("Varying number of tests") +
     coord_cartesian(ylim = c(0,0.12))
 
-## Figure 1C: FDR of methods across varying null proportion at alpha.thresh
+## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
-                         alpha == alpha.thresh, Method %in% methodset)
-p1c <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
-    scale_x_continuous("Proportion of Non-Null Hypotheses",
-                       breaks = 100 - c(5, seq(10, 90, by = 10), 95, 99)) + 
+                         alpha == alpha.thresh, Method %in% methodset,
+                         pi0 >= 10) # restrict to pi0 at least 10%
+p1d <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
+    scale_x_continuous("Proportion non-null",
+                       breaks = 100 - c(seq(10, 90, by = 10), 95, 99)) + 
   guides(color = FALSE, linetype = FALSE) + 
   ggtitle("Varying non-null proportion") +
-  expand_limits(y=0.12) 
+  scale_y_continuous("", labels = scales::percent, breaks=seq(0,1,by=0.02), 
+                       limits=c(0,.12)) 
+
+p1cdTitle <- ggdraw() +
+    draw_label(expression(paste(bold("FDR across simulation settings ("), 
+                                bold(alpha), bold(" = 0.05)"))))
 
 ## pull Figure 1 together
-Fig1 <- plot_grid(p1a + theme(legend.position="none"), p1b, p1c, nrow = 1)
+top <- plot_grid(p1a + theme(legend.position="none"), p1b, nrow = 1)
+bot <- plot_grid(p1c, p1d, nrow = 1)
+Fig1 <- plot_grid(p1abTitle, top, p1cdTitle, bot, nrow=4, 
+                  rel_heights = c(0.1, 1, 0.1, 1))
 Fig1 <- plot_grid(Fig1, get_legend(p1a), rel_widths = c(1, .2))
 Fig1
-ggsave(file.path(outdir, "Fig1.pdf"), width=10, height=3)
+ggsave(file.path(outdir, "Fig1.pdf"), width=7.5, height=6.5)
 ```
 
 # Figure 2 - Power
 
+This figure contains the main TPR results for the simulations and *in silico* 
+experiments, and is analagous to Figure 1. 
+Panels (A) and (B) contain the TPR results for a representative setting of
+the yeast *in silico* experiments and polyester simulations, showing that in 
+general, modern FDR-controlling methods have modestly higher power than classic methods. 
+In addition, lfdr, fdrreg-t, and adapt tend to have highest power compared to other
+methods.
+Panels (C) and (D) contain the TPR results for simulations that 
+vary the number of hypotheses and the proportion of null hypotheses, respectively. 
+These results show that adapt and lfdr are very conservative under some settings 
+of the number of tests, and that the relative ranking of methods is somewhat 
+robust under varying proportions of null hypotheses. 
+
+```{r Figure2, fig.width = 7.5, fig.height = 6.5}
+# TPR in in silico experiments across alpha values 
+## Figure 2A: TPR of methods in representative yeast setting at varying alpha levels
+p2a <- plotsim_average(res5d, met="TPR",
+                merge_ihw = TRUE, errorBars=TRUE) +
+      ggtitle("Resampling with spike-ins") +
+      scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
+                         breaks=seq(0, 1, by=0.02)) +
+      scale_y_continuous("TPR", labels=scales::percent, breaks=seq(0, 1, by=0.05)) +
+      theme(plot.title = element_text(face = "bold", size = 12)) 
+
+## Figure 2B: TPR of methods in representative polyester setting at varying alpha levels
+p2b <- plotsim_average(res5dp, met="TPR",
+                merge_ihw = TRUE, errorBars=TRUE) +
+      ggtitle("Polyester count simulation") +
+      scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
+                         breaks=seq(0, 1, by=0.02)) +
+      scale_y_continuous("", labels=scales::percent, breaks=seq(0, 1, by=0.05)) +
+      theme(plot.title = element_text(face = "bold", size = 12)) + 
+  theme(legend.position="none") 
+
+p2abTitle <- ggdraw() +
+    draw_label(expression(paste(bold("TPR in RNA-seq "), 
+                                bolditalic("in silico"), bold(" experiments"))))
+
+# Panels C and D -> TPR in sims across settings at a single specified alpha
+## Figure 2C: TPR of methods across varying number of tests at alpha.thresh
+res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
+                            alpha == alpha.thresh, Method %in% methodset)
+p2c <- genplot(res_ntests, cov = ntests, met = "TPR", ebw = 0.1) +
+    scale_x_continuous("Number of tests", trans = "log10",
+                       breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
+                       labels = c("100", "500", "1000", "5000", "1e4", "5e4")) +
+    guides(color = FALSE, linetype = FALSE) +
+    scale_y_continuous("TPR", labels = scales::percent, breaks=seq(0,1,by=0.1)) +
+    ggtitle("Varying number of tests") 
+
+## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
+res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
+                         alpha == alpha.thresh, Method %in% methodset,
+                         pi0 >= 10) # restrict to pi0 at least 10%
+p2d <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
+    scale_x_continuous("Proportion non-null",
+                       breaks = 100 - c(seq(10, 90, by = 10), 95, 99)) + 
+  guides(color = FALSE, linetype = FALSE) + 
+  ggtitle("Varying non-null proportion") +
+  scale_y_continuous("", labels = scales::percent, breaks=seq(0,1,by=0.20)) 
+
+p2cdTitle <- ggdraw() +
+    draw_label(expression(paste(bold("TPR across simulation settings ("), 
+                                bold(alpha), bold(" = 0.05)"))))
+
+## pull Figure 1 together
+top <- plot_grid(p2a + theme(legend.position="none"), p2b, nrow = 1)
+bot <- plot_grid(p2c, p2d, nrow = 1)
+Fig2 <- plot_grid(p2abTitle, top, p2cdTitle, bot, nrow=4, 
+                  rel_heights = c(0.1, 1, 0.1, 1))
+Fig2 <- plot_grid(Fig2, get_legend(p2a), rel_widths = c(1, .2))
+Fig2
+ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
+```
+
+
 # Figure 3 - Robustness
+
+
 
 # Figure 4 - Applicability
 
 # Figure 5 - Summary
 
-The summary of recommendations is created manually.
+The summary of recommendations figure is drawn manually.
 
 # Session information
 
