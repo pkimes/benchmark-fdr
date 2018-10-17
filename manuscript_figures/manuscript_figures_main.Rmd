@@ -62,7 +62,9 @@ methodset <- c("bh", "ihw", paste0("ihw-a0", 1:9), "ihw-a10",
 ```
 
 
-We use the standardize candy color scheme and line types for the plots.
+We use the standardize candy color scheme and line types for the plots. We'll
+add the "lfdr*" method, which indicates lfdr was applied with fewer than 200 
+tests per bin (out of 20 bins).
 
 ```{r}
 col <- as.character(candycols$col)
@@ -123,11 +125,11 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
 # Figure 1 - FDR
 
 This figure contains the main FDR results for the simulations and *in silico* 
-experiments. Panel (A) contains the FDR results for a representative setting of
+experiments. Panel (A, left) contains the FDR results for a representative setting of
 the yeast *in silico* experiments, showing that all methods control FDR. Panel 
-(B) contains the FDR results for the polyester read count simulation, showing that
+(A, right) contains the FDR results for the polyester read count simulation, showing that
 most methods control the FDR, with the exception of lfdr and ash, which have slightly
-inflated FDR. Panels (C) and (D) contain the FDR results for simulations that 
+inflated FDR. Panels (B) contains the FDR results for simulations that 
 vary the number of hypotheses and the proportion of null hypotheses, respectively. 
 These results show that ash and lfdr fail to control FDR under certain settings. 
 
@@ -175,16 +177,23 @@ p1abTitle <- ggdraw() +
 # Panels C and D -> FDR in sims across settings at a single specified alpha
 ## Figure 1C: FDR of methods across varying number of tests at alpha.thresh
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
-                            alpha == alpha.thresh, Method %in% methodset)
-p1c <- genplot(res_ntests, cov = ntests, met = "FDR", ebw = 0.1) +
+                            alpha == alpha.thresh, Method %in% methodset) 
+p1c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"), 
+               cov = ntests, met = "FDR", ebw = 0.1) +
     scale_x_continuous("Number of tests", trans = "log10",
                        breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
-                       labels = c("100", "500", "1000", "5000", "1e4", "5e4")) +
+                       labels = c("100", "500", "1e3", "5e3", "1e4", "5e4")) +
     guides(color = FALSE, linetype = FALSE) +
-    scale_y_continuous("FDR", labels = scales::percent, breaks=seq(0,1,by=0.02), 
-                       limits=c(0,.12)) +
+    scale_y_continuous("FDR", labels = scales::percent, breaks=seq(0,1,by=0.02)) +
     ggtitle("Varying number of tests") +
-    coord_cartesian(ylim = c(0,0.12))
+    coord_cartesian(ylim = c(0,0.12)) + 
+    geom_line(data = res_ntests %>% 
+                filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "FDR"),
+              aes(x = ntests, y = mean.info), 
+              linetype = "dashed", color = "dodgerblue3", alpha = 0.88) +
+    geom_errorbar(data = res_ntests %>% 
+                 filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "FDR"),
+                 aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5)
 
 ## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
@@ -206,7 +215,8 @@ p1cdTitle <- ggdraw() +
 top <- plot_grid(p1a + theme(legend.position="none"), p1b, nrow = 1)
 bot <- plot_grid(p1c, p1d, nrow = 1)
 Fig1 <- plot_grid(p1abTitle, top, p1cdTitle, bot, nrow=4, 
-                  rel_heights = c(0.1, 1, 0.1, 1))
+                  rel_heights = c(0.1, 1, 0.1, 1),
+                  labels = c("A", "", "B", ""))
 Fig1 <- plot_grid(Fig1, get_legend(p1a), rel_widths = c(1, .2))
 Fig1
 ggsave(file.path(outdir, "Fig1.pdf"), width=7.5, height=6.5)
@@ -216,12 +226,12 @@ ggsave(file.path(outdir, "Fig1.pdf"), width=7.5, height=6.5)
 
 This figure contains the main TPR results for the simulations and *in silico* 
 experiments, and is analagous to Figure 1. 
-Panels (A) and (B) contain the TPR results for a representative setting of
+Panel (A) contains the TPR results for a representative setting of
 the yeast *in silico* experiments and polyester simulations, showing that in 
 general, modern FDR-controlling methods have modestly higher power than classic methods. 
 In addition, lfdr, fdrreg-t, and adapt tend to have highest power compared to other
 methods.
-Panels (C) and (D) contain the TPR results for simulations that 
+Panel (B) contains the TPR results for simulations that 
 vary the number of hypotheses and the proportion of null hypotheses, respectively. 
 These results show that adapt and lfdr are very conservative under some settings 
 of the number of tests, and that the relative ranking of methods is somewhat 
@@ -256,13 +266,21 @@ p2abTitle <- ggdraw() +
 ## Figure 2C: TPR of methods across varying number of tests at alpha.thresh
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
                             alpha == alpha.thresh, Method %in% methodset)
-p2c <- genplot(res_ntests, cov = ntests, met = "TPR", ebw = 0.1) +
+p2c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"),
+               cov = ntests, met = "TPR", ebw = 0.1) +
     scale_x_continuous("Number of tests", trans = "log10",
                        breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
-                       labels = c("100", "500", "1000", "5000", "1e4", "5e4")) +
+                       labels = c("100", "500", "1e3", "5e3", "1e4", "5e4")) +
     guides(color = FALSE, linetype = FALSE) +
     scale_y_continuous("TPR", labels = scales::percent, breaks=seq(0,1,by=0.1)) +
-    ggtitle("Varying number of tests") 
+    ggtitle("Varying number of tests")  + 
+    geom_line(data = res_ntests %>% 
+                filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "TPR"),
+              aes(x = ntests, y = mean.info), 
+              linetype = "dashed", color = "dodgerblue3", alpha = 0.88) +
+    geom_errorbar(data = res_ntests %>% 
+                 filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "TPR"),
+                 aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5)
 
 ## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
@@ -283,7 +301,8 @@ p2cdTitle <- ggdraw() +
 top <- plot_grid(p2a + theme(legend.position="none"), p2b, nrow = 1)
 bot <- plot_grid(p2c, p2d, nrow = 1)
 Fig2 <- plot_grid(p2abTitle, top, p2cdTitle, bot, nrow=4, 
-                  rel_heights = c(0.1, 1, 0.1, 1))
+                  rel_heights = c(0.1, 1, 0.1, 1),
+                  labels = c("A", "", "B", ""))
 Fig2 <- plot_grid(Fig2, get_legend(p2a), rel_widths = c(1, .2))
 Fig2
 ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
@@ -292,9 +311,11 @@ ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
 
 # Figure 3 - Robustness
 
-
-
 # Figure 4 - Applicability
+
+This figure shows the applicability of each of the methods to a variety of data types
+within the case studies, as well as to different types of statistical tests both 
+within the case studies and simulation settings. Panel (A) 
 
 # Figure 5 - Summary
 
