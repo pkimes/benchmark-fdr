@@ -315,7 +315,165 @@ ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
 
 This figure shows the applicability of each of the methods to a variety of data types
 within the case studies, as well as to different types of statistical tests both 
-within the case studies and simulation settings. Panel (A) 
+within the case studies and simulation settings. Panel (A) displays the performance 
+across different test statistic distributions, and panel (B) displays the performance
+across different case studies. 
+
+```{r Figure4, fig.width = 11, fig.height = 11}
+res_noise <- dplyr::filter(resmet, setting == "informative-cubic") %>%
+  filter(Method %in% methodset)
+
+## Distribution of unimodal effect sizes (based on random samples)
+set.seed(100)
+tsdists <- bind_rows(dplyr::mutate(simIteration(1, NULL, m = 2e4, pi0 = 0.9,
+                                                es_dist = rnorm_generator(3),
+                                                ts_dist = rnorm_perturber(1),
+                                                null_dist = rnorm_2pvaluer(1),
+                                                icovariate = runif, execute = FALSE),
+                                   dist = "\"Distribution: \" * N(0, 1)"),
+                     dplyr::mutate(simIteration(1, NULL, m = 2e4, pi0 = 0.9,
+                                                es_dist = rnorm_generator(3),
+                                                ts_dist = rt_perturber(5),
+                                                null_dist = rt_2pvaluer(5),
+                                                icovariate = runif, execute = FALSE),
+                                   dist = "\"Distribution: \" * t[5]"),
+                     dplyr::mutate(simIteration(1, NULL, m = 2e4, pi0 = 0.9,
+                                                es_dist = rnorm_generator(3),
+                                                ts_dist = rt_perturber(11),
+                                                null_dist = rt_2pvaluer(11),
+                                                icovariate = runif, execute = FALSE),
+                                   dist = "\"Distribution: \" * t[11]"),
+                     dplyr::mutate(simIteration(1, NULL, m = 2e4, pi0 = 0.9,
+                                                es_dist = function(x) { abs(rnorm_generator(15)(x)) },
+                                                ts_dist = rchisq_perturber(4),
+                                                null_dist = rchisq_pvaluer(4),
+                                                icovariate = runif, execute = FALSE),
+                                   dist = "\"Distribution: \" * {\n    chi^2\n}[4]"))
+tsdists <- dplyr::mutate(tsdists, dist = factor(dist, levels = levels(factor(dist))[c(2, 3, 4, 1)]))
+tsdists <- dplyr::rename(tsdists, truth = qvalue)
+tsdists <- dplyr::mutate(tsdists, truth = factor(truth, levels = 0:1, labels = c("null", "non-null")))
+
+## Figure 4A: Performance across distribution of test statistics (based on single replicate)
+p4a <- ggplot(tsdists, aes(x = test_statistic, y=..count..,
+                            group = truth, color = truth)) +
+    stat_density(geom = "line", position = "identity", adjust = 1/2) + 
+    theme_classic() +
+    scale_color_brewer("Truth", palette = "Set1", direction = -1) + 
+    scale_x_continuous("test statistic (single replicate)") +
+    coord_cartesian(xlim = c(-5, 25)) + 
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    facet_grid(. ~ dist, labeller = label_parsed) 
+p4a <- plot_grid(p4a, genplot(res_noise, cov = alpha, met = "FDR") +
+                   facet_grid(. ~ dist, labeller = label_parsed) +
+                   scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
+                         breaks=seq(0, 1, by=0.02)) +
+                   expand_limits(x = 0) , axis = "trbl", align="hv",
+                 nrow=2, rel_heights = c(0.75,1))
+
+Titlep4a <- ggdraw() +
+    draw_label(expression(paste(bold("FDR across test statistic distributions in simulation"))))
+p4a <- plot_grid(Titlep4a, p4a, nrow = 2, rel_heights = c(0.1,1), labels = c("A", ""))
+
+## Figure 4B: Case study heatmap demonstrating variability in applicability
+
+## read list of case study results
+objects <- list.files(path, recursive=TRUE, pattern="rds", full.names=TRUE)
+
+## exclude yeast and polyester simulations, as well as uninformative covariate
+## analyses
+objects <- objects[!grepl("yeast", objects) & !grepl("polyester", objects) &
+                   !grepl("uninf", objects)]
+
+## create shorter names for case studies
+object_labs <- gsub("\\.rds", "", basename(objects))
+object_labs <- gsub("-benchmark", "", object_labs)
+
+## read in case study results (proportion of rejects vs. case study max)
+objdat <- tidy_df(objects=objects, colLabels=object_labs, 
+                  fill="propMaxRejections", annotate=NULL,
+                  alpha =0.10)
+objdat <- as_tibble(objdat)
+objdat <- tidyr::complete(objdat, method, casestudy)
+
+## exclude 'enigma-so4-otus' results with no significant calls
+objdat <- dplyr::filter(objdat, casestudy != "enigma-so4-otus")
+
+## create table of case study-to-assay mapping
+studies <- tibble(
+    casestudy = c("cbp-csaw", "h3k4me3-csaw", "human", "mouse", "bmi-maf", "bmi-samplesize",
+                  "enigma-al-otus", "enigma-ph-otus", "enigma-so4-otus", "goodrich-genus",
+                  "papa-genus", "schubert-otus", "brain", "mir200c",
+                  "human-mast-det", "human-mast-mean", "human-scdd-det",
+                  "human-scdd-mean", "human-wilcox-det", "human-wilcox-mean",
+                  "mouse-mast-det", "mouse-mast-mean", "mouse-scdd-det",
+                  "mouse-scdd-mean", "mouse-wilcox-det", "mouse-wilcox-mean"),
+    assay = c(rep("ChIP-seq", 2), rep("GSEA", 2), rep("GWAS", 2), rep("Microbiome", 6),
+              rep("RNA-seq", 2), rep("scRNA-seq", 12)))
+
+## add assay labels to results table
+objdat <- left_join(objdat, studies, by = "casestudy")
+objdat <- dplyr::filter(objdat, !is.na(assay))
+
+## create table of rejected proportion for top methods per case study
+objdat_props <- dplyr::group_by(objdat, casestudy)
+objdat_props <- dplyr::filter(objdat_props, nrejects == max(nrejects, na.rm = TRUE))
+objdat_props <- dplyr::ungroup(objdat_props)
+objdat_props <- dplyr::mutate(objdat_props, lab = paste0(100*round(propPossible, 4), "%"))
+objdat_props$plotrow <- "real"
+
+## create table of total tests for each case study
+objdat_tab <- dplyr::select(objdat_props, casestudy, nrejects, propPossible, assay)
+objdat_tab <- dplyr::distinct(objdat_tab)
+objdat_tab <- dplyr::mutate(objdat_tab, `Total Tests` = scales::comma(round(nrejects / propPossible)))
+objdat_tab <- dplyr::select(objdat_tab, casestudy, assay, `Total Tests`) 
+objdat_tab <- tidyr::gather(objdat_tab, method, cnt, -casestudy, -assay)
+
+## hack to get total counts and heatmap in same plot
+objdat_joint <- bind_rows(list(real = objdat, fake = objdat_tab), .id = "plotrow")
+
+# filter for methods in methodset
+objdat_joint <- filter(objdat_joint, method %in% c(methodset, "Total Tests"))
+
+## specify method order
+method_order <- c("bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr", "fdrreg-t", "ashq")
+objdat_joint <- dplyr::mutate(objdat_joint, method = factor(method, levels = c(method_order, "Total Tests")))
+
+# add notation for missing because "shouldn't"
+objdat_joint <- objdat_joint %>% 
+  mutate(should = ifelse(method == "lfdr" & is.na(nrejects), "*", ""))
+
+p4b <- ggplot(objdat_joint, aes(x = casestudy, y = method, fill = propMaxRej)) +
+    scale_x_discrete("Case Study", expand = c(0, 0)) +
+    scale_y_discrete("Method", expand = c(0, 0)) +
+    geom_tile() +
+    geom_text(aes(label = lab), data = filter(objdat_props, method %in% methodset),
+              size = 1.8, color = "white") +
+    geom_text(aes(label = should), size = 5, color = "black") +
+    geom_tile(data = filter(objdat_joint, plotrow == "fake"), fill = "white") + 
+    geom_text(aes(label = cnt), data = dplyr::filter(objdat_joint, !is.na(cnt)), size = 2) + 
+    scale_fill_distiller("% Rejected\n(relative to max)",
+                         palette = "Blues", direction = 1, limits = c(0, 1),
+                         labels = scales::percent) +
+    facet_grid(plotrow ~ assay, scales = "free", space = "free") +
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+          strip.text.y = element_blank(),
+          legend.position = c(0,-0.32), legend.justification = c(0, 1),
+          legend.direction = "horizontal",
+          legend.text = element_text(size = 7),
+          legend.title = element_text(size = 9),
+          legend.margin = margin(6, 10, 6, 10))
+Titlep4b <- ggdraw() +
+    draw_label(expression(paste(bold("Number of rejections in case studies"))))
+p4b <- plot_grid(Titlep4b, p4b, nrow = 2, rel_heights = c(0.075,1), 
+                 labels = c("B", ""))
+
+## pull Figure 4 together
+Fig4 <- plot_grid(p4a, p4b, ncol = 1, rel_heights = c(1,1))
+Fig4
+ggsave(file.path(outdir, "Fig4.pdf"), width = 11, height = 10.5)
+```
 
 # Figure 5 - Summary
 
