@@ -402,13 +402,13 @@ objdat <- dplyr::filter(objdat, casestudy != "enigma-so4-otus")
 ## create table of case study-to-assay mapping
 studies <- tibble(
     casestudy = c("cbp-csaw", "h3k4me3-csaw", "human", "mouse", "bmi-maf", "bmi-samplesize",
-                  "enigma-al-otus", "enigma-ph-otus", "enigma-so4-otus", "goodrich-genus",
-                  "papa-genus", "schubert-otus", "brain", "mir200c",
+                  "enigma-al-otus", "enigma-ph-otus", "enigma-so4-otus", "baxter-genus", 
+                  "goodrich-genus", "papa-genus", "schubert-otus", "brain", "mir200c",
                   "human-mast-det", "human-mast-mean", "human-scdd-det",
                   "human-scdd-mean", "human-wilcox-det", "human-wilcox-mean",
                   "mouse-mast-det", "mouse-mast-mean", "mouse-scdd-det",
                   "mouse-scdd-mean", "mouse-wilcox-det", "mouse-wilcox-mean"),
-    assay = c(rep("ChIP-seq", 2), rep("GSEA", 2), rep("GWAS", 2), rep("Microbiome", 6),
+    assay = c(rep("ChIP-seq", 2), rep("GSEA", 2), rep("GWAS", 2), rep("Microbiome", 7),
               rep("RNA-seq", 2), rep("scRNA-seq", 12)))
 
 ## add assay labels to results table
@@ -472,7 +472,7 @@ p4b <- plot_grid(Titlep4b, p4b, nrow = 2, rel_heights = c(0.075,1),
 ## pull Figure 4 together
 Fig4 <- plot_grid(p4a, p4b, ncol = 1, rel_heights = c(1,1))
 Fig4
-ggsave(file.path(outdir, "Fig4.pdf"), width = 11, height = 10.5)
+ggsave(file.path(outdir, "Fig4.pdf"), width = 11.2, height = 10.5)
 ```
 
 # Figure 5 - Summary
