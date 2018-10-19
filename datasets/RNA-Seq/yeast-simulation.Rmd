@@ -672,6 +672,10 @@ res5 <- plotsim_standardize(null5, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res5, met="rejections",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5, met="rejectprop",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res5, met="FWER",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res5, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 
@@ -724,6 +728,10 @@ rowSums(sapply(null10, function(x) colSums(is.na(assays(x)$qvalue)) > 0))
 res10 <- plotsim_standardize(null10, alpha = seq(0.01, 0.10, 0.01))
 
 plotsim_average(res10, met="rejections",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10, met="rejectprop",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE) 
+plotsim_average(res10, met="FWER",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
 plotsim_average(res10, met="TNR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) 
