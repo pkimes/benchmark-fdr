@@ -189,13 +189,15 @@ Extract a table of the values in Figure 4.
 # Supplementary table S3 
 library(xtable)
 tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
-                        tableOnly = TRUE)
+                        tableOnly = TRUE, excludeMethods = NULL)
 tabS3 <- tabS3 %>% 
   mutate(mean_prop = ifelse(is.na(mean_prop), "-",
                             paste0(round(mean_prop,2), " (", round(min_prop,2), 
                             "-", round(max_prop, 2), ")"))) %>%
   select(casestudy, method, mean_prop) %>%
-  spread(casestudy, mean_prop)
+  spread(casestudy, mean_prop) %>% 
+  mutate(method =  factor(method, levels = rev(Fig4All.rowOrder))) %>%
+  arrange(method)    
 
 print(xtable(tabS3), include.rownames=FALSE)
 
@@ -594,11 +596,11 @@ log_neg_percent <- function()
                 },
                 breaks = function(x) {
                   if (max(x) > 200){
-                    c(-20, -5, 0, 5, 25, 100, 300)
+                    c(-100, -25, -5, 0, 5, 25, 100, 300)
                   }else if (max(x) > 100){
-                    c(-20, -5, 0, 5, 25, 100, 200)
+                    c(-100, -25, -5, 0, 5, 25, 100, 200)
                   }else{
-                    c(-20, -5, 0, 5, 25, 100)
+                    c(-100, -25, -5, 0, 5, 25, 100)
                   }
                 },
                 format = function(x) {
@@ -620,15 +622,16 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
                   color = "black", size = 2)+
         scale_fill_gradientn("% Change in\nrejections",
                              colors = c("darkblue","white","darkred"), 
-                             limits = c(-20, topRange),
-                             values = scales::rescale(c(-transform(20), 0, transform(topRange))), 
+                             limits = c(min(c(-20, botRange)), topRange),
+                             values = scales::rescale(c(-transform(max(20,abs(botRange))), 
+                                                        0, transform(topRange))), 
                              trans = log_neg_percent()) +
         theme_bw() +
         xlab("Case Study") +
         ylab("Method") +
         facet_grid( ~ casestudy + cov, scales = "free", space = "free") +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.99, 0.95), legend.justification = c(1, 1),
+              legend.position = c(0.995, 0.95), legend.justification = c(1, 1),
               legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
               legend.direction = "horizontal",
               legend.text = element_text(size = 7, angle=45, margin = margin(t=2)),
@@ -672,7 +675,7 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
         geom_tile() + 
         scale_fill_gradientn("% Change in\nrejections",
                              colors = c("darkblue","white","darkred"), 
-                             limits = c(-20, topRange),
+                             limits = c(-25, topRange),
                              values = scales::rescale(c(-transform(20), 0, transform(topRange))), 
                              trans = log_neg_percent()) +
         theme_bw() +
