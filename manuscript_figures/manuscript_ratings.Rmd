@@ -17,7 +17,7 @@ This Rmd is used to determine the ratings for each method shown in Figure 4.
 
 # Set up workspace 
 
-```{r Figure2-load-data}
+```{r load-workspace, message = FALSE}
 ## Load packages and source benchmark FDR
 library(tidyverse)
 library(cowplot)
@@ -40,7 +40,7 @@ path <- "../results"
 # Also assumes that simulation results summary file is in the following location
 # The `result-metrics.rds` was generated in the 
 # `datasets/simulations/simulations-summary.Rmd` file.
-resmet_file <- file.path("..", "datasets", "simulations", "results-summary", "result-metrics.rds")
+simres_file <- file.path("..", "datasets", "simulations", "results-summary", "result-metrics.rds")
 
 # set up results directory
 outdir <- "./figures"
@@ -68,7 +68,7 @@ names(lty) <- as.character(candycols$Method)
 To generate the figures in this document, the simulation results must first be aggregated by running the code at `datasets/simulations/simulations-summary.Rmd`.
 
 ```{r load-sim-metrics}
-resmet <- readRDS(resmet_file)
+simres <- readRDS(simres_file)
 ```
 
 We similarly load all other results from the following files.
@@ -124,7 +124,7 @@ yeast <- dplyr::mutate(yeast, setting_pi0 = ifelse(grepl("H", setting_base), "7.
 
 yeast <- dplyr::mutate(yeast, setting_cov = ifelse(is.na(setting_cov), "strongInfoCov", setting_cov))
 yeast <- dplyr::mutate(yeast, setting_cov = ifelse(grepl("W", setting_base), "weakInfoCov", setting_cov))
-yeast <- dplyr::select(yeast, -setting_base) 
+yeast <- dplyr::select(yeast, -setting_base)
 ```
 
 We also rank each method in each setting according to FDR and TPR.
@@ -165,22 +165,23 @@ if (file.exists("datres.rds")) {
     datres <- readRDS("datres.rds")
 } else {
     datres <- lapply(objects_dat, readRDS)
+
+    ## gather all results
+    datres <- lapply(datres, assay, "bench")
+    datres <- lapply(datres, as_tibble)
+    names(datres) <- gsub("^\\.\\./results/(.*?)-benchmark(.*)\\.rds", "\\1\\2", objects_dat)
+    datres <- bind_rows(datres, .id = "cs")
+    datres <- tidyr::separate(datres, cs, c("casestudy", "dataset"), sep = "/")
+    datres <- tidyr::gather(datres, Method, adjp, -casestudy, -dataset)
+
+    ## summarize results
+    datres <- dplyr::group_by(datres, casestudy, dataset, Method)
+    datres <- dplyr::summarize(datres, ntotal = n(), nNA = sum(is.na(adjp)),
+                               nrej = sum(adjp < alpha.thresh, na.rm = TRUE))
+    datres <- dplyr::ungroup(datres)
+
     saveRDS(datres, "datres.rds")
 }
-
-## gather all results
-datres <- lapply(datres, assay, "bench")
-datres <- lapply(datres, as_tibble)
-names(datres) <- gsub("^\\.\\./results/(.*?)-benchmark(.*)\\.rds", "\\1\\2", objects_dat)
-datres <- bind_rows(datres, .id = "cs")
-datres <- tidyr::separate(datres, cs, c("casestudy", "dataset"), sep = "/")
-datres <- tidyr::gather(datres, Method, adjp, -casestudy, -dataset)
-
-## clean up names
-datres <- dplyr::group_by(datres, casestudy, dataset, Method)
-datres <- dplyr::summarize(datres, ntotal = n(), nNA = sum(is.na(adjp)),
-                           nrej = sum(adjp < alpha.thresh, na.rm = TRUE))
-datres <- dplyr::ungroup(datres)
 
 ## NAs only appear in cases where the method wasn't applied so we can go ahead
 ## and replace the nrej values with NA for these methods
@@ -197,37 +198,35 @@ datres <- dplyr::group_by(datres, casestudy, dataset)
 datres <- dplyr::mutate(datres, rank = rank(-nrej)) 
 datres <- dplyr::mutate(datres, rank = ifelse(is.na(nrej), NA, rank))
 datres <- dplyr::ungroup(datres)
-
-##saveRDS(datres, "datres-table.rds")
 ```
 
 ## Simulations
 
-We can use the results stored in `resmet` for simulation settings.
+We can use the results stored in `simres` for simulation settings.
 For easier plotting, we replace create a shorter distribution string column.
 
 ```{r}
-resmet <- dplyr::mutate(resmet, sdist = factor(dist, sort(levels(dist)), c("chisq", "normal", "t11", "t5")))
+simres <- dplyr::mutate(simres, sdist = factor(dist, sort(levels(dist)), c("chisq", "normal", "t11", "t5")))
 ```
 
-We only look at results at the desired alpha cutoff, and resmet `fdrreg-e` from this comparison.
+We only look at results at the desired alpha cutoff, and remove `fdrreg-e` from this comparison.
 
 ```{r}
-resmet <- dplyr::filter(resmet, Method != "fdrreg-e", alpha == alpha.thresh)
+simres <- dplyr::filter(simres, Method != "fdrreg-e", Method != "bonf", alpha == alpha.thresh)
 ```
 
 We also rank each method in each setting according to FDR and TPR.
 
 ```{r}
-resmet <- dplyr::group_by(resmet, setting, dist, inform, pi0, signal, ntests, sdist, key)
-resmet <- dplyr::mutate(resmet, rank = rank(-mean.info))
-resmet <- dplyr::ungroup(resmet)
+simres <- dplyr::group_by(simres, setting, dist, inform, pi0, signal, ntests, sdist, key)
+simres <- dplyr::mutate(simres, rank = rank(-mean.info))
+simres <- dplyr::ungroup(simres)
 ```
 
 For consistency across plotting of settings, we relabel some settings.
 
 ```{r}
-resmet <- dplyr::mutate(resmet, setting = ifelse(setting == "varyingpi0-t", "varyingpi0", setting))
+simres <- dplyr::mutate(simres, setting = ifelse(setting == "varyingpi0-t", "varyingpi0", setting))
 ```
 
 # Exploratory Figures
@@ -346,7 +345,7 @@ ggplot(datres, aes(x = dataset, y = rank, color = Method, group = Method)) +
 ## Simulations
 
 ```{r}
-dplyr::filter(resmet, key == "FDR") %>%
+dplyr::filter(simres, key == "FDR") %>%
     tidyr::unite(subsetting, sdist, inform, pi0, signal, ntests) %>%
     ggplot(aes(x = subsetting,
                y = mean.info, ymin = mean.info - se.info, ymax = mean.info + se.info, color = Method)) +
@@ -392,27 +391,43 @@ results where ground truth is known.
 
 ```{r}
 ## FDR control across simulation settings
-fdrcontrol_sims <- resmet %>%
+fdrcontrol_sims <- simres %>%
     dplyr::filter(key == "FDR", !grepl("null", setting), sdist != "chisq") %>%
     dplyr::group_by(Method) %>%
     dplyr::summarize(nExceeds = sum((mean.info - se.info) > alpha.thresh),
-                     pExceeds = round(nExceeds / n() * 100, 2)) %>%
+                     pExceeds = round(nExceeds / n(), 4)) %>%
     dplyr::ungroup()
-dplyr::arrange(fdrcontrol_sims, pExceeds)
 
 ## FDR control across yeast settings
 fdrcontrol_yeast <- yeast %>%
     dplyr::filter(key == "FDR", !grepl("null", setting_de)) %>%
     dplyr::group_by(Method) %>%
     dplyr::summarize(nExceeds = sum((mean - se) > alpha.thresh),
-                     pExceeds = round(nExceeds / n() * 100, 2)) %>%
+                     pExceeds = round(nExceeds / n(), 4)) %>%
     dplyr::ungroup()
-dplyr::arrange(fdrcontrol_yeast, pExceeds)
 
 ## combine
 fdrcontrol <- dplyr::left_join(fdrcontrol_sims, fdrcontrol_yeast, by = "Method",
                                suffix = c(".sims", ".yeast"))
 dplyr::arrange(fdrcontrol, pExceeds.sims + pExceeds.yeast)
+```
+
+We plot the results as well.
+
+```{r, fig.width = 6, fig.height = 4}
+bind_rows(yeast = fdrcontrol_yeast, sims = fdrcontrol_sims, .id = "analysis") %>%
+    ggplot(aes(x = analysis, y = pExceeds, color = Method, group = Method)) +
+    geom_line(aes(linetype = Method), alpha = 1/2, position = position_dodge(width = 1/4)) +
+    geom_point(position = position_dodge(width = 1/4)) + 
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("Percent Settings Exceeding nominal FDR", labels = scales::percent) + 
+    expand_limits(y = 0) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("FDR control across simulations and yeast experiments") 
 ```
 
 ## Power
@@ -422,14 +437,13 @@ simulation results where ground truth is known.
 
 ```{r}
 ## power across simulation settings
-power_sims <- resmet %>%
+power_sims <- simres %>%
     dplyr::filter(key == "TPR", alpha == alpha.thresh,
                   !grepl("null", setting), sdist != "chisq") %>%
     dplyr::group_by(Method) %>%
     dplyr::summarize(meanRank = mean(rank),
                      medianRank = median(rank)) %>%
     dplyr::ungroup()
-dplyr::arrange(power_sims, meanRank)
 
 ## power across yeast settings
 power_yeast <- yeast %>%
@@ -438,12 +452,29 @@ power_yeast <- yeast %>%
     dplyr::summarize(meanRank = mean(rank),
                      medianRank = median(rank)) %>%
     dplyr::ungroup()
-dplyr::arrange(power_yeast, meanRank)
 
 ## combine
 power <- dplyr::left_join(power_sims, power_yeast, by = "Method",
                           suffix = c(".sims", ".yeast"))
 dplyr::arrange(power, meanRank.sims + meanRank.yeast)
+```
+
+We plot the results as well.
+
+```{r, fig.width = 6, fig.height = 4}
+bind_rows(yeast = power_yeast, sims = power_sims, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, meanRank)) %>%
+    ggplot(aes(x = Method, y = meanRank, color = Method, group = analysis)) +
+    geom_line(aes(linetype = analysis), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("Mean TPR rank", breaks = 0:10) + 
+    expand_limits(y = 1) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("TPR rank across simulations and yeast experiments") 
 ```
 
 ## Robustness
@@ -455,8 +486,8 @@ Storey's q-value. We do this, as we quantify "robustness" as the relative gain o
 over the average of BH and q-value in FDR and TPR (and proportion of rejections for case studies).
 
 ```{r}
-## robustness as variance of FDR/TPR as % increase vs BH/qvalue
-robustness_sims <- resmet %>%
+## robustness across simulation settings
+robustness_sims <- simres %>%
     dplyr::filter(key == "TPR" | key == "FDR", alpha == alpha.thresh,
                   !grepl("null", setting), sdist != "chisq",
                   Method != "bonf") %>%
@@ -471,9 +502,8 @@ robustness_sims <- resmet %>%
                      sdGain = sd(mean.info / (bh + qvalue) * 2),
                      cvGain = sdGain / meanGain) %>%
     dplyr::ungroup()
-dplyr::arrange(robustness_sims, key, -cvGain)
 
-## robustness as variance of FDR/TPR as % increase vs BH/qvalue
+## robustness across yeast experiments
 robustness_yeast <- yeast %>%
     dplyr::filter(key == "TPR" | key == "FDR", !grepl("null", setting_de)) %>%
     dplyr::select(Method, mean, key, setting_de, setting_cov, setting_mode, setting_pi0) %>%
@@ -487,9 +517,8 @@ robustness_yeast <- yeast %>%
                      sdGain = sd(mean / (bh + qvalue) * 2),
                      cvGain = sdGain / meanGain) %>%
     dplyr::ungroup()
-dplyr::arrange(robustness_yeast, key, -cvGain)
 
-
+## robustness across case studies
 robustness_data <- datres %>%
     dplyr::mutate(prej = nrej / ntotal) %>%
     dplyr::select(-rank, -nrej, -ntotal, -nNA) %>%
@@ -503,7 +532,6 @@ robustness_data <- datres %>%
                      cvGain = sdGain / meanGain) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(key = "PropRej")
-dplyr::arrange(robustness_data, -cvGain)
 
 ## combine
 robustness <- dplyr::full_join(dplyr::select(robustness_sims, Method, key, cvGain),
@@ -515,6 +543,76 @@ robustness <- dplyr::full_join(robustness,
                                by = c("key", "Method"),
                                suffix = c(".yeast", ".data"))
 dplyr::arrange(robustness, key, cvGain.sims + cvGain.yeast, cvGain.data)
+```
+
+We plot the results as well.
+
+```{r, fig.width = 6, fig.height = 8}
+bind_rows(yeast = robustness_yeast, sims = robustness_sims,
+          casestudies = robustness_data, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, sdGain)) %>%
+    ggplot(aes(x = Method, y = sdGain, color = Method, group = analysis)) +
+    geom_line(aes(linetype = analysis), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("SD of percent relative to BH/qvalue") + 
+    expand_limits(y = 1) +
+    facet_grid(key ~ ., scales = "free") + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Variation across simulations, yeast experiments,\ncase studies") 
+
+bind_rows(yeast = robustness_yeast, sims = robustness_sims,
+          casestudies = robustness_data, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, cvGain)) %>%
+    ggplot(aes(x = Method, y = cvGain, color = Method, group = analysis)) +
+    geom_line(aes(linetype = analysis), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("CV of percent relative to BH/qvalue") + 
+    expand_limits(y = 0) +
+    facet_grid(key ~ ., scales = "free") + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Variation across simulations, yeast experiments,\ncase studies") 
+
+bind_rows(yeast = robustness_yeast, sims = robustness_sims,
+          casestudies = robustness_data, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, cvGain)) %>%
+    ggplot(aes(x = Method, y = cvGain, color = Method, group = key)) +
+    geom_line(aes(linetype = key), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("CV of percent relative to BH/qvalue") +
+    scale_linetype("Metric") + 
+    expand_limits(y = 0) +
+    facet_grid(analysis ~ ., scales = "free_y") + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Variation across simulations, yeast experiments,\ncase studies") 
+
+bind_rows(yeast = robustness_yeast, sims = robustness_sims,
+          casestudies = robustness_data, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, sdGain)) %>%
+    ggplot(aes(x = Method, y = sdGain, color = Method, group = key)) +
+    geom_line(aes(linetype = key), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("SD of percent relative to BH/qvalue") +
+    scale_linetype("Metric") + 
+    expand_limits(y = 0) +
+    facet_grid(analysis ~ ., scales = "free_y") + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Variation across simulations, yeast experiments,\ncase studies") 
 ```
 
 ## Applicability
