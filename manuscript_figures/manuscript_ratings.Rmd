@@ -416,14 +416,13 @@ We plot the results as well.
 
 ```{r, fig.width = 6, fig.height = 4}
 bind_rows(yeast = fdrcontrol_yeast, sims = fdrcontrol_sims, .id = "analysis") %>%
-    ggplot(aes(x = analysis, y = pExceeds, color = Method, group = Method)) +
-    geom_line(aes(linetype = Method), alpha = 1/2, position = position_dodge(width = 1/4)) +
-    geom_point(position = position_dodge(width = 1/4)) + 
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
+    dplyr::mutate(Method = reorder(Method, pExceeds)) %>%
+    ggplot(aes(x = Method, y = pExceeds, color = Method, group = analysis)) +
+    geom_line(aes(linetype = analysis), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
-    scale_y_continuous("Percent Settings Exceeding nominal FDR", labels = scales::percent) + 
-    expand_limits(y = 0) +
+    scale_y_continuous("Percent of settings exceeding nominal FDR", labels = scales::percent) + 
     theme_classic() +
     theme(axis.title = element_text(face = "bold", size = 10),
           plot.title = element_text(face = "bold", size = 14)) +
@@ -470,6 +469,20 @@ bind_rows(yeast = power_yeast, sims = power_sims, .id = "analysis") %>%
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
     scale_y_continuous("Mean TPR rank", breaks = 0:10) + 
+    expand_limits(y = 1) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("TPR rank across simulations and yeast experiments") 
+
+bind_rows(yeast = power_yeast, sims = power_sims, .id = "analysis") %>%
+    dplyr::mutate(Method = reorder(Method, medianRank)) %>%
+    ggplot(aes(x = Method, y = medianRank, color = Method, group = analysis)) +
+    geom_line(aes(linetype = analysis), color = 'black', alpha = 1/4) +
+    geom_point() + 
+    scale_color_manual(values = col, guide = FALSE) +
+    scale_x_discrete(NULL) + 
+    scale_y_continuous("Median TPR rank", breaks = 0:10) + 
     expand_limits(y = 1) +
     theme_classic() +
     theme(axis.title = element_text(face = "bold", size = 10),
@@ -547,7 +560,7 @@ dplyr::arrange(robustness, key, cvGain.sims + cvGain.yeast, cvGain.data)
 
 We plot the results as well.
 
-```{r, fig.width = 6, fig.height = 8}
+```{r, fig.width = 6, fig.height = 6}
 bind_rows(yeast = robustness_yeast, sims = robustness_sims,
           casestudies = robustness_data, .id = "analysis") %>%
     dplyr::mutate(Method = reorder(Method, sdGain)) %>%
@@ -622,6 +635,20 @@ in the case studies.
 
 ```{r}
 applicability_data <- datres %>%
+    dplyr::group_by(casestudy, Method) %>%
+    dplyr::summarize(meanNA = mean(is.na(nrej))) %>%
+    dplyr::group_by(Method) %>%
+    dplyr::summarize(meanNA = mean(meanNA)) %>%
+    dplyr::ungroup()
+dplyr::arrange(applicability_data, meanNA)
+```
+
+We also include data sets where 0 rejections were made by `adapt-glm` as cases where
+the method could not be applied.
+
+```{r}
+applicability_data <- datres %>%
+    dplyr::mutate(nrej = ifelse(nrej == 0 & Method == "adapt-glm", NA, nrej)) %>%
     dplyr::group_by(casestudy, Method) %>%
     dplyr::summarize(meanNA = mean(is.na(nrej))) %>%
     dplyr::group_by(Method) %>%
