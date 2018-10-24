@@ -20,7 +20,7 @@ Here we download and analyze the Baxter colorectal cancer (CRC) dataset
 [(Baxter et al., 2016)](https://doi.org/10.1186/s13073-016-0290-3).
 The dataset includes stool samples from 172 patients with no colonic lesions,
 and 120 patients with CRC. We'll download the processed OTU tables from
-Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
+Zenodo and unzip them in the `data/crc_baxter_results` folder.
 
 For colorectal cancer, we do expect some amount of truly differentially abundant OTUs,
 but not as many as in diarrhea (e.g. Schubert et al., 2014). This dataset will hopefully
