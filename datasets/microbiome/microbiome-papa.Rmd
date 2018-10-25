@@ -22,7 +22,7 @@ The dataset includes stool samples from 24 patients nonIBD controls (i.e. patien
 with GI symptoms but not IBD), 23 patients with Crohn's disease and 43 with
 ulcerative colitis (both categorized as inflammatory bowel disease, IBD).
 We'll download the processed OTU tables from
-Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
+Zenodo and unzip them in the `data/ibd_alm_results` folder.
 
 For inflammatory bowel disease, we do expect some amount of truly differentially abundant OTUs,
 but not as many as in diarrhea (e.g. Schubert et al., 2014). This dataset will hopefully

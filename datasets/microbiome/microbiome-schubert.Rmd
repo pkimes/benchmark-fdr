@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 Here we download and analyze the Schubert diarrhea dataset [(Schubert et al., 2014)](https://doi.org/10.1128/mBio.01021-14).
 The dataset includes 154 healthy nondiarrheal, 93 Clostridium difficile infection (CDI) associated diarrheal,
 and 89 non-CDI associated diarrheal stool samples. We'll download the processed OTU tables from
-Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
+Zenodo and unzip them in the `data/cdi_schubert_results` folder.
 
 Diarrhea comes with a broad community re-structuring, so we expect there to be many truly differentially abundant OTUs in this dataset.
 
@@ -46,6 +46,7 @@ dir.create(sbdir, showWarnings = FALSE)
 
 cdi_data <- file.path(datdir, "cdi_schubert_results.tar.gz")
 cdi_dir <- file.path(datdir, "cdi_schubert_results")
+dir.create(cdi_dir, showWarnings = FALSE)
 
 otu_result_file <- file.path(resdir, "schubert-otus-results.rds")
 otu_bench_file <- file.path(sbdir, "schubert-otus-benchmark.rds")

@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Here we analyze a subset of the ENIGMA data ([Smith, M. and Rocha, A. et al 2015](https://doi.org/10.1128/mBio.00326-15)).
 The dataset includes water samples from 67 wells with well-characterized biochemical metadata (i.e. pH, heavy metal concentrations, etc).
-We acquired the data from a collaborator and have put it in the `benchmark-fdr/datasets/microbiome/DATA/enigma` folder.
+We'll download the processed OTU table and associated metadata from Zenodo and put it in the `data/enigma_results` folder.
 
 Note that I've uploaded this to our repo as a gzipped file, make sure to gunzip the OTU table before knitting this.
 
@@ -74,19 +74,18 @@ We download the data from Dropbox if not already available.
 
 ```{r, enigma-download-data}
 if (!file.exists(file.path(enigma_dir, "enigma.metadata.txt"))) {
-    download.file("https://www.dropbox.com/s/0r1zjp26u10l0p4/enigma.metadata.txt?dl=1",
+    download.file("https://zenodo.org/record/1455793/files/enigma.metadata.txt",
                   destfile = file.path(enigma_dir, "enigma.metadata.txt"))
 }
 
 if (!file.exists(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))) {
-    download.file("https://www.dropbox.com/s/u9qh86cd7c0vbn9/enigma.otu_table_resampled_updated_r.txt.gz?dl=1",
+    download.file("https://zenodo.org/record/1455793/files/enigma.otu_table_resampled_updated_r.txt.gz",
                   destfile = file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))
 }
 ```
 
 ```{r, enigma-readdata}
 ## load OTU table and metadata
-print(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"))
 otu <- read.table(file.path(enigma_dir, "enigma.otu_table_resampled_updated_r.txt.gz"), 
                   sep='\t', header = TRUE, row.names = 1)
 meta <- read.csv(file.path(enigma_dir, "enigma.metadata.txt"), sep='\t')

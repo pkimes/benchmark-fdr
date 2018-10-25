@@ -20,7 +20,7 @@ Here we download and analyze the Goodrich obesity (OB) dataset
 [(Goodrich et al., 2014)](https://doi.org/10.1016/j.cell.2014.09.053).
 The dataset includes fecal samples from 428 individuals with lean body mass index (BMI < 25),
 and 185 obese individuals (BMI > 30). We'll download the processed OTU tables from
-Zenodo and unzip them in the `benchmark-fdr/datasets/microbiome/data` folder.
+Zenodo and unzip them in the `data/ob_goodrich_results` folder.
 
 We expect few or no truly differentially abundant OTUs ([Finucane et al., 2014](https://doi.org/10.1371/journal.pone.0084689) and [Walters et al., 2014](https://doi.org/10.1016%2Fj.febslet.2014.09.039)), so this study provides a real-life "null" example. 
 
