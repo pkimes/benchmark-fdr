@@ -392,7 +392,7 @@ object_labs <- gsub("-benchmark", "", object_labs)
 ## read in case study results (proportion of rejects vs. case study max)
 objdat <- tidy_df(objects=objects, colLabels=object_labs, 
                   fill="propMaxRejections", annotate=NULL,
-                  alpha =0.10)
+                  alpha = alpha.thresh)
 objdat <- as_tibble(objdat)
 objdat <- tidyr::complete(objdat, method, casestudy)
 
