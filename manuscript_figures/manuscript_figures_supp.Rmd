@@ -13,9 +13,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Figure 1
-
-This is a schema of Inputs, Assumptions and Outputs for the various FDR methods. Claire is leading this charge. 
+This file contains Supplementary Figures to complement the main results figures 
+in `manuscript_figures_main.Rmd`. 
 
 # Figure 2
 
@@ -49,7 +48,7 @@ outdir <- "./figures"
 dir.create(outdir, showWarnings = FALSE)
 
 # set alpha cutoff for plots that are fixed at a certain value of alpha
-alpha <- 0.05
+alpha.thresh <- 0.05
 ```
 
 
@@ -85,7 +84,7 @@ p3 <- plotsim_average(res5d, met=c("FPR", "TPR"),filter_set = excludeSet,
       scale_x_continuous("FPR", breaks=seq(0, 1, by=0.01))
 
 # Figure 2D: Some methods are tailored to detecting smaller effect sizes
-p4 <- covariateLinePlot(de5, alpha=alpha, covname="log2FC", trans="log1p",
+p4 <- covariateLinePlot(de5, alpha=alpha.thresh, covname="log2FC", trans="log1p",
                         nbins=25)
 leg <- get_legend(p4)
 p4 <- p4 +
@@ -96,7 +95,7 @@ p4 <- p4 +
   
 # Figure 2E - upsetr plot - save separately
 pdf(file.path(outdir, "Figure2E.pdf"), width = 8, height = 4, onefile=FALSE)
-aggupset(de5, alpha=alpha, supplementary = FALSE, 
+aggupset(de5, alpha=alpha.thresh, supplementary = FALSE, 
                        return_list = FALSE, nintersects = 12)
 grid.text("Mean overlap of rejection sets", x = 0.65, y = 0.97, 
           gp = gpar(fontsize = 14, fontface = "bold"))
@@ -120,7 +119,7 @@ Replaced with a pure simulation figure - see `manuscript_figures_sims.Rmd`.
 # Figure 4 
 
 This is a heatmap of methods by case studies with color representing the ranking
-by of number of rejections @ FDR cutoff `r alpha`.
+by of number of rejections @ FDR cutoff `r alpha.thresh`.
 
 ```{r, Figure 4, fig.width = 9, fig.height = 7}
 library(SummarizedBenchmark)
@@ -170,7 +169,7 @@ dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 # not excluding any methods
 Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
                      "fdrreg-e", "fdrreg-t", "ashq")
-Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
+Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
                         excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
         theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
               legend.position = c(0.97, 0.92), legend.justification = c(1, 1),
@@ -188,7 +187,7 @@ Extract a table of the values in Figure 4.
 ```{r}
 # Supplementary table S3 
 library(xtable)
-tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha,
+tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
                         tableOnly = TRUE, excludeMethods = NULL)
 tabS3 <- tabS3 %>% 
   mutate(mean_prop = ifelse(is.na(mean_prop), "-",
@@ -202,7 +201,7 @@ tabS3 <- tabS3 %>%
 print(xtable(tabS3), include.rownames=FALSE)
 
 # generate detailed case study table for creating sim vs cs ranks boxplots
-casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha,
+casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha.thresh,
                                  tableOnly = TRUE)
 ```
 
@@ -229,7 +228,7 @@ labs <- gsub(".rds", "",
 
 pfdr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
-                alpha = alpha, xlab = "Comparison",
+                alpha = alpha.thresh, xlab = "Comparison",
                 fill = "FDR",
                 rowOrder = Fig4All.rowOrder, 
                 annotate = "FDR", excludeMethods = NULL,
@@ -237,7 +236,7 @@ pfdr <- plotMethodRanks(objs,
           scale_fill_gradient2(high = "darkred", 
                          mid = "white", 
                          low = "#2171B5", 
-                         midpoint = alpha) +
+                         midpoint = alpha.thresh) +
           labs(fill = "Mean FDR") +
           theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
               legend.justification = c(1, 0.5),
@@ -249,7 +248,7 @@ pfdr <- plotMethodRanks(objs,
 
 ptpr <- plotMethodRanks(objs, 
                 colLabels = c("sim", "sim"), 
-                alpha = alpha, xlab = "Comparison",
+                alpha = alpha.thresh, xlab = "Comparison",
                 fill = "TPR",
                 rowOrder = Fig4All.rowOrder,
                 annotate = "TPR", excludeMethods = NULL) +
@@ -271,7 +270,7 @@ ggdraw() +
 ggsave(file.path(outdir, "Figure4.pdf"), width=9.5, height=5)
 
 # generate detailed yeast sim table for creating sim vs cs ranks boxplots
-yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha,
+yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha.thresh,
                                  tableOnly = TRUE)
 ```
 
@@ -325,7 +324,7 @@ resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
 res <- addDefaultMetrics(res)
-pA <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p",
+pA <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
                         nbins=25) +
   ggtitle("RNA-seq case study: Brain") +
   xlab("Overall mean expression percentile") 
@@ -339,7 +338,7 @@ resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
 res <- addDefaultMetrics(res)
-pB <- covariateLinePlot(res, alpha=alpha, covname="detection", trans="log1p",
+pB <- covariateLinePlot(res, alpha=alpha.thresh, covname="detection", trans="log1p",
                         nbins=25) +
   ggtitle("scRNA-seq case study: Human, MAST") +
   xlab("Detection rate percentile") + 
@@ -361,7 +360,7 @@ resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)]
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
 res <- addDefaultMetrics(res)
-pD <- covariateLinePlot(res, alpha=alpha, covname="ind_covar_AF", trans="log1p",
+pD <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covar_AF", trans="log1p",
                         nbins=25) +
   ggtitle("GWAS case study") +
   xlab("Minor Allele Frequency (MAF) percentile") +
@@ -526,7 +525,7 @@ df <- data.frame(filename, casestudy, dataset, inform, cov, stringsAsFactors = F
   mutate(cov = ifelse(cov == "det", "detection-rate", cov))
 
 tab <- tidy_df(objects=objects, colLabels=filename, 
-              fill="meanRank", annotate=NULL, alpha =0.10) %>%
+              fill="meanRank", annotate=NULL, alpha = alpha.thresh) %>%
   rename(casestudy = "filename") %>%
   mutate(filename = gsub(".rds", "", filename))
 
@@ -716,7 +715,6 @@ dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]])
 inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
 type <-  ifelse(grepl("null", resfile), "null", "de")
 size <-  ifelse(grepl("10", resfile), "10", "5")
-aseq <- alpha
 
 tab <- data.frame()
 for (l in seq_along(resfile)){
@@ -724,14 +722,14 @@ for (l in seq_along(resfile)){
   
   tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                   fill =  "FDR", annotate = NULL, 
-                  alpha = aseq) %>%
+                  alpha = alpha.thresh) %>%
     mutate(fdr = nrejects) %>%
     select(method, casestudy, replicate, fdr, alpha)
   
 
   tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                     fill =  "TPR", annotate = NULL, 
-                    alpha = aseq) %>%
+                    alpha = alpha.thresh) %>%
     mutate(tpr = nrejects) %>%
     select(method, casestudy, replicate, tpr, alpha)
     
@@ -959,14 +957,14 @@ for (l in seq_along(resfile)){
   
   tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                   fill =  "FDR", annotate = NULL, 
-                  alpha = aseq) %>%
+                  alpha = alpha.thresh) %>%
     mutate(fdr = nrejects) %>%
     select(method, casestudy, replicate, fdr, alpha)
   
   if (type[l] != "null"){
     tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                     fill =  "TPR", annotate = NULL, 
-                    alpha = aseq) %>%
+                    alpha = alpha.thresh) %>%
       mutate(tpr = nrejects) %>%
       select(method, casestudy, replicate, tpr, alpha)
     
