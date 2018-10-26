@@ -685,11 +685,11 @@ dplyr::arrange(applicability_data, meanNA)
 Figures for the manuscript are also generated.
 
 ```{r, fig.width = 10, fig.height = 8}
-p1a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Analysis") %>%
+p1a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Study") %>%
     dplyr::mutate(Method = reorder(Method, pExceeds),
-                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
-    ggplot(aes(x = Method, y = pExceeds, color = Method, group = Analysis)) +
-    geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
+                  Study = factor(Study, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = pExceeds, color = Method, group = Study)) +
+    geom_line(aes(linetype = Study), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
@@ -699,11 +699,11 @@ p1a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Analys
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("FDR Control")
 
-p1b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
+p1b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Study") %>%
     dplyr::mutate(Method = reorder(Method, meanRank),
-                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
-    ggplot(aes(x = Method, y = meanRank, color = Method, group = Analysis)) +
-    geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
+                  Study = factor(Study, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = meanRank, color = Method, group = Study)) +
+    geom_line(aes(linetype = Study), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
@@ -714,11 +714,11 @@ p1b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("Power")
 
-p1c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analysis") %>%
+p1c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Metric") %>%
     dplyr::mutate(Method = reorder(Method, propEither),
-                  Analysis = factor(paste0(Analysis, " (", key, ")"))) %>%
-    ggplot(aes(x = Method, y = propEither, color = Method, group = Analysis)) +
-    geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
+                  Metric = factor(paste0(Metric, " (", key, ")"))) %>%
+    ggplot(aes(x = Method, y = propEither, color = Method, group = Metric)) +
+    geom_line(aes(linetype = Metric), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
@@ -728,12 +728,12 @@ p1c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analys
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("Consistency of Gain")
 
-p1d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Analysis") %>%
+p1d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Metric") %>%
     dplyr::mutate(Method = reorder(Method, sdRGain),
-                  Analysis = factor(paste0(Analysis, " (", key, ")")),
-                  Analysis = factor(Analysis, levels = levels(Analysis)[c(1, 3, 2)])) %>%
-    ggplot(aes(x = Method, y = sdRGain, color = Method, group = Analysis)) +
-    geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
+                  Metric = factor(paste0(Metric, " (", key, ")")),
+                  Metric = factor(Metric, levels = levels(Metric)[c(1, 3, 2)])) %>%
+    ggplot(aes(x = Method, y = sdRGain, color = Method, group = Metric)) +
+    geom_line(aes(linetype = Metric), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
@@ -769,11 +769,11 @@ Additionally, we consider creating the above plot with a common x-axis.
 ```{r, fig.width = 10, fig.height = 8}
 consistency_order <- c("bh", "qvalue", "bl", "ihw", "lfdr", "fdrreg-t", "ashq", "adapt-glm")
 
-p2a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Analysis") %>%
+p2a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Study") %>%
     dplyr::mutate(Method = reorder(Method, pExceeds),
-                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
-    ggplot(aes(x = Method, y = pExceeds, color = Method, group = Analysis)) +
-    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+                  Study = factor(Study, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = pExceeds, color = Study, group = Study)) +
+    geom_point(size = 3, position = position_dodge(width = 1/4)) + 
     scale_color_brewer(palette = "Set2") + 
     scale_x_discrete(NULL, limits = consistency_order) + 
     scale_y_continuous("% settings exceeding nominal FDR", labels = scales::percent) + 
@@ -782,11 +782,11 @@ p2a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Analys
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("FDR Control")
 
-p2b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
+p2b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Study") %>%
     dplyr::mutate(Method = reorder(Method, meanRank),
-                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
-    ggplot(aes(x = Method, y = meanRank, color = Method, group = Analysis)) +
-    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+                  Study = factor(Study, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = meanRank, color = Study, group = Study)) +
+    geom_point(size = 3, position = position_dodge(width = 1/4)) + 
     scale_color_brewer(palette = "Set2") + 
     scale_x_discrete(NULL, limits = consistency_order) + 
     scale_y_continuous("Mean TPR rank", breaks = 0:10) + 
@@ -796,11 +796,11 @@ p2b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("Power")
 
-p2c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analysis") %>%
+p2c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Metric") %>%
     dplyr::mutate(Method = reorder(Method, propEither),
-                  Analysis = factor(paste0(Analysis, " (", key, ")"))) %>%
-    ggplot(aes(x = Method, y = propEither, color = Method, group = Analysis)) +
-    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) +
+                  Metric = factor(paste0(Metric, " (", key, ")"))) %>%
+    ggplot(aes(x = Method, y = propEither, color = Metric, group = Metric)) +
+    geom_point(size = 3, position = position_dodge(width = 1/4)) +
     scale_color_brewer(palette = "Set1") + 
     scale_x_discrete(NULL, limits = consistency_order) + 
     scale_y_continuous("% settings w/ metric < classic methods", labels = scales::percent) + 
@@ -809,12 +809,12 @@ p2c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analys
           plot.title = element_text(face = "bold", size = 14)) +
     ggtitle("Consistency of Gain")
 
-p2d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Analysis") %>%
+p2d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Metric") %>%
     dplyr::mutate(Method = reorder(Method, sdRGain),
-                  Analysis = factor(paste0(Analysis, " (", key, ")")),
-                  Analysis = factor(Analysis, levels = levels(Analysis)[c(1, 3, 2)])) %>%
-    ggplot(aes(x = Method, y = sdRGain, color = Method, group = Analysis)) +
-    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+                  Metric = factor(paste0(Metric, " (", key, ")")),
+                  Metric = factor(Metric, levels = levels(Metric)[c(1, 3, 2)])) %>%
+    ggplot(aes(x = Method, y = sdRGain, color = Metric, group = Metric)) +
+    geom_point(size = 3, position = position_dodge(width = 1/4)) + 
     scale_color_brewer(palette = "Set1") + 
     scale_x_discrete(NULL, limits = consistency_order) + 
     scale_y_continuous("SD of log-ratio relative to classic methods") + 
