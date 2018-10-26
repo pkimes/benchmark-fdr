@@ -638,13 +638,13 @@ We also plot these results for the lowerbound case of out-performing either clas
 
 ```{r, fig.width = 6, fig.height = 6}
 bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "analysis") %>%
-    dplyr::mutate(Method = reorder(Method, propEither95)) %>%
-    ggplot(aes(x = Method, y = propEither95, color = Method, group = analysis)) +
+    dplyr::mutate(Method = reorder(Method, propEither)) %>%
+    ggplot(aes(x = Method, y = propEither, color = Method, group = analysis)) +
     geom_line(aes(linetype = analysis), color = 'black', alpha = 1/2) +
     geom_point() + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
-    scale_y_continuous("Percent of settings w/ TPR or #rejections\n <95% of BH/q-value", labels = scales::percent) + 
+    scale_y_continuous("Percent of settings w/ TPR or #rejections\n of BH/q-value", labels = scales::percent) + 
     theme_classic() +
     theme(axis.title = element_text(face = "bold", size = 10),
           plot.title = element_text(face = "bold", size = 14)) +
@@ -715,34 +715,34 @@ p1b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
     ggtitle("Power")
 
 p1c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analysis") %>%
-    dplyr::mutate(Method = reorder(Method, propEither95),
-                  Analysis = factor(paste0(Analysis, " (", key, ")")),
-                  Aanlysis = factor(Analysis, levels = levels(Analysis)[c(2, 3, 1)])) %>%
-    ggplot(aes(x = Method, y = propEither95, color = Method, group = Analysis)) +
+    dplyr::mutate(Method = reorder(Method, propEither),
+                  Analysis = factor(paste0(Analysis, " (", key, ")"))) %>%
+    ggplot(aes(x = Method, y = propEither, color = Method, group = Analysis)) +
     geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
-    scale_y_continuous("% settings w/ metric\n < 95% of BH and q-value", labels = scales::percent) + 
+    scale_y_continuous("% settings w/ metric < classic methods", labels = scales::percent) + 
     theme_classic() +
     theme(axis.title = element_text(face = "bold", size = 10),
           plot.title = element_text(face = "bold", size = 14)) +
-    ggtitle("Consistency (I)")
+    ggtitle("Consistency of Gain")
 
 p1d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Analysis") %>%
     dplyr::mutate(Method = reorder(Method, sdRGain),
-                  Analysis = factor(paste0(Analysis, " (", key, ")"))) %>%
+                  Analysis = factor(paste0(Analysis, " (", key, ")")),
+                  Analysis = factor(Analysis, levels = levels(Analysis)[c(1, 3, 2)])) %>%
     ggplot(aes(x = Method, y = sdRGain, color = Method, group = Analysis)) +
     geom_line(aes(linetype = Analysis), color = 'black', alpha = 1/2) +
     geom_point(size = 3) + 
     scale_color_manual(values = col, guide = FALSE) +
     scale_x_discrete(NULL) + 
-    scale_y_continuous("SD of log-ratio relative to\nmean of BH and q-value") + 
+    scale_y_continuous("SD of log-ratio relative to classic methods") + 
     expand_limits(y = 1) +
     theme_classic() +
     theme(axis.title = element_text(face = "bold", size = 10),
           plot.title = element_text(face = "bold", size = 14)) +
-    ggtitle("Consistency (II)")
+    ggtitle("Relative Consistency")
 
 p1title <- ggdraw() +
     draw_label("Summary Recommendation Metrics",
@@ -758,8 +758,88 @@ p1cd <- plot_grid(p1c + guides(linetype = FALSE),
                   labels = LETTERS[3:4], nrow = 1)
 p1cd <- plot_grid(p1cd, get_legend(p1d), nrow = 1, rel_widths = c(1, .2))
 
-FigS <- plot_grid(p1title, p1ab, p1cd, ncol = 1, rel_heights = c(.15, 1, 1))
+FigS <- plot_grid(p1title, p1ab, p1cd, ncol = 1, rel_heights = c(.2, 1, 1))
 FigS
 
 ggsave(file.path(outdir, "SFigureMetrics.pdf"), width=10, height=8)
+```
+
+Additionally, we consider creating the above plot with a common x-axis.
+
+```{r, fig.width = 10, fig.height = 8}
+consistency_order <- c("bh", "qvalue", "bl", "ihw", "lfdr", "fdrreg-t", "ashq", "adapt-glm")
+
+p2a <- bind_rows(Yeast = fdrcontrol_yeast, Sims = fdrcontrol_sims, .id = "Analysis") %>%
+    dplyr::mutate(Method = reorder(Method, pExceeds),
+                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = pExceeds, color = Method, group = Analysis)) +
+    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+    scale_color_brewer(palette = "Set2") + 
+    scale_x_discrete(NULL, limits = consistency_order) + 
+    scale_y_continuous("% settings exceeding nominal FDR", labels = scales::percent) + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("FDR Control")
+
+p2b <- bind_rows(Yeast = power_yeast, Sims = power_sims, .id = "Analysis") %>%
+    dplyr::mutate(Method = reorder(Method, meanRank),
+                  Analysis = factor(Analysis, levels = c("Yeast", "Sims"))) %>%
+    ggplot(aes(x = Method, y = meanRank, color = Method, group = Analysis)) +
+    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+    scale_color_brewer(palette = "Set2") + 
+    scale_x_discrete(NULL, limits = consistency_order) + 
+    scale_y_continuous("Mean TPR rank", breaks = 0:10) + 
+    expand_limits(y = 1) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Power")
+
+p2c <- bind_rows(Sims = consistency2_sims, CS = consistency2_data, .id = "Analysis") %>%
+    dplyr::mutate(Method = reorder(Method, propEither),
+                  Analysis = factor(paste0(Analysis, " (", key, ")"))) %>%
+    ggplot(aes(x = Method, y = propEither, color = Method, group = Analysis)) +
+    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) +
+    scale_color_brewer(palette = "Set1") + 
+    scale_x_discrete(NULL, limits = consistency_order) + 
+    scale_y_continuous("% settings w/ metric < classic methods", labels = scales::percent) + 
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Consistency of Gain")
+
+p2d <- bind_rows(Sims = consistency_sims, CS = consistency_data, .id = "Analysis") %>%
+    dplyr::mutate(Method = reorder(Method, sdRGain),
+                  Analysis = factor(paste0(Analysis, " (", key, ")")),
+                  Analysis = factor(Analysis, levels = levels(Analysis)[c(1, 3, 2)])) %>%
+    ggplot(aes(x = Method, y = sdRGain, color = Method, group = Analysis)) +
+    geom_point(aes(color = Analysis), size = 3, position = position_dodge(width = 1/4)) + 
+    scale_color_brewer(palette = "Set1") + 
+    scale_x_discrete(NULL, limits = consistency_order) + 
+    scale_y_continuous("SD of log-ratio relative to classic methods") + 
+    expand_limits(y = 1) +
+    theme_classic() +
+    theme(axis.title = element_text(face = "bold", size = 10),
+          plot.title = element_text(face = "bold", size = 14)) +
+    ggtitle("Relative Consistency")
+
+p2title <- ggdraw() +
+    draw_label("Summary Recommendation Metrics",
+               fontface = 'bold')
+
+p2ab <- plot_grid(p2a + guides(color = FALSE),
+                  p2b + guides(color = FALSE),
+                  labels = LETTERS[1:2], nrow = 1)
+p2ab <- plot_grid(p2ab, get_legend(p2a), nrow = 1, rel_widths = c(1, .2))
+
+p2cd <- plot_grid(p2c + guides(color = FALSE),
+                  p2d + guides(color = FALSE),
+                  labels = LETTERS[3:4], nrow = 1)
+p2cd <- plot_grid(p2cd, get_legend(p2d), nrow = 1, rel_widths = c(1, .2))
+
+FigS2 <- plot_grid(p2title, p2ab, p2cd, ncol = 1, rel_heights = c(.2, 1, 1))
+FigS2
+
+ggsave(file.path(outdir, "SFigureMetrics-fixedorder.pdf"), width=10, height=8)
 ```
