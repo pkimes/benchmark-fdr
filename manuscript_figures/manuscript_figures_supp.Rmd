@@ -349,7 +349,7 @@ resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("un
 res <- readRDS(file=resfile)
 assayNames(res) <- "qvalue"
 res <- addDefaultMetrics(res)
-pC <- covariateLinePlot(res, alpha=alpha, covname="ind_covariate", trans="log1p",
+pC <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
                         nbins=25) +
   ggtitle("GSEA case study: Mouse") +
   xlab("Gene Set size percentile") + 
