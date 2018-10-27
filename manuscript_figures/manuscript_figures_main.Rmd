@@ -20,7 +20,7 @@ generate the supplementary case study and in silico experiment figures
 
 # Set up workspace 
 
-```{r Figure2-load-data}
+```{r setup}
 # Load packages and source benchmark FDR
 library(tidyr)
 library(dplyr)
@@ -31,6 +31,7 @@ library(tibble)
 library(ggthemes)
 library(grid)
 library(SummarizedBenchmark)
+library(ggrepel)
 
 ## load helper functions
 for (f in list.files("../datasets/R", "\\.(r|R)$", full.names = TRUE)) {
@@ -149,7 +150,7 @@ p1a <- plotsim_average(res5d, met="FDR",
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
                          breaks=seq(0, 1, by=0.02)) +
       scale_y_continuous("FDR", labels=scales::percent, breaks=seq(0, 1, by=0.02)) +
-      expand_limits(y=0.11) +
+      expand_limits(y=0.11, x = 0.105) +
       theme(plot.title = element_text(face = "bold", size = 12)) 
 
 ## Figure 1B: FDR of methods in representative polyester setting at varying alpha levels
@@ -160,15 +161,28 @@ resfile <- objects[grepl("polyester-", objects) &
 de5 <- readRDS(file=resfile)
 res5dp <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01)) %>% 
   filter(blabel %in% methodset)
+datsub <- res5dp %>% filter(performanceMetric == "FDR",
+                                        abs(alpha-0.10) < 1e-6,
+                                        blabel %in% c("lfdr", "ashq")) %>%
+                                 group_by(blabel, alpha) %>%
+                                 summarize(value = mean(value)) %>%
+                                 mutate(Method = blabel) 
 p1b <- plotsim_average(res5dp, met="FDR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Polyester count simulation") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
                          breaks=seq(0, 1, by=0.02)) +
       scale_y_continuous("", labels=scales::percent, breaks=seq(0, 1, by=0.02)) +
-      expand_limits(y=0.11) +
+      expand_limits(y=0.11, x = 0.105) +
       theme(plot.title = element_text(face = "bold", size = 12)) + 
-  theme(legend.position="none") 
+      theme(legend.position="none") +
+      geom_label_repel(data=datsub,
+                 aes(alpha, value, label = Method),
+                 min.segment.length = unit(0, 'lines'),
+                 nudge_x = c(-0.01, 10), nudge_y = c(0,0.01),
+                 label.padding = 0.1, 
+                 box.padding = 0.1, size = 2.25)
+  
 
 p1abTitle <- ggdraw() +
     draw_label(expression(paste(bold("FDR control in RNA-seq "), 
@@ -240,23 +254,50 @@ robust under varying proportions of null hypotheses.
 ```{r Figure2, fig.width = 7.5, fig.height = 6.5}
 # TPR in in silico experiments across alpha values 
 ## Figure 2A: TPR of methods in representative yeast setting at varying alpha levels
+datsub <- res5d %>% filter(performanceMetric == "TPR",
+                                        abs(alpha-0.10) < 1e-6,
+                                        blabel %in% c("adapt-glm", "lfdr", "fdrreg-t")) %>%
+                                 group_by(blabel, alpha) %>%
+                                 summarize(value = mean(value)) %>%
+                                 mutate(Method = blabel) %>%
+                                 arrange(desc(Method))
 p2a <- plotsim_average(res5d, met="TPR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Resampling with spike-ins") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
-                         breaks=seq(0, 1, by=0.02)) +
+                         breaks=seq(0, 1, by=0.02), 
+                         limits=c(0,0.114)) +
       scale_y_continuous("TPR", labels=scales::percent, breaks=seq(0, 1, by=0.05)) +
-      theme(plot.title = element_text(face = "bold", size = 12)) 
+      theme(plot.title = element_text(face = "bold", size = 12)) +
+      geom_label_repel(data=datsub,
+                 aes(alpha, value, label = Method),
+                 min.segment.length = unit(0, 'lines'),
+                 nudge_x = c(10,10,-0.01), size = 2.25, nudge_y=c(0.008,0.008, 0.008), #l,f,a
+                 fill = "white", alpha = 1,
+                 box.padding = 0.1, label.padding = 0.1)
 
 ## Figure 2B: TPR of methods in representative polyester setting at varying alpha levels
+datsub <- res5dp %>% filter(performanceMetric == "TPR",
+                                        abs(alpha-0.10) < 1e-6,
+                                        blabel %in% c("lfdr", "fdrreg-t")) %>%
+                                 group_by(blabel, alpha) %>%
+                                 summarize(value = mean(value)) %>%
+                                 mutate(Method = blabel) 
 p2b <- plotsim_average(res5dp, met="TPR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Polyester count simulation") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
-                         breaks=seq(0, 1, by=0.02)) +
+                         breaks=seq(0, 1, by=0.02), 
+                         limits = c(0,0.114)) +
       scale_y_continuous("", labels=scales::percent, breaks=seq(0, 1, by=0.05)) +
       theme(plot.title = element_text(face = "bold", size = 12)) + 
-  theme(legend.position="none") 
+      theme(legend.position="none") +
+      geom_label_repel(data=datsub,
+                 aes(alpha, value, label = Method),
+                 min.segment.length = unit(0, 'lines'),
+                 nudge_x = 10, size = 2.25, 
+                 box.padding = 0.1, label.padding = 0.1,
+                 fill = "white", alpha = 1)
 
 p2abTitle <- ggdraw() +
     draw_label(expression(paste(bold("TPR in RNA-seq "), 
@@ -303,7 +344,7 @@ bot <- plot_grid(p2c, p2d, nrow = 1)
 Fig2 <- plot_grid(p2abTitle, top, p2cdTitle, bot, nrow=4, 
                   rel_heights = c(0.1, 1, 0.1, 1),
                   labels = c("A", "", "B", ""))
-Fig2 <- plot_grid(Fig2, get_legend(p2a), rel_widths = c(1, .2))
+Fig2 <- plot_grid(Fig2, get_legend(p1a), rel_widths = c(1, .2))
 Fig2
 ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
 ```
