@@ -16,12 +16,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-The objective of this document is to compare different methods for multiple testing correction in the context of Gene Set Enrichment Analysis (GSEA). In order to get a list of genes, we will use RNA-seq data consisting of cortex and cerebellum samples of a subset of the GTEx data. 
+The objective of this document is to compare different methods for multiple testing correction in the context of Gene Set Enrichment Analysis (GSEA). We use RNA-seq data consisting of cortex and cerebellum samples of a subset of the GTEx individuals. Shortly, samples were downloaded using the *Short Read Archive Toolkit* and mapped to the human reference genome version GRCh38 using *STAR v2.4.2a*. *htseq-count* was used to tabulate the number of uniquely mapping reads for each gene. We used the `DESeq2` package to format the data into a `DESeqDataSet` object.
 
-Here we use the `fgsea` Bioconductor package to implement the GSEA method. This is 
-a Functional Class Scoring approach, which does not require setting an arbitrary threshold
-for Differential Expression, but instead relies on the gene's rank (here we rank by
-DESeq2 test statistic).
+We use the `fgsea` Bioconductor package to implement the GSEA method. This is 
+a Functional Class Scoring approach, which does not require setting an arbitrary threshold for Differential Expression, but instead relies on the gene's rank (here we rank by DESeq2 test statistic).
 
 # Workspace Setup
 
@@ -58,11 +56,11 @@ bench_file_uninf <- file.path(sbdir, "human-uninf-benchmark.rds")
 
 # Data Preparation
 
-The dataset consists of 10 samples (6 cerebellum and 4 cortex samples), all from male individuals. We download a *DESeqDataSet* if not present locally and modify the design to test for differences in gene expression between cerebellums and cortex.
+We download the *DESeqDataSet* from zenodo, if not present locally, and modify the design to test for differences in gene expression between cerebellums and cortex.
 	    
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/itrs2a6cnmurnck/gsea-human-counts.rds?dl=1",
+    download.file("https://zenodo.org/record/1475409/files/gsea-human-counts.rds?download=1",
                   destfile = count_file)
 }
 dsdObject <- readRDS(count_file)

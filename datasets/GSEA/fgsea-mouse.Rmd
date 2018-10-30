@@ -16,12 +16,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-The objective of this vignette is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). To do this, we will use mouse data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The dataset consists of RNA-seq data from mouse hematopoietic stem cells and 4 multipotent progenitor lineages. We will test for difference in gene expression between two different cell fractions and perform GSEA in the resulting list of genes. 
+The objective of this vignette is to test different multiple testing methods in the context of Gene Set Enrichment Analysis (GSEA). To do this, we use data from the paper by [Cabezas-Wallscheid et al. (Cell stem Cell, 2014)](https://www.sciencedirect.com/science/article/pii/S1934590914003014?via%3Dihub). The data consist of RNA-seq data from mouse hematopoietic stem cells and multipotent progenitor lineages. The raw fastq data is available through the ArrayExpress database (http://www.ebi.ac.uk/arrayexpress) under accession number E-MTAB-2262. These data were mapped to the mouse reference genome GRCm38 (ENSEMBL release 69) using the Genomic Short-Read Nucleotide Alignment program (version 2012-07-20). We used htseq-count to count the number of reads overlapping with each gene and used the DESeq2 package to format the data as a DESeqDataSet R object.
 
 Here we use the `fgsea` Bioconductor package to implement the GSEA method. This is 
-a Functional Class Scoring approach, which does not require setting an arbitrary threshold
-for Differential Expression, but instead relies on the gene's rank (here we rank by
-DESeq2 test statistic).
+a Functional Class Scoring approach, which does not require setting an arbitrary threshold for Differential Expression, but instead relies on the gene's rank (here we rank by DESeq2 test statistic).
 
 # Workspace Setup
 
@@ -61,7 +59,7 @@ The data has been preprocessed and saved as a DESeqDataset object. The following
 
 ```{r, message=FALSE}
 if (!file.exists(count_file)) {
-    download.file("https://www.dropbox.com/s/jq6giqeclxcdypq/gsea-mouse-counts.rds?dl=1",
+    download.file("https://zenodo.org/record/1475409/files/gsea-mouse-counts.rds?download=1",
                   destfile = count_file)
 }
 dseHSCMPP <- readRDS(count_file)
@@ -95,6 +93,7 @@ We next use biomaRt to get the relations between GO categories and genes.
 
 ```{r gocat, message=FALSE}
 if (!file.exists(goset_file)) {
+    library(biomaRt)
     mart <- useMart("ensembl", "mmusculus_gene_ensembl")
     goSets <- getBM(c("ensembl_gene_id", "go_id"), mart = mart,
                     filters = "ensembl_gene_id", values = rownames(res))
