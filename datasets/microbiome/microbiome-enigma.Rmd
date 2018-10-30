@@ -70,7 +70,7 @@ al_bench_file_uninf <- file.path(sbdir, "enigma-al-otus-uninf-benchmark.rds")
 
 # Data Preparation
 
-We download the data from Dropbox if not already available.
+We download the data from Zenodo if not already available.
 
 ```{r, enigma-download-data}
 if (!file.exists(file.path(enigma_dir, "enigma.metadata.txt"))) {
