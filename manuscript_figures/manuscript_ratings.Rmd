@@ -761,7 +761,7 @@ p1cd <- plot_grid(p1cd, get_legend(p1d), nrow = 1, rel_widths = c(1, .2))
 FigS <- plot_grid(p1title, p1ab, p1cd, ncol = 1, rel_heights = c(.2, 1, 1))
 FigS
 
-ggsave(file.path(outdir, "SFigureMetrics.pdf"), width=10, height=8)
+#ggsave(file.path(outdir, "SFigureMetrics.pdf"), width=10, height=8)
 ```
 
 Additionally, we consider creating the above plot with a common x-axis.
@@ -841,5 +841,5 @@ p2cd <- plot_grid(p2cd, get_legend(p2d), nrow = 1, rel_widths = c(1, .2))
 FigS2 <- plot_grid(p2title, p2ab, p2cd, ncol = 1, rel_heights = c(.2, 1, 1))
 FigS2
 
-ggsave(file.path(outdir, "SFigureMetrics-fixedorder.pdf"), width=10, height=8)
+ggsave(file.path(outdir, "Figure5.pdf"), width=10, height=8)
 ```

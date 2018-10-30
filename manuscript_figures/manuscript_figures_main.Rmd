@@ -20,7 +20,7 @@ generate the supplementary case study and in silico experiment figures
 
 # Set up workspace 
 
-```{r setup}
+```{r workspacesetup}
 # Load packages and source benchmark FDR
 library(tidyr)
 library(dplyr)
@@ -122,8 +122,11 @@ genplot <- function(tab, cov, type = c("info", "diff"), xt = "", met = c("FDR", 
 }
 ```
 
+# Figure 1 - Methods summary table
 
-# Figure 1 - FDR
+This figure is created manually using keynote.
+
+# Figure 2 - FDR
 
 This figure contains the main FDR results for the simulations and *in silico* 
 experiments. Panel (A, left) contains the FDR results for a representative setting of
@@ -134,9 +137,9 @@ inflated FDR. Panels (B) contains the FDR results for simulations that
 vary the number of hypotheses and the proportion of null hypotheses, respectively. 
 These results show that ash and lfdr fail to control FDR under certain settings. 
 
-```{r Figure1, fig.width = 7.5, fig.height = 6.5}
+```{r Figure2, fig.width = 7.5, fig.height = 6.5}
 # FDR in in silico experiments across alpha values 
-## Figure 1A: FDR of methods in representative yeast setting at varying alpha levels
+## Figure 2A: FDR of methods in representative yeast setting at varying alpha levels
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast-", objects) & 
                    grepl("de5", objects) & 
@@ -144,7 +147,7 @@ resfile <- objects[grepl("yeast-", objects) &
 de5 <- readRDS(file=resfile)
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01)) %>% 
   filter(blabel %in% methodset)
-p1a <- plotsim_average(res5d, met="FDR",
+p2a <- plotsim_average(res5d, met="FDR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Resampling with spike-ins") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
@@ -153,7 +156,7 @@ p1a <- plotsim_average(res5d, met="FDR",
       expand_limits(y=0.11, x = 0.105) +
       theme(plot.title = element_text(face = "bold", size = 12)) 
 
-## Figure 1B: FDR of methods in representative polyester setting at varying alpha levels
+## Figure 2B: FDR of methods in representative polyester setting at varying alpha levels
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("polyester-", objects) & 
                    grepl("de5", objects) & 
@@ -167,7 +170,7 @@ datsub <- res5dp %>% filter(performanceMetric == "FDR",
                                  group_by(blabel, alpha) %>%
                                  summarize(value = mean(value)) %>%
                                  mutate(Method = blabel) 
-p1b <- plotsim_average(res5dp, met="FDR",
+p2b <- plotsim_average(res5dp, met="FDR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Polyester count simulation") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
@@ -184,15 +187,15 @@ p1b <- plotsim_average(res5dp, met="FDR",
                  box.padding = 0.1, size = 2.25)
   
 
-p1abTitle <- ggdraw() +
+p2abTitle <- ggdraw() +
     draw_label(expression(paste(bold("FDR control in RNA-seq "), 
                                 bolditalic("in silico"), bold(" experiments"))))
 
 # Panels C and D -> FDR in sims across settings at a single specified alpha
-## Figure 1C: FDR of methods across varying number of tests at alpha.thresh
+## Figure 2C: FDR of methods across varying number of tests at alpha.thresh
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
                             alpha == alpha.thresh, Method %in% methodset) 
-p1c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"), 
+p2c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"), 
                cov = ntests, met = "FDR", ebw = 0.1) +
     scale_x_continuous("Number of tests", trans = "log10",
                        breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
@@ -209,11 +212,11 @@ p1c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"),
                  filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "FDR"),
                  aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5)
 
-## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
+## Figure 2D: FDR of methods across varying null proportion at alpha.thresh
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
                          alpha == alpha.thresh, Method %in% methodset,
                          pi0 >= 10) # restrict to pi0 at least 10%
-p1d <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
+p2d <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
     scale_x_continuous("Proportion non-null",
                        breaks = 100 - c(seq(10, 90, by = 10), 95, 99)) + 
   guides(color = FALSE, linetype = FALSE) + 
@@ -221,25 +224,25 @@ p1d <- genplot(res_pi0, cov = 100-pi0, met = "FDR", ebw = 2.5) +
   scale_y_continuous("", labels = scales::percent, breaks=seq(0,1,by=0.02), 
                        limits=c(0,.12)) 
 
-p1cdTitle <- ggdraw() +
+p2cdTitle <- ggdraw() +
     draw_label(expression(paste(bold("FDR across simulation settings ("), 
                                 bold(alpha), bold(" = 0.05)"))))
 
-## pull Figure 1 together
-top <- plot_grid(p1a + theme(legend.position="none"), p1b, nrow = 1)
-bot <- plot_grid(p1c, p1d, nrow = 1)
-Fig1 <- plot_grid(p1abTitle, top, p1cdTitle, bot, nrow=4, 
+## pull Figure 2 together
+top <- plot_grid(p2a + theme(legend.position="none"), p2b, nrow = 1)
+bot <- plot_grid(p2c, p2d, nrow = 1)
+Fig2 <- plot_grid(p2abTitle, top, p2cdTitle, bot, nrow=4, 
                   rel_heights = c(0.1, 1, 0.1, 1),
                   labels = c("A", "", "B", ""))
-Fig1 <- plot_grid(Fig1, get_legend(p1a), rel_widths = c(1, .2))
-Fig1
-ggsave(file.path(outdir, "Fig1.pdf"), width=7.5, height=6.5)
+Fig2 <- plot_grid(Fig2, get_legend(p2a), rel_widths = c(1, .2))
+Fig2
+ggsave(file.path(outdir, "Figure2.pdf"), width=7.5, height=6.5)
 ```
 
-# Figure 2 - Power
+# Figure 3 - Power
 
 This figure contains the main TPR results for the simulations and *in silico* 
-experiments, and is analagous to Figure 1. 
+experiments, and is analagous to Figure 2. 
 Panel (A) contains the TPR results for a representative setting of
 the yeast *in silico* experiments and polyester simulations, showing that in 
 general, modern FDR-controlling methods have modestly higher power than classic methods. 
@@ -251,9 +254,9 @@ These results show that adapt and lfdr are very conservative under some settings
 of the number of tests, and that the relative ranking of methods is somewhat 
 robust under varying proportions of null hypotheses. 
 
-```{r Figure2, fig.width = 7.5, fig.height = 6.5}
+```{r Figure3, fig.width = 7.5, fig.height = 6.5}
 # TPR in in silico experiments across alpha values 
-## Figure 2A: TPR of methods in representative yeast setting at varying alpha levels
+## Figure 3A: TPR of methods in representative yeast setting at varying alpha levels
 datsub <- res5d %>% filter(performanceMetric == "TPR",
                                         abs(alpha-0.10) < 1e-6,
                                         blabel %in% c("adapt-glm", "lfdr", "fdrreg-t")) %>%
@@ -261,7 +264,7 @@ datsub <- res5d %>% filter(performanceMetric == "TPR",
                                  summarize(value = mean(value)) %>%
                                  mutate(Method = blabel) %>%
                                  arrange(desc(Method))
-p2a <- plotsim_average(res5d, met="TPR",
+p3a <- plotsim_average(res5d, met="TPR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Resampling with spike-ins") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
@@ -276,14 +279,14 @@ p2a <- plotsim_average(res5d, met="TPR",
                  fill = "white", alpha = 1,
                  box.padding = 0.1, label.padding = 0.1)
 
-## Figure 2B: TPR of methods in representative polyester setting at varying alpha levels
+## Figure 3B: TPR of methods in representative polyester setting at varying alpha levels
 datsub <- res5dp %>% filter(performanceMetric == "TPR",
                                         abs(alpha-0.10) < 1e-6,
                                         blabel %in% c("lfdr", "fdrreg-t")) %>%
                                  group_by(blabel, alpha) %>%
                                  summarize(value = mean(value)) %>%
                                  mutate(Method = blabel) 
-p2b <- plotsim_average(res5dp, met="TPR",
+p3b <- plotsim_average(res5dp, met="TPR",
                 merge_ihw = TRUE, errorBars=TRUE) +
       ggtitle("Polyester count simulation") +
       scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
@@ -299,15 +302,15 @@ p2b <- plotsim_average(res5dp, met="TPR",
                  box.padding = 0.1, label.padding = 0.1,
                  fill = "white", alpha = 1)
 
-p2abTitle <- ggdraw() +
+p3abTitle <- ggdraw() +
     draw_label(expression(paste(bold("TPR in RNA-seq "), 
                                 bolditalic("in silico"), bold(" experiments"))))
 
 # Panels C and D -> TPR in sims across settings at a single specified alpha
-## Figure 2C: TPR of methods across varying number of tests at alpha.thresh
+## Figure 3C: TPR of methods across varying number of tests at alpha.thresh
 res_ntests <- dplyr::filter(resmet, setting == "varyingntests", 
                             alpha == alpha.thresh, Method %in% methodset)
-p2c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"),
+p3c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"),
                cov = ntests, met = "TPR", ebw = 0.1) +
     scale_x_continuous("Number of tests", trans = "log10",
                        breaks = c(1e2, 5e2, 1e3, 5e3, 1e4, 5e4),
@@ -323,34 +326,31 @@ p2c <- genplot(res_ntests %>% filter(ntests >= 4000 | Method != "lfdr"),
                  filter(ntests <= 5000 & Method == "lfdr", performanceMetric == "TPR"),
                  aes(ymin = mean.info - se.info, ymax = mean.info + se.info), width = 0.1, alpha=0.5)
 
-## Figure 1D: FDR of methods across varying null proportion at alpha.thresh
+## Figure 3D: FDR of methods across varying null proportion at alpha.thresh
 res_pi0 <- dplyr::filter(resmet, setting == "varyingpi0", 
                          alpha == alpha.thresh, Method %in% methodset,
                          pi0 >= 10) # restrict to pi0 at least 10%
-p2d <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
+p3d <- genplot(res_pi0, cov = 100-pi0, met = "TPR", ebw = 2.5) +
     scale_x_continuous("Proportion non-null",
                        breaks = 100 - c(seq(10, 90, by = 10), 95, 99)) + 
   guides(color = FALSE, linetype = FALSE) + 
   ggtitle("Varying non-null proportion") +
   scale_y_continuous("", labels = scales::percent, breaks=seq(0,1,by=0.20)) 
 
-p2cdTitle <- ggdraw() +
+p3cdTitle <- ggdraw() +
     draw_label(expression(paste(bold("TPR across simulation settings ("), 
                                 bold(alpha), bold(" = 0.05)"))))
 
-## pull Figure 1 together
-top <- plot_grid(p2a + theme(legend.position="none"), p2b, nrow = 1)
-bot <- plot_grid(p2c, p2d, nrow = 1)
-Fig2 <- plot_grid(p2abTitle, top, p2cdTitle, bot, nrow=4, 
+## pull Figure 3 together
+top <- plot_grid(p3a + theme(legend.position="none"), p3b, nrow = 1)
+bot <- plot_grid(p3c, p3d, nrow = 1)
+Fig3 <- plot_grid(p3abTitle, top, p3cdTitle, bot, nrow=4, 
                   rel_heights = c(0.1, 1, 0.1, 1),
                   labels = c("A", "", "B", ""))
-Fig2 <- plot_grid(Fig2, get_legend(p1a), rel_widths = c(1, .2))
-Fig2
-ggsave(file.path(outdir, "Fig2.pdf"), width=7.5, height=6.5)
+Fig3 <- plot_grid(Fig3, get_legend(p2a), rel_widths = c(1, .2))
+Fig3
+ggsave(file.path(outdir, "Figure3.pdf"), width=7.5, height=6.5)
 ```
-
-
-# Figure 3 - Robustness
 
 # Figure 4 - Applicability
 
@@ -394,7 +394,7 @@ tsdists <- dplyr::mutate(tsdists, dist = factor(dist, levels = levels(factor(dis
 tsdists <- dplyr::rename(tsdists, truth = qvalue)
 tsdists <- dplyr::mutate(tsdists, truth = factor(truth, levels = 0:1, labels = c("null", "non-null")))
 
-## Figure 4A: Performance across distribution of test statistics (based on single replicate)
+## Figure 3A: Performance across distribution of test statistics (based on single replicate)
 p4a <- ggplot(tsdists, aes(x = test_statistic, y=..count..,
                             group = truth, color = truth)) +
     stat_density(geom = "line", position = "identity", adjust = 1/2) + 
@@ -416,7 +416,7 @@ Titlep4a <- ggdraw() +
     draw_label(expression(paste(bold("FDR across test statistic distributions in simulation"))))
 p4a <- plot_grid(Titlep4a, p4a, nrow = 2, rel_heights = c(0.1,1), labels = c("A", ""))
 
-## Figure 4B: Case study heatmap demonstrating variability in applicability
+## Figure 3B: Case study heatmap demonstrating variability in applicability
 
 ## read list of case study results
 objects <- list.files(path, recursive=TRUE, pattern="rds", full.names=TRUE)
@@ -513,10 +513,14 @@ p4b <- plot_grid(Titlep4b, p4b, nrow = 2, rel_heights = c(0.075,1),
 ## pull Figure 4 together
 Fig4 <- plot_grid(p4a, p4b, ncol = 1, rel_heights = c(1,1))
 Fig4
-ggsave(file.path(outdir, "Fig4.pdf"), width = 11.2, height = 10.5)
+ggsave(file.path(outdir, "Figure4.pdf"), width = 11.2, height = 10.5)
 ```
 
-# Figure 5 - Summary
+# Figure 5 - Consistency
+
+This figure is generated in `manuscript_ratings.Rmd`.
+
+# Figure 6 - Summary
 
 The summary of recommendations figure is drawn manually.
 

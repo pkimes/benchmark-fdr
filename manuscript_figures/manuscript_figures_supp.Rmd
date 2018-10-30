@@ -16,12 +16,9 @@ knitr::opts_chunk$set(echo = TRUE)
 This file contains Supplementary Figures to complement the main results figures 
 in `manuscript_figures_main.Rmd`. 
 
-# Figure 2
+# Workspace setup
 
-This is a faceted figure with results using the yeast data with 48 biological replicates analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/). A complete analysis 
-can be found in the `/datasets/RNA-Seq/yeast-simulation.Rmd`. This is the 5v5 comparison.  
-
-```{r Figure2-load-data}
+```{r wkspace setup}
 # Load packages and source benchmark FDR
 library(tidyr)
 library(dplyr)
@@ -52,7 +49,13 @@ alpha.thresh <- 0.05
 ```
 
 
-```{r Figure2, fig.width = 10, fig.height = 8}
+# Figure S1
+
+This is a faceted figure with results using the yeast data with 48 biological replicates analyzed in this [publication](https://www.ncbi.nlm.nih.gov/pubmed/26206307/). A complete analysis 
+can be found in the `/datasets/RNA-Seq/yeast-simulation.Rmd`. This is the 5v5 comparison.  
+
+
+```{r FigureS1, fig.width = 10, fig.height = 8}
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
 resfile <- objects[grepl("yeast-", objects) & 
                    grepl("de5", objects) & 
@@ -62,28 +65,28 @@ de5 <- readRDS(file=resfile)
 excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05", "bonf", "fdrreg-e")
 res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
 
-# Figure 2A: Not all methods control FDR at nominal alpha level
+# Figure S1A: Not all methods control FDR at nominal alpha level
 p1 <- plotsim_average(res5d, met="FDR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +  
       ggtitle("FDR by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
-# Figure 2B: TPR of methods across nominal alpha level
+# Figure S1B: TPR of methods across nominal alpha level
 p2 <- plotsim_average(res5d, met="TPR",filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none")  +  
       ggtitle("TPR by alpha level") +
       scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02))
 
-# Figure 2C: ROC curve
+# Figure S1C: ROC curve
 p3 <- plotsim_average(res5d, met=c("FPR", "TPR"),filter_set = excludeSet,
                 merge_ihw = TRUE, errorBars=TRUE) +
       theme(legend.position="none") +
       ggtitle("ROC (FPR vs TPR)") +
       scale_x_continuous("FPR", breaks=seq(0, 1, by=0.01))
 
-# Figure 2D: Some methods are tailored to detecting smaller effect sizes
+# Figure S1D: Some methods are tailored to detecting smaller effect sizes
 p4 <- covariateLinePlot(de5, alpha=alpha.thresh, covname="log2FC", trans="log1p",
                         nbins=25)
 leg <- get_legend(p4)
@@ -93,8 +96,8 @@ p4 <- p4 +
   ggtitle("Rejection rate by effect size") + 
   theme(legend.position="none")
   
-# Figure 2E - upsetr plot - save separately
-pdf(file.path(outdir, "Figure2E.pdf"), width = 8, height = 4, onefile=FALSE)
+# Figure S1E - upsetr plot - save separately
+pdf(file.path(outdir, "FigureS1E.pdf"), width = 8, height = 4, onefile=FALSE)
 aggupset(de5, alpha=alpha.thresh, supplementary = FALSE, 
                        return_list = FALSE, nintersects = 12)
 grid.text("Mean overlap of rejection sets", x = 0.65, y = 0.97, 
@@ -104,358 +107,332 @@ grid.text("E", x = 0.01, y = 0.97,
 dev.off()
 
 # Figure 2 (ALL)
-Fig2 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
+FigS1 <- plot_grid(p1, p2, p3, p4, ncol = 2, 
           labels = LETTERS[1:4], label_size = 20, align = "hv")
-Fig2 <- plot_grid(Fig2, leg, ncol = 2, rel_widths = c(1, 0.2))
-Fig2
-ggsave(file.path(outdir, "Figure2A-D.pdf"), width=8.75, height=6)
+FigS1 <- plot_grid(FigS1, leg, ncol = 2, rel_widths = c(1, 0.2))
+FigS1
+ggsave(file.path(outdir, "FigureS1A-D.pdf"), width=8.75, height=6)
 
 ```
 
-# Figure 3
 
-Replaced with a pure simulation figure - see `manuscript_figures_sims.Rmd`.
+# Figure S2
 
-# Figure 4 
+This Figure contrasts FDR results in different yeast simulation settings.
 
-This is a heatmap of methods by case studies with color representing the ranking
-by of number of rejections @ FDR cutoff `r alpha.thresh`.
-
-```{r, Figure 4, fig.width = 9, fig.height = 7}
-library(SummarizedBenchmark)
-library(stringr)
-
+```{r Figure-yeast-pi0, fig.width = 10, fig.height = 8}
+# strongly informative covariate (top panel)
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-
-# remove simulation objects
-sim <- unique(c(which(grepl("simulations", objects)),
-               which(grepl("yeast", objects)),
-               which(grepl("polyester", objects))))
-if (length(sim) > 0){
-  objects <- objects[-sim]
-}
-
-# remove microbiome objects from 'null' comparisons
-# removing baxter, goodrich, papa OTU-level, and So4-enigma (since they mostly found 
-# nothing for all methods and the genus-level analysis is also present)
-# Also remove'log' ubiquity since redundant
-null <- which(grepl(c("goodrich|papa|baxter"), objects) & 
-              grepl(c("otu"), objects) | 
-              grepl("log", objects) | 
-              grepl("so4", objects))
-
-if (length(null) > 0){
-  objects <- objects[-null]
-}
-
-# remove chip-seq promoter analysis (since it is the only one that uses 
-# ash and we also include the csaw analysis on the same dataset).
-promot <- which(grepl("promot", objects))
-if (length(promot) > 0){
-  objects <- objects[-promot]
-}
-
-# remove random covariate analyses
-uninf <- which(grepl("uninf", objects))
-if (length(uninf) > 0){
-  objects <- objects[-uninf]
-}
-
-# grab casestudy names
-obj.names <- str_split(objects, pattern = "/")
-casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-dataset <- unlist(lapply(obj.names, function(x) x[4] ))
-
-# not excluding any methods
-Fig4All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
-                     "fdrreg-e", "fdrreg-t", "ashq")
-Fig4All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
-                        excludeMethods = NULL, rowOrder = Fig4All.rowOrder) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.position = c(0.97, 0.92), legend.justification = c(1, 1),
-              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
-              legend.direction = "horizontal",
-              legend.text = element_text(size = 7),
-              legend.title = element_text(size = 9),
-              legend.margin = margin(6, 10, 6, 10))
-
-Fig4All
-```
-
-Extract a table of the values in Figure 4.
-
-```{r}
-# Supplementary table S3 
-library(xtable)
-tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
-                        tableOnly = TRUE, excludeMethods = NULL)
-tabS3 <- tabS3 %>% 
-  mutate(mean_prop = ifelse(is.na(mean_prop), "-",
-                            paste0(round(mean_prop,2), " (", round(min_prop,2), 
-                            "-", round(max_prop, 2), ")"))) %>%
-  select(casestudy, method, mean_prop) %>%
-  spread(casestudy, mean_prop) %>% 
-  mutate(method =  factor(method, levels = rev(Fig4All.rowOrder))) %>%
-  arrange(method)    
-
-print(xtable(tabS3), include.rownames=FALSE)
-
-# generate detailed case study table for creating sim vs cs ranks boxplots
-casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha.thresh,
-                                 tableOnly = TRUE)
-```
-
-Create more panels with heatmaps of yeast simulation results.
-
-```{r, fig.width = 14, fig.height = 5}
-objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-
-# grab casestudy names
-obj.names <- str_split(objects, pattern = "/")
-casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-dataset <- unlist(lapply(obj.names, function(x) x[4] ))
-
-# non-null
-wcs <- which(grepl("RNAseq", casestudy) & 
-            grepl(c("yeast-"), dataset) &
-            grepl("de", dataset) &
-            !grepl("scRNAseq", casestudy) &
-            !grepl("uninf", dataset))
-objs <- objects[wcs]
-labs <- gsub(".rds", "", 
-             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
-                      function(x) x[2])))
-
-pfdr <- plotMethodRanks(objs, 
-                colLabels = c("sim", "sim"), 
-                alpha = alpha.thresh, xlab = "Comparison",
-                fill = "FDR",
-                rowOrder = Fig4All.rowOrder, 
-                annotate = "FDR", excludeMethods = NULL,
-                maxColor = "black") +
-          scale_fill_gradient2(high = "darkred", 
-                         mid = "white", 
-                         low = "#2171B5", 
-                         midpoint = alpha.thresh) +
-          labs(fill = "Mean FDR") +
-          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.justification = c(1, 0.5),
-              legend.text = element_text(size = 7),
-              legend.title = element_text(size = 8),
-              legend.margin = margin(1, 1, 1, 1)) +
-          ylab("") + xlab("") +  
-          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
-
-ptpr <- plotMethodRanks(objs, 
-                colLabels = c("sim", "sim"), 
-                alpha = alpha.thresh, xlab = "Comparison",
-                fill = "TPR",
-                rowOrder = Fig4All.rowOrder,
-                annotate = "TPR", excludeMethods = NULL) +
-          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
-              legend.justification = c(1, 0.5),
-              legend.text = element_text(size = 7),
-              legend.title = element_text(size = 8),
-              legend.margin = margin(1, 1, 1, 1)) +
-          ylab("") + xlab("") +  
-          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
-
-
-ggdraw() +
-  draw_plot(pfdr, 0.53, 0, 0.24, 1) +
-  draw_plot(ptpr, 0.77, 0, 0.24, 1) +
-  draw_plot(Fig4All, 0, 0, 0.52, 1) +
-  draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
-  draw_plot_label("Simulation", 0.69, 0.06, size =11, fontface = "plain")
-ggsave(file.path(outdir, "Figure4.pdf"), width=9.5, height=5)
-
-# generate detailed yeast sim table for creating sim vs cs ranks boxplots
-yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha.thresh,
-                                 tableOnly = TRUE)
-```
-
-Create boxplot of ranking in sims versus rankings in case studies using the
-`casestudy.tab` and `yeastsim.tab` objects created above.
-
-```{r, fig.width = 6, fig.height = 4}
-casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
-  select(casestudy, method, prop_casestudy)
-yeastsim.tab <- yeastsim.tab %>% 
-  mutate(prop_yeastsim = mean_prop) %>% 
-  filter(casestudy == "de5") %>%
-  select(casestudy, method, prop_yeastsim)
+resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects) | 
+                    grepl("yeastII-", objects) | grepl("yeastIIH-", objects)) & 
+                   grepl("de5", objects) & 
+                  !grepl("uninf", objects)] 
+labs <- rep("30% Non-null", length(resfile))
+labs[grepl("H", resfile)] <- "7.5% Non-null"
+labs2 <- rep("Unimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Bimodal effect size"
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
   
-rank.tab <- left_join(casestudy.tab, yeastsim.tab, by = "method") %>%
-  left_join(candycols %>% dplyr::mutate(method=Method), by = "method")
+plist <- vector("list", length(resfile))
 
-col <- as.character(rank.tab$col)
-names(col) <- as.character(rank.tab$method)
+if (file.exists("yeast_summary_tab_all.rds")){
+  tab <- readRDS("yeast_summary_tab_all.rds")
+}else{
+  tab <- NULL
+  for (l in seq_along(resfile)){
+    de5 <- readRDS(file=resfile[l])
+    res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+    res5d$es_dist <- labs2[l]
+    res5d$pi0 <- labs[l]
+    tab <- rbind(tab, res5d)
+  }
+  saveRDS(tab, file = "yeast_summary_tab_all.rds")
+}
 
-rank.tab$method <- factor(rank.tab$method,
-                          levels = yeastsim.tab$method[order(yeastsim.tab$prop_yeastsim)])
-x <- match(rank.tab$casestudy.x, dataset)
-rank.tab$casestudy <- casestudy[x]
+FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  facet_grid( ~ es_dist + pi0) +
+  ylim(0,0.17) 
+FigStrong
 
-ggplot(rank.tab %>% filter(method != "bonf"), 
-       aes(y = prop_casestudy, x = prop_yeastsim, group = prop_yeastsim, color=Method)) +
-  geom_boxplot(aes(x = prop_yeastsim, y = prop_casestudy),
-                   alpha = 0.3, position = position_dodge(width = 0),
-                   width = 0.02) +
-  scale_color_manual(values=col) +
-  theme_bw() +
-  xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
-  ylab("Proportion of maximum rejections in casestudies") +
-  labs(shape = "Case Study") 
-ggsave(file.path(outdir, "Figure_simVcasestudyRanks_scaled.pdf"), width=6, height=4)
+FigStrongT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.72) +
+  facet_grid( ~ es_dist + pi0) 
+FigStrongT
 
-```
 
-# Figure 5
-
-This is a multi-panel Figure displaying examples of covariate line plots in the
-case studies. We'll create a 4-panel figure with the following case studies:
-RNAseq, scRNAseq, GSEA, GWAS.
-
-```{r, Figure 5, fig.width = 9, fig.height = 7}
-
-# RNAseq
+# weakly informative covariate (bottom panel)
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
-res <- readRDS(file=resfile)
-assayNames(res) <- "qvalue"
-res <- addDefaultMetrics(res)
-pA <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
-                        nbins=25) +
-  ggtitle("RNA-seq case study: Brain") +
-  xlab("Overall mean expression percentile") 
+resfile <- objects[(grepl("yeastW-", objects) | grepl("yeastHW-", objects) | 
+                    grepl("yeastIIW-", objects) | grepl("yeastIIHW-", objects)) & 
+                   grepl("de5", objects) & 
+                  !grepl("uninf", objects)] 
+labs <- rep("30% Non-null", length(resfile))
+labs[grepl("H", resfile)] <- "7.5% Non-null"
+labs2 <- rep("Unimodal effect size", length(resfile))
+labs2[grepl("II", resfile)] <- "Bimodal effect size"
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+  
+plist <- vector("list", length(resfile))
+tab <- NULL
+for (l in seq_along(resfile)){
+  de5 <- readRDS(file=resfile[l])
+  res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
+  res5d$es_dist <- labs2[l]
+  res5d$pi0 <- labs[l]
+  tab <- rbind(tab, res5d)
+}
 
-leg <-  get_legend(pA)
-pA <- pA + theme(legend.position="none")
+FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.17) +
+  facet_grid( ~ es_dist + pi0)
+FigWeak
 
-# scRNAseq
-resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
-                   grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
-res <- readRDS(file=resfile)
-assayNames(res) <- "qvalue"
-res <- addDefaultMetrics(res)
-pB <- covariateLinePlot(res, alpha=alpha.thresh, covname="detection", trans="log1p",
-                        nbins=25) +
-  ggtitle("scRNA-seq case study: Human, MAST") +
-  xlab("Detection rate percentile") + 
-  theme(legend.position="none")
+FigWeakT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
+                ggtitle("") +
+  ylim(0,0.72) +
+  facet_grid( ~ es_dist + pi0)
+FigWeakT
 
-# GSEA
-resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
-res <- readRDS(file=resfile)
-assayNames(res) <- "qvalue"
-res <- addDefaultMetrics(res)
-pC <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
-                        nbins=25) +
-  ggtitle("GSEA case study: Mouse") +
-  xlab("Gene Set size percentile") + 
-  theme(legend.position="none")
- 
-# GWAS
-resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
-res <- readRDS(file=resfile)
-assayNames(res) <- "qvalue"
-res <- addDefaultMetrics(res)
-pD <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covar_AF", trans="log1p",
-                        nbins=25) +
-  ggtitle("GWAS case study") +
-  xlab("Minor Allele Frequency (MAF) percentile") +
-  theme(legend.position="none")
 
-p5 <- plot_grid(pA, pB, pC, pD, ncol=2, labels = LETTERS[1:4])
-p5 <- plot_grid(p5, leg, ncol=2, rel_widths = c(1,0.2))
-p5
-ggsave(file.path(outdir, "Figure5.pdf"), width=9, height=7)
+leg <- get_legend(FigStrong)
+
+FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigStrongT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, align = "hv")
+
+FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigWeakT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, align = "hv")
+
+Fig <- plot_grid(FigA, FigB,
+                 nrow = 2, 
+                 labels = paste0(LETTERS[1:2], "       ",
+                          c("Strongly informative covariate",
+                            "Weakly informative covariate")),
+                 hjust = 0)
+plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
+ggsave(file.path(outdir, "FigureS2.pdf"), width=10, height=12)
 
 ```
 
-# Figure 6
+# Figures S3-S8
 
-This is a multi-panel Figure displaying examples of covariate vs p-value scatterplots
-and/or histograms in the case studies. 
-It will be used to discuss how we evaluated the use of the 
-covariates as independent and informative in the case studies.
+Figures S3-S8 are created in `manuscript_figures_sims.Rmd`.
 
-We'll do so for the same 4 case studies as in figure 5.
+# Figures S9
 
-```{r, Figure 6}
-# RNAseq 
+Here we'll contrast the results of informative and uninformative covariates 
+on the yeast simulation (DE sample size 5). We'll plot
+differences in TPR and FDR due to informative covariate by alpha level.
+
+```{r, fig.width = 10, fig.height = 4}
+org <- "yeast"
+  
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
-sb <- readRDS(file=resfile)
-res <- data.frame(rowData(sb)) %>%
-  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
-pa <- strat_hist(res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 8.75, axislabs = FALSE) +
-  draw_plot_label("  RNA-seq case study: Brain", 0.5, 1, hjust = 0.5,fontface = "bold", 
-                  size = 12) +
-  draw_plot_label("p-value by Overall mean expression group", size = 11, 0.5, 0.14, fontface = "plain",
-                  hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+resfile <- objects[grepl(org, objects) ] 
+resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
+
+# regexp to construct master data table separating case study datasets, methods
+# and covariates
+obj.names <- str_split(resfile, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
+dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
+inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
+type <-  ifelse(grepl("null", resfile), "null", "de")
+size <-  ifelse(grepl("10", resfile), "10", "5")
+mode <-  ifelse(grepl("II", resfile), "Bimodal effect size", "Unimodal effect size")
+pi0 <-  ifelse(grepl("H", resfile), "7.5% Non-null", "30% Non-null")
+strength <- ifelse(grepl("W", resfile), "Weakly informative", "Strongly informative")
+strength <- ifelse(grepl("uninf", resfile), "Uninformative", strength)
+aseq <- seq(0.01, 0.10, by = 0.01)
+
+if (file.exists("yeast_summary_tab.rds")){
+  tab <- readRDS("yeast_summary_tab.rds")
+}else{
+  tab <- data.frame()
+  for (l in seq_along(resfile)){
+    x <- readRDS(resfile[l])
+    
+    tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "FDR", annotate = NULL, 
+                    alpha = aseq) %>%
+      mutate(fdr = nrejects) %>%
+      select(method, casestudy, replicate, fdr, alpha)
+    
+    if (type[l] != "null"){
+      tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                      fill =  "TPR", annotate = NULL, 
+                      alpha = aseq) %>%
+        mutate(tpr = nrejects) %>%
+        select(method, casestudy, replicate, tpr, alpha)
+      
+      tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
+        mutate(inform = inform[l],
+               type = type[l],
+               size = size[l],
+               mode = mode[l],
+               pi0 = pi0[l],
+               strength = strength[l])
+    }else{
+      tmp <- tmp2  %>%
+        mutate(inform = inform[l],
+               type = type[l],
+               size = size[l],
+               mode = mode[l],
+               pi0 = pi0[l],
+               strength = strength[l])
+    }
+    
+    tab <- bind_rows(tab, tmp)
+  }
+  saveRDS(tab, file = "yeast_summary_tab.rds")
+}
+
+tab <- tab %>% select(-c(type, size))
+dftab <- tab %>% filter(inform == "inf") %>%
+  select(-inform) %>%
+  rename(fdr = "inf_fdr",
+         tpr = "inf_tpr")
+uninftab <- tab %>% filter(inform == "uninf") %>%
+  select(-c(strength, inform, casestudy)) %>%
+  rename(fdr = "uninf_fdr",
+         tpr = "uninf_tpr")
+
+dftab <- left_join(dftab, uninftab, 
+                   by = c("method", "replicate", 
+                          "mode", "pi0", "alpha"))
+
+dftab <- dftab %>%
+  mutate(tpr_diff = inf_tpr - uninf_tpr,
+         fdr_diff = inf_fdr - uninf_fdr) %>%
+  group_by(method, alpha, mode, pi0, strength) %>%
+  summarize(tpr_se = sd(tpr_diff)/n(),
+            fdr_se = sd(fdr_diff)/n(),
+            tpr_diff = mean(tpr_diff),
+            fdr_diff = mean(fdr_diff))
+
+col <- as.character(candycols$col)
+names(col) <- as.character(candycols$Method)
+lty <- as.character(candycols$lty)
+names(lty) <- as.character(candycols$Method)
 
 
-# scRNAseq
-resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
-                   grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
-sb <- readRDS(file=resfile)
+FigWeak <- dftab %>% filter(strength == "Weakly informative") %>%
+  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_line(alpha = 0.85) +
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
+                                ymax = fdr_diff + fdr_se)) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
+                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
+                       limits = c(-0.008, 0.004)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
+  facet_grid( ~ mode + pi0)
+FigWeak
 
-res <- data.frame(rowData(sb)) %>%
-  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"]) 
-pb <- strat_hist(res, pvalue = "pval",
-           covariate = "detection", maxy = 12, axislabs = FALSE)+
-  draw_plot_label("  scRNA-seq case study: Human, MAST",0.5, 1, hjust = 0.5, fontface = "bold",
-                  size = 12 ) +
-  draw_plot_label("p-value by Detection rate group", size = 11, 0.5, 0.14, fontface = "plain",
-                  hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
- 
-
-# GSEA
-resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
-sb <- readRDS(file=resfile)
-res <- data.frame(rowData(sb)) %>%
-  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
-
-pc <- strat_hist(res, pvalue = "pval",
-           covariate = "ind_covariate", maxy = 8.5, axislabs = FALSE) +
-  draw_plot_label("  GSEA case study: Mouse", 0.5, 1, hjust = 0.5, fontface = "bold" , size = 12) +
-  draw_plot_label("p-value by Gene Set size group", size = 11, 0.5, 0.14, fontface = "plain",
-                  hjust =0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
-
-
-# GWAS
-resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
-sb <- readRDS(file=resfile)
-res <- data.frame(rowData(sb)) %>%
-  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
-
-pd <- strat_hist(res, pvalue = "pval",
-           covariate = "ind_covar_AF", maxy = 3, axislabs = FALSE) +
-  draw_plot_label("GWAS case study", 0.5, 1, fontface = "bold", hjust = 0.5, size = 12) +
-  draw_plot_label("p-value by Minor Allele Frequency (MAF) group", size = 11, 0.5, 0.14, fontface = "plain", 
-                  hjust = 0.5) +
-  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+FigWeakT <- dftab %>% filter(strength == "Weakly informative") %>%
+  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
+                                ymax = tpr_diff + tpr_se)) +
+    geom_line(alpha = 0.85) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
+                       labels = scales::percent, limits=c(-0.02, 0.07),
+                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11)) +
+  facet_grid( ~ mode + pi0)
+FigWeakT
 
 
-p6 <- plot_grid(ggdraw(add_sub(pa, " ", size = 2)), 
-                ggdraw(add_sub(pb, " ", size = 2)), 
-                ggdraw(add_sub(pc, " ", size = 2)), 
-                ggdraw(add_sub(pd, " ", size = 2)), 
-                ncol=1, labels = LETTERS[1:4])
-p6
-ggsave(file.path(outdir, "Figure6.pdf"), width=7, height=8)
+FigStrong <- dftab %>% filter(strength == "Strongly informative") %>%
+  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_line(alpha = 0.85) +
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
+                                ymax = fdr_diff + fdr_se)) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
+                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
+                       limits = c(-0.008, 0.004)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
+  facet_grid( ~ mode + pi0)
+FigStrong
 
+FigStrongT <- dftab %>% filter(strength == "Strongly informative") %>%
+  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
+    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
+    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
+                                ymax = tpr_diff + tpr_se)) +
+    geom_line(alpha = 0.85) +
+    scale_linetype_manual(values = lty) + 
+    scale_color_manual(values = col) +
+    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
+    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
+                       labels = scales::percent, limits=c(-0.02, 0.07),
+                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
+    ggtitle("") +
+    theme_classic() +
+    theme(axis.title = element_text(face="bold", size = 10),
+          plot.title = element_text(face="bold", size = 11)) +
+  facet_grid( ~ mode + pi0)
+FigStrongT
+
+leg <- get_legend(FigStrong)
+
+FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigStrongT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, align = "hv")
+
+FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
+                  FigWeakT + theme(legend.position="none") +  
+                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
+                 nrow = 2, align = "hv")
+
+Fig <- plot_grid(FigA, FigB,
+                 nrow = 2, 
+                 labels = paste0(LETTERS[1:2], "       ",
+                          c("Strongly informative covariate",
+                            "Weakly informative covariate")),
+                 hjust = 0, axis = "rlbt")
+plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
+ggsave(file.path(outdir, "FigureS9.pdf"), width=10, height=12)
 ```
 
-# Supplementary Figures
+# Figures S10 & S16
 
-## Informativeness of covariates in case studies
-
+These figures explore the informativeness of covariates in case studies. 
 Here we create a heatmap similar to figure 4, but instead of containing the mean
 proportion of maximum rejections, it plots the mean difference in the number of 
 rejections using an informative covariate and the number of rejections using a 
@@ -638,7 +615,7 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = dataset, y = method, fill = diff_inf
               legend.margin = margin(t=2, r=10, b=-6, l=10))
 
 Fig_impactofinfcov
-ggsave(file.path(outdir, "Figure_impactofinfcov.pdf"), width = 15.5, height = 4.25)
+ggsave(file.path(outdir, "FigureS16.pdf"), width = 15.5, height = 4.25)
 
 ```
 
@@ -696,7 +673,6 @@ Fig_impactofinfcov <- ggplot(dftab, aes(x = casestudy, y = method, fill = diff_i
               legend.margin = margin(t=2, r=10, b=-6, l=10))
 
 Fig_impactofinfcov
-ggsave(file.path(outdir, "Figure_impactofinfcov_avg.pdf"), width = 5, height = 4)
 
 ###################################
 # Add average simulation results 
@@ -716,29 +692,34 @@ inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
 type <-  ifelse(grepl("null", resfile), "null", "de")
 size <-  ifelse(grepl("10", resfile), "10", "5")
 
-tab <- data.frame()
-for (l in seq_along(resfile)){
-  x <- readRDS(resfile[l])
-  
-  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                  fill =  "FDR", annotate = NULL, 
-                  alpha = alpha.thresh) %>%
-    mutate(fdr = nrejects) %>%
-    select(method, casestudy, replicate, fdr, alpha)
-  
-
-  tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+if(file.exists("yeast_tab_covimpact.rds")){
+  tab <- readRDS("yeast_tab_covimpact.rds")
+}else{
+  tab <- data.frame()
+  for (l in seq_along(resfile)){
+    x <- readRDS(resfile[l])
+    
+    tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
+                    fill =  "FDR", annotate = NULL, 
+                    alpha = alpha.thresh) %>%
+      mutate(fdr = nrejects) %>%
+      select(method, casestudy, replicate, fdr, alpha)
+    
+    
+    tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
                     fill =  "TPR", annotate = NULL, 
                     alpha = alpha.thresh) %>%
-    mutate(tpr = nrejects) %>%
-    select(method, casestudy, replicate, tpr, alpha)
+      mutate(tpr = nrejects) %>%
+      select(method, casestudy, replicate, tpr, alpha)
     
-  tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
+    tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
       mutate(inform = inform[l],
              type = type[l],
              size = size[l])
-
-  tab <- bind_rows(tab, tmp)
+    
+    tab <- bind_rows(tab, tmp)
+  }
+  save(tab, file="yeast_tab_covimpact.rds")
 }
 
 myspread <- function(df, key, value) {
@@ -815,308 +796,348 @@ ggdraw() +
   draw_plot(Fig_impactofinfcov, 0, 0, 0.52, 1) +
   draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
   draw_plot_label("Simulation", 0.71, 0.06, size =11, fontface = "plain")
-ggsave(file.path(outdir, "Figure_impactofinfcov_avg_sim.pdf"), width=9.5, height=5)
+ggsave(file.path(outdir, "FigureS10.pdf"), width=9.5, height=5)
 
 ```
 
+# Figure S11
 
-## Figure contrasting FDR results in different yeast simulation settings
+Figure S11 is created in `manuscript_figures_sims.Rmd`.
 
-```{r Figure-yeast-pi0, fig.width = 10, fig.height = 8}
-# strongly informative covariate (top panel)
+# Figure S12
+
+This is a multi-panel Figure displaying examples of covariate line plots in the
+case studies. We'll create a 4-panel figure with the following case studies:
+RNAseq, scRNAseq, GSEA, GWAS.
+
+```{r, FigureS12, fig.width = 9, fig.height = 7}
+
+# RNAseq
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[(grepl("yeast-", objects) | grepl("yeastH-", objects) | 
-                    grepl("yeastII-", objects) | grepl("yeastIIH-", objects)) & 
-                   grepl("de5", objects) & 
-                  !grepl("uninf", objects)] 
-labs <- rep("30% Non-null", length(resfile))
-labs[grepl("H", resfile)] <- "7.5% Non-null"
-labs2 <- rep("Unimodal effect size", length(resfile))
-labs2[grepl("II", resfile)] <- "Bimodal effect size"
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
-  
-plist <- vector("list", length(resfile))
-tab <- NULL
-for (l in seq_along(resfile)){
-  de5 <- readRDS(file=resfile[l])
-  res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
-  res5d$es_dist <- labs2[l]
-  res5d$pi0 <- labs[l]
-  tab <- rbind(tab, res5d)
-}
+resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pA <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
+                        nbins=25) +
+  ggtitle("RNA-seq case study: Brain") +
+  xlab("Overall mean expression percentile") 
 
-FigStrong <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
-                ggtitle("") +
-  facet_grid( ~ es_dist + pi0) +
-  ylim(0,0.17) 
-FigStrong
+leg <-  get_legend(pA)
+pA <- pA + theme(legend.position="none")
 
-FigStrongT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
-                ggtitle("") +
-  ylim(0,0.72) +
-  facet_grid( ~ es_dist + pi0) 
-FigStrongT
+# scRNAseq
+resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
+                   grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pB <- covariateLinePlot(res, alpha=alpha.thresh, covname="detection", trans="log1p",
+                        nbins=25) +
+  ggtitle("scRNA-seq case study: Human, MAST") +
+  xlab("Detection rate percentile") + 
+  theme(legend.position="none")
 
+# GSEA
+resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pC <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covariate", trans="log1p",
+                        nbins=25) +
+  ggtitle("GSEA case study: Mouse") +
+  xlab("Gene Set size percentile") + 
+  theme(legend.position="none")
+ 
+# GWAS
+resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
+res <- readRDS(file=resfile)
+assayNames(res) <- "qvalue"
+res <- addDefaultMetrics(res)
+pD <- covariateLinePlot(res, alpha=alpha.thresh, covname="ind_covar_AF", trans="log1p",
+                        nbins=25) +
+  ggtitle("GWAS case study") +
+  xlab("Minor Allele Frequency (MAF) percentile") +
+  theme(legend.position="none")
 
-# weakly informative covariate (bottom panel)
+ps12 <- plot_grid(pA, pB, pC, pD, ncol=2, labels = LETTERS[1:4])
+ps12 <- plot_grid(ps12, leg, ncol=2, rel_widths = c(1,0.2))
+ps12
+ggsave(file.path(outdir, "FigureS12.pdf"), width=9, height=7)
+```
+
+# Figure S13
+
+This is a multi-panel Figure displaying examples of covariate vs p-value scatterplots
+and/or histograms in the case studies. 
+It will be used to discuss how we evaluated the use of the 
+covariates as independent and informative in the case studies.
+
+We'll do so for the same 4 case studies as in figure S12
+
+```{r, FigureS13}
+# RNAseq 
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[(grepl("yeastW-", objects) | grepl("yeastHW-", objects) | 
-                    grepl("yeastIIW-", objects) | grepl("yeastIIHW-", objects)) & 
-                   grepl("de5", objects) & 
-                  !grepl("uninf", objects)] 
-labs <- rep("30% Non-null", length(resfile))
-labs[grepl("H", resfile)] <- "7.5% Non-null"
-labs2 <- rep("Unimodal effect size", length(resfile))
-labs2[grepl("II", resfile)] <- "Bimodal effect size"
-excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
-  
-plist <- vector("list", length(resfile))
-tab <- NULL
-for (l in seq_along(resfile)){
-  de5 <- readRDS(file=resfile[l])
-  res5d <- plotsim_standardize(de5, alpha = seq(0.01, 0.10, 0.01))
-  res5d$es_dist <- labs2[l]
-  res5d$pi0 <- labs[l]
-  tab <- rbind(tab, res5d)
-}
-
-FigWeak <- plotsim_average(tab, met="FDR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
-                ggtitle("") +
-  ylim(0,0.17) +
-  facet_grid( ~ es_dist + pi0)
-FigWeak
-
-FigWeakT <- plotsim_average(tab, met="TPR",filter_set = excludeSet,
-                merge_ihw = TRUE, errorBars=TRUE, grpVars = c("es_dist", "pi0")) +
-                ggtitle("") +
-  ylim(0,0.72) +
-  facet_grid( ~ es_dist + pi0)
-FigWeakT
+resfile <- objects[grepl("RNAseq", objects) & grepl("brain", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
+pa <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 8.75, axislabs = FALSE) +
+  draw_plot_label("  RNA-seq case study: Brain", 0.5, 1, hjust = 0.5,fontface = "bold", 
+                  size = 12) +
+  draw_plot_label("p-value by Overall mean expression group", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
 
 
-leg <- get_legend(FigStrong)
+# scRNAseq
+resfile <- objects[grepl("RNAseq", objects) & grepl("human", objects) &
+                   grepl("mast", objects) & grepl("det", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
 
-FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
-                  FigStrongT + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, align = "hv")
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"]) 
+pb <- strat_hist(res, pvalue = "pval",
+           covariate = "detection", maxy = 12, axislabs = FALSE)+
+  draw_plot_label("  scRNA-seq case study: Human, MAST",0.5, 1, hjust = 0.5, fontface = "bold",
+                  size = 12 ) +
+  draw_plot_label("p-value by Detection rate group", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+ 
 
-FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
-                  FigWeakT + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, align = "hv")
+# GSEA
+resfile <- objects[grepl("GSEA", objects) & grepl("mouse", objects) & !grepl("uninf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
 
-Fig <- plot_grid(FigA, FigB,
-                 nrow = 2, 
-                 labels = paste0(LETTERS[1:2], "       ",
-                          c("Strongly informative covariate",
-                            "Weakly informative covariate")),
-                 hjust = 0)
-plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
-ggsave(file.path(outdir, "Figure_yeast_varyingpi0.pdf"), width=10, height=12)
+pc <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covariate", maxy = 8.5, axislabs = FALSE) +
+  draw_plot_label("  GSEA case study: Mouse", 0.5, 1, hjust = 0.5, fontface = "bold" , size = 12) +
+  draw_plot_label("p-value by Gene Set size group", size = 11, 0.5, 0.14, fontface = "plain",
+                  hjust =0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+
+
+# GWAS
+resfile <- objects[grepl("GWAS", objects) & grepl("maf", objects)] 
+sb <- readRDS(file=resfile)
+res <- data.frame(rowData(sb)) %>%
+  dplyr::mutate(pval = assays(sb)$bench[,"unadjusted"])
+
+pd <- strat_hist(res, pvalue = "pval",
+           covariate = "ind_covar_AF", maxy = 3, axislabs = FALSE) +
+  draw_plot_label("GWAS case study", 0.5, 1, fontface = "bold", hjust = 0.5, size = 12) +
+  draw_plot_label("p-value by Minor Allele Frequency (MAF) group", size = 11, 0.5, 0.14, fontface = "plain", 
+                  hjust = 0.5) +
+  draw_plot_label("Density", size = 11, 0, 0.3, fontface = "plain", angle=90) 
+
+
+ps13 <- plot_grid(ggdraw(add_sub(pa, " ", size = 2)), 
+                ggdraw(add_sub(pb, " ", size = 2)), 
+                ggdraw(add_sub(pc, " ", size = 2)), 
+                ggdraw(add_sub(pd, " ", size = 2)), 
+                ncol=1, labels = LETTERS[1:4])
+ps13
+ggsave(file.path(outdir, "FigureS13.pdf"), width=7, height=8)
 
 ```
 
+# Figure S14
 
-## Uninformative covariate impact on simulations
+This is a heatmap of methods by case studies with color representing the ranking
+by of number of rejections @ FDR cutoff `r alpha.thresh`.
 
-Here we'll contrast the results of informative and uninformative covariates 
-on the yeast and polyester simulation (DE sample size 5). We'll plot
-differences in TPR and FDR due to informative covariate by alpha level.
+```{r, FigureS14, fig.width = 9, fig.height = 7}
+library(SummarizedBenchmark)
+library(stringr)
 
-```{r, fig.width = 10, fig.height = 4}
-org <- "yeast"
-  
 objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
-resfile <- objects[grepl(org, objects) ] 
-resfile <- resfile[grepl("5", resfile) & !grepl("null", resfile)]
 
-# regexp to construct master data table separating case study datasets, methods
-# and covariates
-obj.names <- str_split(resfile, pattern = "/")
+# remove simulation objects
+sim <- unique(c(which(grepl("simulations", objects)),
+               which(grepl("yeast", objects)),
+               which(grepl("polyester", objects))))
+if (length(sim) > 0){
+  objects <- objects[-sim]
+}
+
+# remove microbiome objects from 'null' comparisons
+# removing baxter, goodrich, papa OTU-level, and So4-enigma (since they mostly found 
+# nothing for all methods and the genus-level analysis is also present)
+# Also remove'log' ubiquity since redundant
+null <- which(grepl(c("goodrich|papa|baxter"), objects) & 
+              grepl(c("otu"), objects) | 
+              grepl("log", objects) | 
+              grepl("so4", objects))
+
+if (length(null) > 0){
+  objects <- objects[-null]
+}
+
+# remove chip-seq promoter analysis (since it is the only one that uses 
+# ash and we also include the csaw analysis on the same dataset).
+promot <- which(grepl("promot", objects))
+if (length(promot) > 0){
+  objects <- objects[-promot]
+}
+
+# remove random covariate analyses
+uninf <- which(grepl("uninf", objects))
+if (length(uninf) > 0){
+  objects <- objects[-uninf]
+}
+
+# grab casestudy names
+obj.names <- str_split(objects, pattern = "/")
 casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
-filename <- gsub(".rds", "", unlist(lapply(obj.names, function(x) x[4] )))
-dataset <- unlist(lapply(str_split(filename, pattern = "-"), function(x) x[[3]]))
-inform <-  ifelse(grepl("uninf", resfile), "uninf", "inf")
-type <-  ifelse(grepl("null", resfile), "null", "de")
-size <-  ifelse(grepl("10", resfile), "10", "5")
-mode <-  ifelse(grepl("II", resfile), "Bimodal effect size", "Unimodal effect size")
-pi0 <-  ifelse(grepl("H", resfile), "7.5% Non-null", "30% Non-null")
-strength <- ifelse(grepl("W", resfile), "Weakly informative", "Strongly informative")
-strength <- ifelse(grepl("uninf", resfile), "Uninformative", strength)
-aseq <- seq(0.01, 0.10, by = 0.01)
+dataset <- unlist(lapply(obj.names, function(x) x[4] ))
 
-tab <- data.frame()
-for (l in seq_along(resfile)){
-  x <- readRDS(resfile[l])
+# not excluding any methods
+FigS14All.rowOrder <- c("bonf", "bh", "ihw", "qvalue", "bl", "adapt-glm", "lfdr",
+                     "fdrreg-e", "fdrreg-t", "ashq")
+FigS14All <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
+                        excludeMethods = NULL, rowOrder = FigS14All.rowOrder) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.position = c(0.97, 0.92), legend.justification = c(1, 1),
+              legend.background = element_rect(fill = scales::alpha("white", 3/4), color = 'black'),
+              legend.direction = "horizontal",
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 9),
+              legend.margin = margin(6, 10, 6, 10))
+
+FigS14All
+```
+
+Extract a table of the values in Figure S14.
+
+```{r}
+# Supplementary table S3 
+library(xtable)
+tabS3 <- plotMethodRanks(objects, colLabels = casestudy, alpha = alpha.thresh,
+                        tableOnly = TRUE, excludeMethods = NULL)
+tabS3 <- tabS3 %>% 
+  mutate(mean_prop = ifelse(is.na(mean_prop), "-",
+                            paste0(round(mean_prop,2), " (", round(min_prop,2), 
+                            "-", round(max_prop, 2), ")"))) %>%
+  select(casestudy, method, mean_prop) %>%
+  spread(casestudy, mean_prop) %>% 
+  mutate(method =  factor(method, levels = rev(FigS14All.rowOrder))) %>%
+  arrange(method)    
+
+print(xtable(tabS3), include.rownames=FALSE)
+
+# generate detailed case study table for creating sim vs cs ranks boxplots
+casestudy.tab <- plotMethodRanks(objects, colLabels = dataset, alpha = alpha.thresh,
+                                 tableOnly = TRUE)
+```
+
+Create more panels with heatmaps of yeast simulation results.
+
+```{r, fig.width = 14, fig.height = 5}
+objects <- list.files( path, recursive=TRUE, pattern="rds", full.names=TRUE )
+
+# grab casestudy names
+obj.names <- str_split(objects, pattern = "/")
+casestudy <- unlist(lapply(obj.names, function(x) x[3] ))
+dataset <- unlist(lapply(obj.names, function(x) x[4] ))
+
+# non-null
+wcs <- which(grepl("RNAseq", casestudy) & 
+            grepl(c("yeast-"), dataset) &
+            grepl("de", dataset) &
+            !grepl("scRNAseq", casestudy) &
+            !grepl("uninf", dataset))
+objs <- objects[wcs]
+labs <- gsub(".rds", "", 
+             unlist(lapply(str_split(dataset[wcs], pattern = "-results-"), 
+                      function(x) x[2])))
+
+pfdr <- plotMethodRanks(objs, 
+                colLabels = c("sim", "sim"), 
+                alpha = alpha.thresh, xlab = "Comparison",
+                fill = "FDR",
+                rowOrder = FigS14All.rowOrder, 
+                annotate = "FDR", excludeMethods = NULL,
+                maxColor = "black") +
+          scale_fill_gradient2(high = "darkred", 
+                         mid = "white", 
+                         low = "#2171B5", 
+                         midpoint = alpha.thresh) +
+          labs(fill = "Mean FDR") +
+          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1)) +
+          ylab("") + xlab("") +  
+          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
+
+ptpr <- plotMethodRanks(objs, 
+                colLabels = c("sim", "sim"), 
+                alpha = alpha.thresh, xlab = "Comparison",
+                fill = "TPR",
+                rowOrder = FigS14All.rowOrder,
+                annotate = "TPR", excludeMethods = NULL) +
+          theme(axis.text.x = element_text(angle = 90, vjust = 1/2, hjust = 1),
+              legend.justification = c(1, 0.5),
+              legend.text = element_text(size = 7),
+              legend.title = element_text(size = 8),
+              legend.margin = margin(1, 1, 1, 1)) +
+          ylab("") + xlab("") +  
+          theme(plot.margin=unit(c(5.5, 5.5, 30, 5.5), "points"))
+
+
+ggdraw() +
+  draw_plot(pfdr, 0.53, 0, 0.24, 1) +
+  draw_plot(ptpr, 0.77, 0, 0.24, 1) +
+  draw_plot(FigS14All, 0, 0, 0.52, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0.53), c(1, 1), size = 15) +
+  draw_plot_label("Simulation", 0.69, 0.06, size =11, fontface = "plain")
+ggsave(file.path(outdir, "FigureS14.pdf"), width=9.5, height=5)
+
+# generate detailed yeast sim table for creating sim vs cs ranks boxplots
+yeastsim.tab <- plotMethodRanks(objs, colLabels = labs, alpha = alpha.thresh,
+                                 tableOnly = TRUE)
+```
+
+# Figure S15
+
+Create boxplot of ranking in sims versus rankings in case studies using the
+`casestudy.tab` and `yeastsim.tab` objects created above.
+
+```{r, fig.width = 6, fig.height = 4}
+casestudy.tab <- mutate(casestudy.tab, prop_casestudy = mean_prop) %>%
+  select(casestudy, method, prop_casestudy)
+yeastsim.tab <- yeastsim.tab %>% 
+  mutate(prop_yeastsim = mean_prop) %>% 
+  filter(casestudy == "de5") %>%
+  select(casestudy, method, prop_yeastsim)
   
-  tmp2 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                  fill =  "FDR", annotate = NULL, 
-                  alpha = alpha.thresh) %>%
-    mutate(fdr = nrejects) %>%
-    select(method, casestudy, replicate, fdr, alpha)
-  
-  if (type[l] != "null"){
-    tmp1 <- tidy_df(x, colLabels = rep(filename[l], length(x)), 
-                    fill =  "TPR", annotate = NULL, 
-                    alpha = alpha.thresh) %>%
-      mutate(tpr = nrejects) %>%
-      select(method, casestudy, replicate, tpr, alpha)
-    
-    tmp <- left_join(tmp1, tmp2, by = c("method", "casestudy", "replicate", "alpha")) %>%
-      mutate(inform = inform[l],
-             type = type[l],
-             size = size[l],
-             mode = mode[l],
-             pi0 = pi0[l],
-             strength = strength[l])
-  }else{
-    tmp <- tmp2  %>%
-      mutate(inform = inform[l],
-             type = type[l],
-             size = size[l],
-             mode = mode[l],
-             pi0 = pi0[l],
-             strength = strength[l])
-  }
-  
-  tab <- bind_rows(tab, tmp)
-}
+rank.tab <- left_join(casestudy.tab, yeastsim.tab, by = "method") %>%
+  left_join(candycols %>% dplyr::mutate(method=Method), by = "method")
 
-tab <- tab %>% select(-c(type, size))
-dftab <- tab %>% filter(inform == "inf") %>%
-  select(-inform) %>%
-  rename(fdr = "inf_fdr",
-         tpr = "inf_tpr")
-uninftab <- tab %>% filter(inform == "uninf") %>%
-  select(-c(strength, inform, casestudy)) %>%
-  rename(fdr = "uninf_fdr",
-         tpr = "uninf_tpr")
+col <- as.character(rank.tab$col)
+names(col) <- as.character(rank.tab$method)
 
-dftab <- left_join(dftab, uninftab, 
-                   by = c("method", "replicate", 
-                          "mode", "pi0", "alpha"))
+rank.tab$method <- factor(rank.tab$method,
+                          levels = yeastsim.tab$method[order(yeastsim.tab$prop_yeastsim)])
+x <- match(rank.tab$casestudy.x, dataset)
+rank.tab$casestudy <- casestudy[x]
 
-dftab <- dftab %>%
-  mutate(tpr_diff = inf_tpr - uninf_tpr,
-         fdr_diff = inf_fdr - uninf_fdr) %>%
-  group_by(method, alpha, mode, pi0, strength) %>%
-  summarize(tpr_se = sd(tpr_diff)/n(),
-            fdr_se = sd(fdr_diff)/n(),
-            tpr_diff = mean(tpr_diff),
-            fdr_diff = mean(fdr_diff))
-
-col <- as.character(candycols$col)
-names(col) <- as.character(candycols$Method)
-lty <- as.character(candycols$lty)
-names(lty) <- as.character(candycols$Method)
-
-
-FigWeak <- dftab %>% filter(strength == "Weakly informative") %>%
-  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
-                                ymax = fdr_diff + fdr_se)) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
-                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
-                       limits = c(-0.008, 0.004)) + 
-    ggtitle("") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
-  facet_grid( ~ mode + pi0)
-FigWeak
-
-FigWeakT <- dftab %>% filter(strength == "Weakly informative") %>%
-  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
-                                ymax = tpr_diff + tpr_se)) +
-    geom_line(alpha = 0.85) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
-                       labels = scales::percent, limits=c(-0.02, 0.07),
-                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
-    ggtitle("") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11)) +
-  facet_grid( ~ mode + pi0)
-FigWeakT
-
-
-FigStrong <- dftab %>% filter(strength == "Strongly informative") %>%
-  ggplot(aes(x = alpha, y = fdr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_line(alpha = 0.85) +
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = fdr_diff - fdr_se, 
-                                ymax = fdr_diff + fdr_se)) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste(Delta, "FDR (informative-uninformative)")), 
-                       breaks = seq(-0.03, 1, .003), labels = scales::percent,
-                       limits = c(-0.008, 0.004)) + 
-    ggtitle("") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11, hjust = 0.8)) +
-  facet_grid( ~ mode + pi0)
-FigStrong
-
-FigStrongT <- dftab %>% filter(strength == "Strongly informative") %>%
-  ggplot(aes(x = alpha, y = tpr_diff, color = method, linetype = method)) +
-    geom_hline(yintercept = 0, lty = 2, color = "blue", alpha = 1/2) + 
-    geom_errorbar(width=.003, alpha = 0.5, aes(ymin = tpr_diff - tpr_se, 
-                                ymax = tpr_diff + tpr_se)) +
-    geom_line(alpha = 0.85) +
-    scale_linetype_manual(values = lty) + 
-    scale_color_manual(values = col) +
-    scale_x_continuous("alpha", breaks = seq(0, 1, .01)) + 
-    scale_y_continuous(expression(paste(Delta, "TPR (informative-uninformative)")), 
-                       labels = scales::percent, limits=c(-0.02, 0.07),
-                       breaks = seq(-0.02, 0.07, by = 0.02)) + 
-    ggtitle("") +
-    theme_classic() +
-    theme(axis.title = element_text(face="bold", size = 10),
-          plot.title = element_text(face="bold", size = 11)) +
-  facet_grid( ~ mode + pi0)
-FigStrongT
-
-leg <- get_legend(FigStrong)
-
-FigA <- plot_grid(FigStrong + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
-                  FigStrongT + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, align = "hv")
-
-FigB <- plot_grid(FigWeak + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)), 
-                  FigWeakT + theme(legend.position="none") +  
-                   scale_x_continuous("alpha cutoff", breaks=seq(0, 1, by=0.02)),
-                 nrow = 2, align = "hv")
-
-Fig <- plot_grid(FigA, FigB,
-                 nrow = 2, 
-                 labels = paste0(LETTERS[1:2], "       ",
-                          c("Strongly informative covariate",
-                            "Weakly informative covariate")),
-                 hjust = 0, axis = "rlbt")
-plot_grid(Fig, leg, ncol=2, rel_widths = c(1,0.1))
-ggsave(file.path(outdir, "Figure_infCov_yeast.pdf"), width=10, height=12)
-
+ggplot(rank.tab %>% filter(method != "bonf"), 
+       aes(y = prop_casestudy, x = prop_yeastsim, group = prop_yeastsim, color=Method)) +
+  geom_boxplot(aes(x = prop_yeastsim, y = prop_casestudy),
+                   alpha = 0.3, position = position_dodge(width = 0),
+                   width = 0.02) +
+  scale_color_manual(values=col) +
+  theme_bw() +
+  xlab("Proportion of maximum rejections in yeast simulation (n=5)") +  
+  ylab("Proportion of maximum rejections in casestudies") +
+  labs(shape = "Case Study") 
+ggsave(file.path(outdir, "FigureS15.pdf"), width=6, height=4)
 
 ```
 
