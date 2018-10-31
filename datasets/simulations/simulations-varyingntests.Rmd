@@ -14,8 +14,8 @@ output:
 
 In this set of simulations, we consider settings with varying number of hypothesis
 tests. Since many newer FDR controlling approaches require fitting some model to
-the independent covariates, they may be sensitive to lower number of tests. An
-informative covariate is included in the setting as described in
+the independent covariates, they may be sensitive to lower numbers of tests. Both
+informative and uninformative covariates are included in these settings as described in
 `simulations-informative-sine.Rmd`.
 
 # Workspace Setup
