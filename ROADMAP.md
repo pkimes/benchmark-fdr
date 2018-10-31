@@ -11,19 +11,19 @@ This "Roadmap" is a rough outline of how we can complete this project **as a gro
 *Tracking in issue(s) [#2](https://github.com/pkimes/benchmark-fdr/issues/2), [#4](https://github.com/pkimes/benchmark-fdr/issues/4).* 
 
 - [x] survey previous simulations and data sets [(**#2**)](https://github.com/pkimes/benchmark-fdr/issues/2) 
-- [ ] agree on initial set of simulations and data sets [(**#4**)](https://github.com/pkimes/benchmark-fdr/issues/4)
+- [x] agree on initial set of simulations and data sets [(**#4**)](https://github.com/pkimes/benchmark-fdr/issues/4)
 
 ## Milestone 2: perform benchmarking analyses
 *Tracking in issue(s) (not yet assigned).*
 
-- [ ] run simulations and real data analyses (**sign-up!**)
-- [ ] review results as a group
-- [ ] determine follow-up analyses and update Roadmap
+- [x] run simulations and real data analyses (**sign-up!**)
+- [x] review results as a group
+- [x] determine follow-up analyses and update Roadmap
 
 ## Milestone 3: write-up and wrap-up
 *Tracking in issue(s) (not yet assigned).*
 
-- [ ] agree on format (Rmd?) and target venue of write-up
-- [ ] complete first draft and compile analyses (**sign-up!**)
-- [ ] get full group approval on draft
+- [x] agree on format (Rmd?) and target venue of write-up
+- [x] complete first draft and compile analyses (**sign-up!**)
+- [x] get full group approval on draft
 - [ ] submit! :tada: 
