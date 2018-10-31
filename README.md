@@ -1,13 +1,14 @@
 # Benchmarking Study of Covariate-Adjusted FDR Methods 
 
-## Roadmap
-For details on tasks and timelines, take a look at the [Roadmap](ROADMAP.md).
+This repository includes all code used to perform analyses and generate figures for the manuscript, _A practical guide to methods controlling false discoveries in computational biology_. 
 
-## Notes
-- [References](notes/0_references.md)
-- [Methods](notes/1_methods.md)
-- [Simulations Settings](notes/2_simulations.md)
-- [Real Data Sets](notes/3_realdata.md) 
+## Manuscript
+
+Pre-print of the manuscript will be available soon.
+
+## Additional Files
+
+Rendered `Rmd` files for simulations and case studies included in the manuscripts are available [here](http://www.pkimes.com/benchmark-fdr-html/).
 
 ## License/Copyright
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)  
