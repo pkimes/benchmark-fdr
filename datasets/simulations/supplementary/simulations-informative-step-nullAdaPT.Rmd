@@ -13,10 +13,8 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with an informative covariate. The covariate is sampled uniformly from
-the interval [0, 1], and the conditional probability of a test being non-null
-is a non-smooth (monotone) step function of the covariate. We include simulation
-results again with Gaussian, t-distributed, and Chi-Squared distributed test statistics.
+tests with informative and non-informative covariates as described in
+`simulations-informative-step.Rmd`.
 
 This set of simulations differs from `simulations-informative-step.Rmd` only
 in the implementation of the AdaPT method for multiple testing correction.

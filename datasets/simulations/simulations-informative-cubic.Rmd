@@ -13,9 +13,11 @@ output:
 # Summary
 
 In this set of simulations, we consider settings with both null and non-null
-tests with an informative covariate. The covariate is sampled uniformly from
+tests with an informative and uninformative covariate. The informative covariate is sampled uniformly from
 the interval [0, 1], and the conditional probability of a test being non-null
-is a smooth (cubic) function of the covariate. We include simulation results
+is a smooth (cubic) function of the covariate. The uninformative covariate is simply
+uninformly sampled independently from the interval [0, 1]. The uninformative covariate is included
+as a baseline to compare the informative covariate against. We include simulation results
 again with Gaussian, t-distributed, and Chi-Squared distributed test statistics.
 
 # Workspace Setup
@@ -94,8 +96,8 @@ First, we consider the setting with Gaussian test statistics.
 ## Data Simulation
 
 ```{r gauss-parameters}
-es_dist <- rnorm_generator(3)       # functional: dist of alternative test stats
-ts_dist <- rnorm_perturber(1)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)     # functional: sampling dist/noise for test stats
 null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
 seed <- 608
 ```
@@ -215,8 +217,8 @@ Next, we consider the setting with t-distributed test statistics.
 ## Data Simulation
 
 ```{r t5-parameters}
-es_dist <- rnorm_generator(3)    # functional: dist of alternative test stats
-ts_dist <- rt_perturber(5)  # functional: sampling dist/noise for test stats
+es_dist <- rnorm_generator(3)  # functional: dist of alternative test stats
+ts_dist <- rt_perturber(5)     # functional: sampling dist/noise for test stats
 null_dist <- rt_2pvaluer(5)    # functional: dist to calc p-values
 seed <- 815
 ```
@@ -345,9 +347,9 @@ Next, we consider a second setting with t-distributed test statistics.
 ## Data Simulation
 
 ```{r t11-parameters}
-es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
-ts_dist <- rt_perturber(11)  # functional: sampling dist/noise for test stats
-null_dist <- rt_2pvaluer(11)    # functional: dist to calc p-values
+es_dist <- rnorm_generator(3)  # functional: dist of alternative test stats
+ts_dist <- rt_perturber(11)    # functional: sampling dist/noise for test stats
+null_dist <- rt_2pvaluer(11)   # functional: dist to calc p-values
 seed <- 9158
 ```
 
@@ -475,9 +477,9 @@ Finally, we consider the setting with chi-squared distributed test statistics.
 ## Data Simulation
 
 ```{r chisq4-parameters}
-es_dist <- rnorm_generator(15)       # functional: dist of alternative test stats
+es_dist <- rnorm_generator(15)  # functional: dist of alternative test stats
 ts_dist <- rchisq_perturber(4)  # functional: sampling dist/noise for test stats
-null_dist <- rchisq_pvaluer(4)     # functional: dist to calc p-values
+null_dist <- rchisq_pvaluer(4)  # functional: dist to calc p-values
 seed <- 1023
 ```
 
