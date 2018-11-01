@@ -6,7 +6,7 @@ This repository includes all code used to perform analyses and generate figures 
 
 Final rendered `Rmd` files for simulations and case studies included in the manuscripts can be browsed [here](http://www.pkimes.com/benchmark-fdr-html/).
 
-## Reference
+## Citation
 
 Korthauer K&dagger;, Kimes PK&dagger;, Duvallet C&Dagger;, Reyes A&Dagger;, Subramanian A&Dagger;, Teng M, Shukla C, Alm EJ, Hicks SC\*.
 _A practical guide to methods controlling false discoveries in computational biology._ bioRxiv. doi: https://doi.org/10.1101/458786
