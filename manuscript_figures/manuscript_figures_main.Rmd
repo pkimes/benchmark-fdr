@@ -416,7 +416,7 @@ Titlep4a <- ggdraw() +
     draw_label(expression(paste(bold("FDR across test statistic distributions in simulation"))))
 p4a <- plot_grid(Titlep4a, p4a, nrow = 2, rel_heights = c(0.1,1), labels = c("A", ""))
 
-## Figure 3B: Case study heatmap demonstrating variability in applicability
+## Figure 4B: Case study heatmap demonstrating variability in applicability
 
 ## read list of case study results
 objects <- list.files(path, recursive=TRUE, pattern="rds", full.names=TRUE)
@@ -470,7 +470,7 @@ objdat <- objdat %>%
           mutate(casestudy = gsub("mean-abun", "abun", casestudy))
 
 ## create table of rejected proportion for top methods per case study
-objdat_props <- dplyr::group_by(objdat, casestudy)
+objdat_props <- dplyr::group_by(objdat, casestudy) %>% filter(method %in% methodset)
 objdat_props <- dplyr::filter(objdat_props, nrejects == max(nrejects, na.rm = TRUE))
 objdat_props <- dplyr::ungroup(objdat_props)
 objdat_props <- dplyr::mutate(objdat_props, lab = paste0(100*round(propPossible, 4), "%"))
@@ -501,7 +501,7 @@ p4b <- ggplot(objdat_joint, aes(x = casestudy, y = method, fill = propMaxRej)) +
     scale_x_discrete("Case Study", expand = c(0, 0)) +
     scale_y_discrete("Method", expand = c(0, 0)) +
     geom_tile() +
-    geom_text(aes(label = lab), data = filter(objdat_props, method %in% methodset),
+    geom_text(aes(label = lab), data = objdat_props,
               size = 1.8, color = "white") +
     geom_text(aes(label = should), size = 5, color = "black") +
     geom_tile(data = filter(objdat_joint, plotrow == "fake"), fill = "white") + 
