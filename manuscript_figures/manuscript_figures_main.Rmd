@@ -591,8 +591,7 @@ r1.1a <- r1.1a +
              shape = 19, size = 2.5, color = "white") +
   scale_shape_manual(values = c(1, 19)) + 
   ggtitle("In silico experiments") +
-  scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
-                         breaks=seq(0, 1, by=0.02))
+  scale_x_continuous(breaks=seq(0, 1, by=0.02))
 ```
 
 Next we'll do the same for 2B and 3B (polyester).
@@ -647,8 +646,7 @@ r1.1b <- r1.1b +
              shape = 1, size = 3.5) +
   scale_shape_manual(values = c(1, 19)) +
   ggtitle("Polyester") +
-  scale_x_continuous(expression(paste(bold(alpha), bold(" level"))),
-                         breaks=seq(0, 1, by=0.02))
+  scale_x_continuous(breaks=seq(0, 1, by=0.02))
 ```
 
 Put them together and save.
