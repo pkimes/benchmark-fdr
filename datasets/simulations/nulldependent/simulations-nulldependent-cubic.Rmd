@@ -1,0 +1,457 @@
+---
+title: "Simulation Study: Null Dependent Covariate (cubic)"
+author: "Patrick Kimes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+   html_document:
+        toc: true
+        toc_float: true
+        highlight: tango
+        number_sections: true
+---
+
+# Summary
+
+In this set of simulations, we consider settings with both null and non-null
+tests with an informative and uninformative covariate. The informative covariate is sampled uniformly from the
+interval [0, 1], and the conditional probability of a test being non-null
+is a smooth (cubic) function of the covariate. The uninformative covariate is simply
+uninformly sampled independently from the interval [0, 1]. The uninformative covariate is included
+as a baseline to compare the informative covariate against. We include simulation results
+again with Gaussian distributed test statistics.
+
+Additionally, with the informative covariate, a dependence is introduced between the coviarate 
+the p-value under the null distribution. 
+
+# Workspace Setup
+
+```{r, wkspace-setup, results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(parallel)
+library(cowplot)
+
+## load helper functions
+for (f in list.files("../../R", "\\.(r|R)$", full.names = TRUE)) {
+    source(f)
+}
+
+## new helper function
+source("helpers-simulations-nulldependent.R")
+
+## project data/results folders
+resdir <- "results"
+dir.create(resdir, showWarnings = FALSE, recursive = TRUE)
+
+## intermediary files we create below
+weak_file <- file.path(resdir, "nulldependent-cubic-benchmark-weaker.rds")
+strong_file <- file.path(resdir, "nulldependent-cubic-benchmark-stronger.rds")
+
+## number of cores for parallelization
+cores <- 20
+B <- 100
+
+## define bechmarking design
+bd <- initializeBenchDesign()
+```
+
+As described in `simulations-null.Rmd`, we include Scott's FDR Regression in the analysis
+since all settings here use Gaussian test statistics. Again, we include both
+`nulltype = "empirical"` and `nulltype = "theoretical"`. 
+
+```{r}
+bdplus <- bd
+bdplus <- addBMethod(bdplus, "fdrreg-t",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'theoretical',
+                     control = list(lambda = 0.01))
+bdplus <- addBMethod(bdplus, "fdrreg-e",
+                     FDRreg::FDRreg,
+                     function(x) { x$FDR },
+                     z = test_statistic,
+                     features = model.matrix( ~  splines::bs(ind_covariate, df = 3) - 1),
+                     nulltype = 'empirical',
+                     control = list(lambda = 0.01))
+```
+
+All simulation settings will share the following parameters.
+
+```{r parameters-shared}
+m <- 20000                        # integer: number of hypothesis tests
+pi0 <- pi0_cubic(0.90)            # numeric: proportion of null hypotheses
+icovariate <- runif               # functional: independent covariate
+
+es_dist <- rnorm_generator(3)     # functional: dist of alternative test stats
+ts_dist <- rnorm_perturber(1)     # functional: sampling dist/noise for test stats
+null_dist <- rnorm_2pvaluer(1)    # functional: dist to calc p-values
+null_inv <- function(p) { (2*rbinom(length(p), 1, .5) - 1) * qnorm(p / 2, 0, 1) }
+seed <- 608
+```
+
+Simulation results will be presented excluding a subset of methods, and
+for certain plots (upset plots), a single alpha cutoff will be used.
+
+```{r}
+excludeSet <- c("unadjusted", "bl-df02", "bl-df04", "bl-df05")
+ualpha <- 0.05
+```
+
+# Null Dependence
+
+Here, we show null dependence on the variate by just showing the distribution of p-values when
+all tests are null (pi0 = 1). We show the distribution of p-values for two settings:
+weaker and stronger dependence between the covariate and p-values under the null.
+
+## Weaker Dependence
+
+```{r weak-null-one-simulation}
+onerun_w <- simNullDependent(bdplus, m = 20000, pi0 = 1, es_dist = es_dist, ts_dist = ts_dist,
+                             icovariate = icovariate, null_dist = null_dist, null_inv = null_inv,
+                             null_dependence = 0.3, execute = FALSE)
+```
+
+```{r, weak-null-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun_w, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Dist. of null p-values w/ weaker dependence")
+```
+
+```{r, weak-null-diag-hist, results = "hide", fig.width=10, fig.height=4}
+strat_hist(onerun_w, pvalue = "pval", covariate = "ind_covariate", maxy = 7, numQ = 5) +
+    ggtitle("Dist. of null p-values w/ weaker dependence")
+```
+
+## Stronger Dependence
+
+```{r strong-null-one-simulation}
+onerun_s <- simNullDependent(bdplus, m = 20000, pi0 = 1, es_dist = es_dist, ts_dist = ts_dist,
+                             icovariate = icovariate, null_dist = null_dist, null_inv = null_inv,
+                             null_dependence = 0.7, execute = FALSE)
+```
+
+```{r, strong-null-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun_s, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Dist. of null p-values w/ stronger dependence")
+```
+
+```{r, strong-null-diag-hist, results = "hide", fig.width=10, fig.height=4}
+strat_hist(onerun_s, pvalue = "pval", covariate = "ind_covariate", maxy = 7, numQ = 5) +
+    ggtitle("Dist. of null p-values w/ stronger dependence")
+```
+
+## Multipanel Plot
+
+We also create the above plots as a multipanel plot.
+
+```{r weak-4-panels, fig.width = 9, fig.height = 3.5}
+gp_oW <- rank_scatter(onerun_w, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Dist. of null p-values w/ weaker dependence")
+gp_oS <- rank_scatter(onerun_s, pvalue = "pval", covariate = "ind_covariate") +
+    ggtitle("Dist. of null p-values w/ stronger dependence")
+
+gp_o <- plot_grid(gp_oW + expand_limits(y = c(0, 5)),
+                  gp_oS + expand_limits(y = c(0, 5)),
+                  labels = LETTERS[1:2], nrow = 1)
+gp_o
+```
+
+We next run the simulations.
+
+# Weaker Dependence
+
+First, we take a look at the results with weaker dependence.
+
+```{r weak-run-simulation}
+if (file.exists(weak_file)) {
+    res <- readRDS(weak_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simNullDependent, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist, null_inv = null_inv,
+                    null_dependence = 0.3,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = weak_file)
+}
+
+res_dep <- lapply(res, `[[`, "null_dependent")
+res_indep <- lapply(res, `[[`, "null_independent")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment. Unlike the plots above, these include both
+null and non-null tests.
+
+```{r weak-one-simulation}
+onerun <- simNullDependent(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                           icovariate = icovariate, null_dist = null_dist, null_inv = null_inv,
+                           null_dependence = 0.3, execute = FALSE)
+```
+
+```{r, weak-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, weak-diag-hist, results = "hide", fig.width=10, fig.height=4}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 7, numQ = 5)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r weak-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_dep, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r weak-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_dep, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_dep, alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r weak-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_dep, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r weak-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_dep, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without dependence between the covariate
+under the nul. 
+
+```{r weak-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_indep, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".dep", ".indep"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.dep - value.indep)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    ylab("rejections (dep - indep)")
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("FDR (dep - indep)", labels = scales::percent)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TPR (dep - indep)", labels = scales::percent)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TNR (dep - indep)", labels = scales::percent)
+```
+
+## Multipanel Plot
+
+Here, we create a multipanel plot to consolidate the results to a single figure.
+
+```{r weak-4-panels, fig.width = 11, fig.height = 7.5}
+gp_wA <- plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE) 
+gp_wB <- plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE) 
+gp_wC <- plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("FDR (dep - indep)", labels = scales::percent)
+gp_wD <- plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TPR (dep - indep)", labels = scales::percent)
+
+gp_w <- plot_grid(gp_wA + theme(legend.position = "none"),
+                  gp_wB + theme(legend.position = "none"),
+                  gp_wC + theme(legend.position = "none"),
+                  gp_wD + theme(legend.position = "none"),
+                  labels = LETTERS[1:4], nrow = 2, ncol = 2)
+gp_w <- plot_grid(gp_w, get_legend(gp_wA),
+                  rel_widths = c(1, .2))
+gp_w
+```
+
+# Stronger Dependence
+
+Next, we take a look at the results with stronger dependence.
+
+```{r strong-run-simulation}
+if (file.exists(strong_file)) {
+    res <- readRDS(strong_file)
+} else {
+    res <- mclapply(X = 1:B, FUN = simNullDependent, bench = bdplus, m = m,
+                    pi0 = pi0, es_dist = es_dist, icovariate = icovariate,
+                    ts_dist = ts_dist, null_dist = null_dist, null_inv = null_inv,
+                    null_dependence = 0.7,
+                    seed = seed, mc.cores = cores)
+    saveRDS(res, file = strong_file)
+}
+
+res_dep <- lapply(res, `[[`, "null_dependent")
+res_indep <- lapply(res, `[[`, "null_independent")
+```
+
+## Covariate Diagnostics
+
+Here, we show the relationship between the independent covariate and p-values for a
+single replication of the experiment. Unlike the plots above, these include both
+null and non-null tests.
+
+```{r strong-one-simulation}
+onerun <- simNullDependent(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
+                           icovariate = icovariate, null_dist = null_dist, null_inv = null_inv,
+                           null_dependence = 0.3, execute = FALSE)
+```
+
+```{r, strong-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
+rank_scatter(onerun, pvalue = "pval", covariate = "ind_covariate")
+```
+
+```{r, strong-diag-hist, results = "hide", fig.width=10, fig.height=4}
+strat_hist(onerun, pvalue = "pval", covariate = "ind_covariate", maxy = 7, numQ = 5)
+```
+
+## Benchmark Metrics
+
+We plot the averaged results across `r B` replications.
+
+```{r strong-metrics-averages, results = "hide"}
+resdf <- plotsim_standardize(res_dep, alpha = seq(0.01, 0.10, 0.01))
+
+plotsim_average(resdf, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+
+plotsim_average(resdf, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE) 
+```
+
+We also take a look at the distribution of rejects for each method as a function of
+the effect size and independent covariate.
+
+```{r strong-metrics-covlineplot, results = "hide"}
+covariateLinePlot(res_dep, alpha = ualpha, covname = "effect_size")
+
+covariateLinePlot(res_dep, alpha = ualpha, covname = "ind_covariate")
+```
+
+We also look at the FDR as a function of the independent covariate.
+
+```{r strong-metrics-covlineplotFDR, results = "hide"}
+covariateLinePlot(res_dep, alpha = ualpha, covname = "ind_covariate", metric = "FDR")
+```
+
+Finally, (if enough methods produce rejections at `r ualpha`) we take a look at
+the overlap of rejections between methods.
+
+```{r strong-metrics-upset, results = "hide"}
+if (numberMethodsReject(resdf, alphacutoff = ualpha, filterSet = excludeSet) >= 3) {
+    aggupset(res_dep, alpha = ualpha, supplementary = FALSE, return_list = FALSE)
+} else {
+    message("Not enough methods found rejections at alpha ", ualpha, 
+            "; skipping upset plot")
+}
+```
+
+We also compare the simulation results with and without dependence between the covariate
+under the nul. 
+
+```{r strong-metrics-differences, results = "hide"}
+resdfu <- plotsim_standardize(res_indep, alpha = seq(0.01, 0.10, 0.01))
+
+resdfiu <- dplyr::full_join(select(resdf, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            select(resdfu, rep, blabel, param.alpha, key,
+                                   performanceMetric, alpha, value),
+                            by = c("rep", "blabel", "param.alpha", "key",
+                                   "performanceMetric", "alpha"),
+                            suffix = c(".dep", ".indep"))
+resdfiu <- dplyr::mutate(resdfiu, value = value.dep - value.indep)
+
+plotsim_average(resdfiu, met="rejections", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    ylab("rejections (dep - indep)")
+
+plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("FDR (dep - indep)", labels = scales::percent)
+
+plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TPR (dep - indep)", labels = scales::percent)
+
+plotsim_average(resdfiu, met="TNR", filter_set = excludeSet,
+                merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TNR (dep - indep)", labels = scales::percent)
+```
+
+## Multipanel Plot
+
+Here, we create a multipanel plot to consolidate the results to a single figure.
+
+```{r strong-4-panels, fig.width = 11, fig.height = 7.5}
+gp_sA <- plotsim_average(resdf, met="FDR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE) 
+gp_sB <- plotsim_average(resdf, met="TPR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE) 
+gp_sC <- plotsim_average(resdfiu, met="FDR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("FDR (dep - indep)", labels = scales::percent)
+gp_sD <- plotsim_average(resdfiu, met="TPR", filter_set = excludeSet,
+                         merge_ihw = TRUE, errorBars = TRUE, diffplot = TRUE) +
+    scale_y_continuous("TPR (dep - indep)", labels = scales::percent)
+
+gp_s <- plot_grid(gp_sA + theme(legend.position = "none"),
+                  gp_sB + theme(legend.position = "none"),
+                  gp_sC + theme(legend.position = "none"),
+                  gp_sD + theme(legend.position = "none"),
+                  labels = LETTERS[1:4], nrow = 2, ncol = 2)
+gp_s <- plot_grid(gp_s, get_legend(gp_sA),
+                  rel_widths = c(1, .2))
+gp_s
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
