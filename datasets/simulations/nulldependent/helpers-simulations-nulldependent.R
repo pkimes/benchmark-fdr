@@ -33,6 +33,11 @@
 #' @param null_dist distribution under the null used to calculate p-values from the
 #'        test statistic, must be a function which takes the full vector of null and
 #'        alternative test statistics and return the corresponding p-values.
+#' @param null_dependence the proportion of null tests to be dependent on the covariate.
+#'        When 0, all null tests are independent of the coviarate. For the subset of
+#'        null tests with a dependence on the covariate, the p-values are sampled from a
+#'        truncated normal distributions with means equal to the covariate values and
+#'        standard deviation 0.1. (default = 0.4)
 #' @param execute logical whether benchmarking should be executed or if the simulated
 #'        data set should be returned. (default = TRUE)
 #' @param seed integer seed for random number generator, ignored if NULL. (default = NULL) 
