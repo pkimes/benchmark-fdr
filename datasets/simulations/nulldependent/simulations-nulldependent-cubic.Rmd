@@ -333,7 +333,7 @@ null and non-null tests.
 ```{r strong-one-simulation}
 onerun <- simNullDependent(bdplus, m = m, pi0 = pi0, es_dist = es_dist, ts_dist = ts_dist,
                            icovariate = icovariate, null_dist = null_dist, null_inv = null_inv,
-                           null_dependence = 0.3, execute = FALSE)
+                           null_dependence = 0.7, execute = FALSE)
 ```
 
 ```{r, strong-diag-scatter, results = "hide", fig.width=4.5, fig.height=3.5}
