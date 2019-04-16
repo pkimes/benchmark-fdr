@@ -145,7 +145,7 @@ strat_hist(onerun_s, pvalue = "pval", covariate = "ind_covariate", maxy = 7, num
 
 We also create the above plots as a multipanel plot.
 
-```{r weak-4-panels, fig.width = 9, fig.height = 3.5}
+```{r dep-2-panels, fig.width = 9, fig.height = 3.5}
 gp_oW <- rank_scatter(onerun_w, pvalue = "pval", covariate = "ind_covariate") +
     ggtitle("Dist. of null p-values w/ weaker dependence")
 gp_oS <- rank_scatter(onerun_s, pvalue = "pval", covariate = "ind_covariate") +
